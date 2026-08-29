@@ -1,0 +1,8 @@
+# The family's actual records: database and uploaded files.
+data/
+
+# Build output and the workspace-local Go toolchain.
+dist/
+school-nanny
+school-nanny.exe
+.toolchain/

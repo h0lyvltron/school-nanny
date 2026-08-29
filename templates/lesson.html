@@ -1,0 +1,113 @@
+{{define "content"}}
+{{$back := printf "/lessons/%d" .Lesson.ID}}
+<div class="page-head">
+    <div>
+        <p class="crumbs">
+            <a href="/kids/{{.Lesson.KidID}}">{{.Lesson.KidName}}</a> &middot;
+            <a href="/kids/{{.Lesson.KidID}}/subjects/{{.Lesson.SubjectID}}">{{.Lesson.SubjectName}}</a>
+        </p>
+        <h1>{{.Lesson.Title}}</h1>
+        <p class="muted">
+            {{prettyDate .Lesson.ScheduledOn}} &middot;
+            {{if .Lesson.IsDone}}done{{else if .Lesson.IsSkipped}}skipped{{else}}planned{{end}}
+        </p>
+    </div>
+    <div class="week-summary">
+        <form method="post" action="/lessons/{{.Lesson.ID}}/status" class="inline-form">
+            <input type="hidden" name="back" value="{{$back}}">
+            {{if .Lesson.IsDone}}
+                <input type="hidden" name="status" value="planned">
+                <button type="submit" class="secondary">Mark not done</button>
+            {{else}}
+                <input type="hidden" name="status" value="done">
+                <button type="submit">Mark done</button>
+            {{end}}
+        </form>
+    </div>
+</div>
+
+<div class="two-col">
+    <section class="panel">
+        <h2>Details</h2>
+        <form method="post" action="/lessons/{{.Lesson.ID}}">
+            <input type="hidden" name="back" value="{{$back}}">
+            <label>Title
+                <input type="text" name="title" value="{{.Lesson.Title}}" required>
+            </label>
+            <div class="field-row">
+                <label>Child
+                    <select name="kid_id">
+                        {{$kidID := .Lesson.KidID}}
+                        {{range .Kids}}
+                            <option value="{{.ID}}" {{if eq $kidID .ID}}selected{{end}}>{{.Name}}</option>
+                        {{end}}
+                    </select>
+                </label>
+                <label>Subject
+                    <select name="subject_id">
+                        {{$subjectID := .Lesson.SubjectID}}
+                        {{range .Subjects}}
+                            <option value="{{.ID}}" {{if eq $subjectID .ID}}selected{{end}}>{{.Name}}</option>
+                        {{end}}
+                    </select>
+                </label>
+            </div>
+            <div class="field-row">
+                <label>Date
+                    <input type="date" name="scheduled_on" value="{{.Lesson.ScheduledOn}}">
+                </label>
+                <label>Minutes
+                    <input type="number" name="minutes" min="0" step="5" value="{{.Lesson.Minutes}}">
+                </label>
+                <label>Status
+                    <select name="status">
+                        <option value="planned" {{if .Lesson.IsPlanned}}selected{{end}}>Planned</option>
+                        <option value="done" {{if .Lesson.IsDone}}selected{{end}}>Done</option>
+                        <option value="skipped" {{if .Lesson.IsSkipped}}selected{{end}}>Skipped</option>
+                    </select>
+                </label>
+            </div>
+            <label>Notes
+                <textarea name="notes" rows="4" placeholder="How did it go?">{{.Lesson.Notes}}</textarea>
+            </label>
+            <button type="submit">Save</button>
+        </form>
+
+        <form method="post" action="/lessons/{{.Lesson.ID}}/delete" class="danger-zone">
+            <input type="hidden" name="back" value="/kids/{{.Lesson.KidID}}/subjects/{{.Lesson.SubjectID}}">
+            <button type="submit" class="link-button danger"
+                    onclick="return confirm('Delete this lesson and its files?')">Delete this lesson</button>
+        </form>
+    </section>
+
+    <div class="stack">
+        <section class="panel">
+            <h2>Files</h2>
+            {{template "upload_form" (dict "OwnerType" "lesson" "LessonID" .Lesson.ID "Back" $back)}}
+            {{template "file_list" (dict "Files" .Lesson.Attachments "Back" $back)}}
+        </section>
+
+        <section class="panel">
+            <h2>Was this a test?</h2>
+            <form method="post" action="/assessments">
+                <input type="hidden" name="kid_id" value="{{.Lesson.KidID}}">
+                <input type="hidden" name="subject_id" value="{{.Lesson.SubjectID}}">
+                <input type="hidden" name="lesson_id" value="{{.Lesson.ID}}">
+                <input type="hidden" name="given_on" value="{{.Lesson.ScheduledOn}}">
+                <input type="hidden" name="back" value="{{$back}}">
+                <input type="text" name="name" placeholder="Test name" value="{{.Lesson.Title}}" required>
+                <div class="add-row">
+                    <input type="number" name="score" step="any" placeholder="score" aria-label="Score">
+                    <input type="number" name="max_score" step="any" placeholder="out of" aria-label="Out of">
+                    <button type="submit">Record score</button>
+                </div>
+            </form>
+            <div class="stack">
+                {{range .Lesson.Assessments}}
+                    {{template "test_row" (dict "Test" . "Back" $back)}}
+                {{end}}
+            </div>
+        </section>
+    </div>
+</div>
+{{end}}

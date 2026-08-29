@@ -1,0 +1,59 @@
+{{define "content"}}
+{{$back := printf "/kids/%d/tests" .Kid.ID}}
+<div class="page-head">
+    <div>
+        <p class="crumbs"><a href="/kids/{{.Kid.ID}}">{{.Kid.Name}}</a></p>
+        <h1>Tests</h1>
+    </div>
+</div>
+
+<div class="kid-filter">
+    <a href="/kids/{{.Kid.ID}}/tests" class="filter-chip{{if not .SubjectFilter}} current{{end}}">All subjects</a>
+    {{$kid := .Kid}}
+    {{$filter := .SubjectFilter}}
+    {{range .Subjects}}
+        <a href="/kids/{{$kid.ID}}/tests?subject={{.ID}}"
+           class="filter-chip{{if eq $filter .ID}} current{{end}}">{{.Name}}</a>
+    {{end}}
+</div>
+
+<section class="panel">
+    <h2>Record a test</h2>
+    <form method="post" action="/assessments" class="inline-grid">
+        <input type="hidden" name="kid_id" value="{{.Kid.ID}}">
+        <input type="hidden" name="back" value="{{$back}}">
+        <select name="subject_id" required aria-label="Subject">
+            {{range .Subjects}}
+                <option value="{{.ID}}" {{if eq $filter .ID}}selected{{end}}>{{.Name}}</option>
+            {{end}}
+        </select>
+        <input type="text" name="name" placeholder="Test name" required>
+        <input type="date" name="given_on" value="{{.Today}}" aria-label="Date">
+        <input type="number" name="score" step="any" placeholder="score" aria-label="Score">
+        <input type="number" name="max_score" step="any" placeholder="out of" aria-label="Out of">
+        <button type="submit">Save</button>
+    </form>
+</section>
+
+<section class="panel">
+    <h2>History</h2>
+    <div class="stack">
+        {{range .Tests}}
+            {{template "test_row" (dict "Test" . "Back" $back)}}
+        {{else}}
+            <p class="muted small">No tests recorded yet.</p>
+        {{end}}
+    </div>
+</section>
+
+<section class="panel">
+    <h2>Attach a graded page</h2>
+    <p class="muted small">Pick the test above first, then attach its files here after saving.</p>
+    {{range .Tests}}
+        <details class="add-box">
+            <summary>{{.Name}} <span class="muted small">&middot; {{prettyDate .GivenOn}}</span></summary>
+            {{template "upload_form" (dict "OwnerType" "assessment" "AssessmentID" .ID "Back" $back)}}
+        </details>
+    {{end}}
+</section>
+{{end}}

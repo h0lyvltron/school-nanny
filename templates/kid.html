@@ -1,0 +1,70 @@
+{{define "content"}}
+<div class="page-head">
+    <div>
+        <h1><span class="dot big" style="background:{{color .Kid.Color}}"></span>{{.Kid.Name}}</h1>
+        <p class="muted">{{if .Kid.Grade}}{{.Kid.Grade}} &middot; {{end}}{{.YearName}}</p>
+    </div>
+    <div class="week-summary">
+        <span><strong>{{.WeekTotal.Done}}</strong> done this week</span>
+        <span><strong>{{.YearTotal.Done}}</strong> done this year</span>
+        {{if .YearTotal.Minutes}}<span><strong>{{.YearTotal.HoursLabel}}</strong> logged</span>{{end}}
+        <a href="/kids/{{.Kid.ID}}/tests" role="button" class="secondary">Tests</a>
+    </div>
+</div>
+
+<div class="subject-grid">
+    {{$kid := .Kid}}
+    {{range .Cards}}
+        <a class="subject-card" href="/kids/{{$kid.ID}}/subjects/{{.Subject.ID}}">
+            <h3>{{.Subject.Name}}</h3>
+            {{template "progress_bar" .Year}}
+            <p class="muted small">
+                {{if .Year.Total}}
+                    {{.Year.Done}} of {{.Year.Total}} this year
+                {{else}}
+                    Nothing recorded yet
+                {{end}}
+            </p>
+            <dl class="subject-facts">
+                <div>
+                    <dt>This week</dt>
+                    <dd>{{.Week.Done}} done{{if .Week.Planned}}, {{.Week.Planned}} planned{{end}}</dd>
+                </div>
+                <div>
+                    <dt>Next up</dt>
+                    <dd>{{if .NextUp}}{{.NextUp.Title}} <span class="muted">({{prettyDate .NextUp.ScheduledOn}})</span>{{else}}&mdash;{{end}}</dd>
+                </div>
+                <div>
+                    <dt>Last test</dt>
+                    <dd>
+                        {{if .LastTest}}
+                            {{.LastTest.Name}}{{if .LastTest.ScoreLabel}} &middot; {{.LastTest.ScoreLabel}}{{end}}
+                        {{else}}&mdash;{{end}}
+                    </dd>
+                </div>
+            </dl>
+        </a>
+    {{end}}
+</div>
+
+<div class="two-col">
+    <section class="panel">
+        <h2>Recent tests</h2>
+        {{$back := printf "/kids/%d" .Kid.ID}}
+        <div class="stack">
+            {{range .RecentTests}}
+                {{template "test_row" (dict "Test" . "Back" $back)}}
+            {{else}}
+                <p class="muted small">No tests recorded yet.
+                    <a href="/kids/{{.Kid.ID}}/tests">Add one</a>.</p>
+            {{end}}
+        </div>
+    </section>
+
+    <section class="panel">
+        <h2>Notes</h2>
+        {{template "note_form" (dict "KidID" .Kid.ID "Today" .Today "Back" (printf "/kids/%d" .Kid.ID))}}
+        {{template "note_list" (dict "Notes" .Notes "ShowSubject" true "Back" (printf "/kids/%d" .Kid.ID))}}
+    </section>
+</div>
+{{end}}

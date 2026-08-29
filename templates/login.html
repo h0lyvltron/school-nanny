@@ -1,0 +1,12 @@
+{{define "content"}}
+<section class="login">
+    <h1>School Nanny</h1>
+    <p class="muted">This app is locked.</p>
+    {{if .Error}}<p class="form-error">{{.Error}}</p>{{end}}
+    <form method="post" action="/login">
+        <input type="password" name="password" placeholder="Family password"
+               autocomplete="current-password" autofocus required>
+        <button type="submit">Unlock</button>
+    </form>
+</section>
+{{end}}

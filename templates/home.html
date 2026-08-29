@@ -1,0 +1,78 @@
+{{define "content"}}
+{{if .NeedsSetup}}
+    <section class="welcome">
+        <h1>Welcome to School Nanny</h1>
+        <p>This is where the week gets planned and the school year gets recorded. Start by adding the kids.</p>
+        <a href="/settings" role="button">Add the kids</a>
+    </section>
+{{else}}
+    <div class="page-head">
+        <div>
+            <h1>Today</h1>
+            <p class="muted">{{dayName .Today}}, {{monthDay .Today}}</p>
+        </div>
+        <div class="week-summary">
+            <span><strong>{{.FamilyWeek.Done}}</strong> done this week</span>
+            <span><strong>{{.FamilyWeek.Planned}}</strong> still planned</span>
+            <a href="/planner" role="button" class="secondary">Plan the week</a>
+        </div>
+    </div>
+
+    <div class="kid-grid">
+        {{$today := .Today}}
+        {{$subjects := .Subjects}}
+        {{range .Cards}}
+            <section class="kid-card" style="--kid:{{color .Kid.Color}}">
+                <header class="kid-card-head">
+                    <a href="/kids/{{.Kid.ID}}" class="kid-name">
+                        <span class="dot" style="background:{{color .Kid.Color}}"></span>{{.Kid.Name}}
+                    </a>
+                    {{if .Kid.Grade}}<span class="muted small">{{.Kid.Grade}}</span>{{end}}
+                </header>
+
+                <div class="kid-week">
+                    {{template "progress_bar" .Week}}
+                    <span class="muted small">{{.Week.Done}} of {{.Week.Total}} this week</span>
+                </div>
+
+                <div class="today-lessons">
+                    {{range .Lessons}}
+                        {{template "lesson_row" (dict "Lesson" . "ShowKid" false "ShowSubject" true "Back" "/")}}
+                    {{else}}
+                        <p class="muted small">Nothing scheduled today.</p>
+                    {{end}}
+                </div>
+
+                <details class="add-box">
+                    <summary>Log something we did</summary>
+                    <form method="post" action="/lessons">
+                        <input type="hidden" name="kid_id" value="{{.Kid.ID}}">
+                        <input type="hidden" name="scheduled_on" value="{{$today}}">
+                        <input type="hidden" name="status" value="done">
+                        <input type="hidden" name="back" value="/">
+                        <select name="subject_id" required aria-label="Subject">
+                            {{range $subjects}}<option value="{{.ID}}">{{.Name}}</option>{{end}}
+                        </select>
+                        <input type="text" name="title" placeholder="What did you do?" required>
+                        <div class="add-row">
+                            <input type="number" name="minutes" min="0" step="5" placeholder="min" aria-label="Minutes">
+                            <button type="submit">Log it</button>
+                        </div>
+                    </form>
+                </details>
+            </section>
+        {{end}}
+    </div>
+
+    {{if .Overdue}}
+        <section class="panel">
+            <h2>Still open from earlier days</h2>
+            <div class="stack">
+                {{range .Overdue}}
+                    {{template "lesson_row" (dict "Lesson" . "ShowKid" true "ShowSubject" true "Back" "/")}}
+                {{end}}
+            </div>
+        </section>
+    {{end}}
+{{end}}
+{{end}}

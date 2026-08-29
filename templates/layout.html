@@ -1,0 +1,38 @@
+{{define "layout"}}<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>School Nanny</title>
+    <link rel="stylesheet" href="/static/pico.min.css">
+    <link rel="stylesheet" href="/static/app.css">
+    <script src="/static/htmx.min.js" defer></script>
+</head>
+<body>
+<header class="app-bar">
+    <div class="app-bar-inner">
+        <a href="/" class="brand">School&nbsp;Nanny</a>
+        <nav class="app-nav">
+            <a href="/" class="{{if eq .Active "home"}}current{{end}}">Today</a>
+            <a href="/planner" class="{{if eq .Active "planner"}}current{{end}}">Week</a>
+            {{range .NavKids}}
+                <a href="/kids/{{.ID}}" class="nav-kid">
+                    <span class="dot" style="background:{{color .Color}}"></span>{{.Name}}
+                </a>
+            {{end}}
+            <a href="/settings" class="{{if eq .Active "settings"}}current{{end}}">Settings</a>
+            {{if .HasPassword}}
+                <form method="post" action="/logout" class="inline-form">
+                    <button class="link-button" type="submit">Lock</button>
+                </form>
+            {{end}}
+        </nav>
+    </div>
+</header>
+
+<main class="page">
+    {{template "content" .}}
+</main>
+</body>
+</html>
+{{end}}

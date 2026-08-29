@@ -1,0 +1,46 @@
+{{define "content"}}
+<div class="page-head">
+    <div>
+        <h1>Week planner</h1>
+        <p class="muted">{{monthDay .WeekStart}} &ndash; {{monthDay .WeekEnd}}</p>
+    </div>
+    <div class="week-summary">
+        <span><strong>{{.Progress.Done}}</strong> done</span>
+        <span><strong>{{.Progress.Planned}}</strong> planned</span>
+        {{if .Progress.Minutes}}<span><strong>{{.Progress.HoursLabel}}</strong> logged</span>{{end}}
+    </div>
+</div>
+
+<div class="planner-controls">
+    <div class="week-nav">
+        <a role="button" class="secondary" href="/planner?week={{.PrevWeek}}{{if .KidFilter}}&kid={{.KidFilter}}{{end}}">&larr; Previous</a>
+        <a role="button" class="secondary" href="/planner?week={{.ThisWeek}}{{if .KidFilter}}&kid={{.KidFilter}}{{end}}">This week</a>
+        <a role="button" class="secondary" href="/planner?week={{.NextWeek}}{{if .KidFilter}}&kid={{.KidFilter}}{{end}}">Next &rarr;</a>
+    </div>
+    <div class="kid-filter">
+        <a href="/planner?week={{.WeekStart}}" class="filter-chip{{if not .KidFilter}} current{{end}}">All kids</a>
+        {{$week := .WeekStart}}
+        {{$filter := .KidFilter}}
+        {{range .NavKids}}
+            <a href="/planner?week={{$week}}&kid={{.ID}}"
+               class="filter-chip{{if eq $filter .ID}} current{{end}}">
+                <span class="dot" style="background:{{color .Color}}"></span>{{.Name}}
+            </a>
+        {{end}}
+    </div>
+</div>
+
+{{if not .NavKids}}
+    <p class="muted">Add the kids in <a href="/settings">Settings</a> before planning a week.</p>
+{{end}}
+
+<div class="week-grid">
+    {{$kids := .NavKids}}
+    {{$subjects := .Subjects}}
+    {{$kidFilter := .KidFilter}}
+    {{$today := .Today}}
+    {{range .Days}}
+        {{template "planner_day" (dict "Day" . "Kids" $kids "Subjects" $subjects "KidFilter" $kidFilter "Today" $today)}}
+    {{end}}
+</div>
+{{end}}

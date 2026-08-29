@@ -1,0 +1,107 @@
+{{define "content"}}
+<div class="page-head">
+    <div>
+        <h1>Settings</h1>
+        <p class="muted">Kids, subjects, the school year, and the lock for this computer.</p>
+    </div>
+</div>
+
+{{if .Saved}}<p class="saved-flash">Saved.</p>{{end}}
+
+<section class="panel">
+    <h2>Kids</h2>
+    <div class="settings-rows">
+        {{range .Kids}}
+            <form method="post" action="/settings/kids" class="settings-row">
+                <input type="hidden" name="id" value="{{.ID}}">
+                <input type="text" name="name" value="{{.Name}}" required aria-label="Name">
+                <input type="text" name="grade" value="{{.Grade}}" placeholder="Grade" aria-label="Grade">
+                <input type="color" name="color" value="{{.Color}}" aria-label="Colour">
+                <label class="check"><input type="checkbox" name="archived" {{if .Archived}}checked{{end}}> Hide</label>
+                <button type="submit" class="secondary">Save</button>
+            </form>
+        {{end}}
+    </div>
+
+    <form method="post" action="/settings/kids" class="settings-row new">
+        <input type="text" name="name" placeholder="Name" required aria-label="Name">
+        <input type="text" name="grade" placeholder="Grade" aria-label="Grade">
+        <input type="color" name="color" value="{{.NextColor}}" aria-label="Colour">
+        <button type="submit">Add child</button>
+    </form>
+
+    {{if .Kids}}
+        <details class="add-box">
+            <summary class="danger">Remove a child</summary>
+            <p class="muted small">This deletes their lessons, tests, notes, and files. There is no undo.</p>
+            <div class="settings-rows">
+                {{range .Kids}}
+                    <form method="post" action="/settings/kids/{{.ID}}/delete" class="settings-row">
+                        <span>{{.Name}}</span>
+                        <button type="submit" class="link-button danger"
+                                onclick="return confirm('Remove {{.Name}} and everything recorded for them?')">Remove</button>
+                    </form>
+                {{end}}
+            </div>
+        </details>
+    {{end}}
+</section>
+
+<section class="panel">
+    <h2>Subjects</h2>
+    <div class="settings-rows">
+        {{range .Subjects}}
+            <form method="post" action="/settings/subjects" class="settings-row">
+                <input type="hidden" name="id" value="{{.ID}}">
+                <input type="text" name="name" value="{{.Name}}" required aria-label="Subject name">
+                <label class="check"><input type="checkbox" name="archived" {{if .Archived}}checked{{end}}> Hide</label>
+                <button type="submit" class="secondary">Save</button>
+            </form>
+        {{end}}
+    </div>
+
+    <form method="post" action="/settings/subjects" class="settings-row new">
+        <input type="text" name="name" placeholder="New subject" required aria-label="New subject">
+        <button type="submit">Add subject</button>
+    </form>
+    <p class="muted small">Hiding a subject keeps its history but takes it out of the forms.</p>
+</section>
+
+<section class="panel">
+    <h2>School year</h2>
+    <p class="muted small">The year sets what "this year" means on the progress numbers.</p>
+    <div class="settings-rows">
+        {{range .Years}}
+            <form method="post" action="/settings/years" class="settings-row">
+                <input type="hidden" name="id" value="{{.ID}}">
+                <input type="text" name="name" value="{{.Name}}" required aria-label="Year name">
+                <input type="date" name="starts_on" value="{{.StartsOn}}" aria-label="Starts">
+                <input type="date" name="ends_on" value="{{.EndsOn}}" aria-label="Ends">
+                <label class="check"><input type="checkbox" name="is_current" {{if .IsCurrent}}checked{{end}}> Current</label>
+                <button type="submit" class="secondary">Save</button>
+            </form>
+        {{end}}
+    </div>
+
+    <form method="post" action="/settings/years" class="settings-row new">
+        <input type="text" name="name" value="{{.SuggestedYear.Name}}" required aria-label="Year name">
+        <input type="date" name="starts_on" value="{{.SuggestedYear.StartsOn}}" aria-label="Starts">
+        <input type="date" name="ends_on" value="{{.SuggestedYear.EndsOn}}" aria-label="Ends">
+        <label class="check"><input type="checkbox" name="is_current" checked> Current</label>
+        <button type="submit">Add year</button>
+    </form>
+</section>
+
+<section class="panel">
+    <h2>Lock this app</h2>
+    {{if .HasPassword}}
+        <p class="muted small">A password is set. Type a new one to change it, or save it empty to remove the lock.</p>
+    {{else}}
+        <p class="muted small">Optional. Set a password if this computer is shared or the app is on the home network.</p>
+    {{end}}
+    <form method="post" action="/settings/password" class="settings-row new">
+        <input type="password" name="password" placeholder="Family password" autocomplete="new-password">
+        <button type="submit">Save password</button>
+    </form>
+</section>
+{{end}}

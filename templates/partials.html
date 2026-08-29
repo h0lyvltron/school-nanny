@@ -1,0 +1,180 @@
+{{define "lesson_row"}}
+<article class="lesson status-{{.Lesson.Status}}{{if .Lesson.Overdue}} is-overdue{{end}}" id="lesson-{{.Lesson.ID}}">
+    <div class="lesson-body">
+        <div class="lesson-title-line">
+            {{if .ShowKid}}<span class="chip" style="background:{{color .Lesson.KidColor}}">{{.Lesson.KidName}}</span>{{end}}
+            <a class="lesson-title" href="/lessons/{{.Lesson.ID}}">{{.Lesson.Title}}</a>
+        </div>
+        <p class="lesson-meta">
+            {{if .ShowSubject}}{{.Lesson.SubjectName}} &middot; {{end}}{{prettyDate .Lesson.ScheduledOn}}
+            {{if .Lesson.Minutes}} &middot; {{.Lesson.Minutes}} min{{end}}
+            {{if .Lesson.IsSkipped}} &middot; skipped{{end}}
+            {{if .Lesson.Overdue}} &middot; <span class="overdue-flag">not marked done</span>{{end}}
+        </p>
+        {{if .Lesson.Notes}}<p class="lesson-notes">{{.Lesson.Notes}}</p>{{end}}
+    </div>
+    <div class="lesson-actions">
+        {{if .Lesson.IsDone}}
+            <button class="pill done"
+                    hx-post="/lessons/{{.Lesson.ID}}/status"
+                    hx-vals='{"status":"planned","show_kid":"{{.ShowKid}}","show_subject":"{{.ShowSubject}}","back":"{{.Back}}"}'
+                    hx-target="#lesson-{{.Lesson.ID}}" hx-swap="outerHTML"
+                    title="Undo">Done</button>
+        {{else}}
+            <button class="pill"
+                    hx-post="/lessons/{{.Lesson.ID}}/status"
+                    hx-vals='{"status":"done","show_kid":"{{.ShowKid}}","show_subject":"{{.ShowSubject}}","back":"{{.Back}}"}'
+                    hx-target="#lesson-{{.Lesson.ID}}" hx-swap="outerHTML">Mark done</button>
+            {{if not .Lesson.IsSkipped}}
+                <button class="pill ghost"
+                        hx-post="/lessons/{{.Lesson.ID}}/status"
+                        hx-vals='{"status":"skipped","show_kid":"{{.ShowKid}}","show_subject":"{{.ShowSubject}}","back":"{{.Back}}"}'
+                        hx-target="#lesson-{{.Lesson.ID}}" hx-swap="outerHTML">Skip</button>
+            {{end}}
+        {{end}}
+    </div>
+</article>
+{{end}}
+
+
+{{define "planner_day"}}
+<section class="day{{if isToday .Day.Date}} is-today{{end}}" id="day-{{.Day.Date}}">
+    <header class="day-head">
+        <h3>{{dayName .Day.Date}}</h3>
+        <span class="day-date">{{monthDay .Day.Date}}</span>
+    </header>
+
+    <div class="day-lessons">
+        {{range .Day.Lessons}}
+            {{template "lesson_row" (dict "Lesson" . "ShowKid" true "ShowSubject" true "Back" "/planner")}}
+        {{else}}
+            <p class="muted small">Nothing planned.</p>
+        {{end}}
+    </div>
+
+    {{if .Kids}}
+    <details class="add-box">
+        <summary>Add lesson</summary>
+        <form hx-post="/lessons" hx-target="#day-{{.Day.Date}}" hx-swap="outerHTML">
+            <input type="hidden" name="view" value="planner">
+            <input type="hidden" name="scheduled_on" value="{{.Day.Date}}">
+            <input type="hidden" name="kid_filter" value="{{.KidFilter}}">
+            <select name="kid_id" required aria-label="Child">
+                {{range .Kids}}
+                    <option value="{{.ID}}" {{if eq $.KidFilter .ID}}selected{{end}}>{{.Name}}</option>
+                {{end}}
+            </select>
+            <select name="subject_id" required aria-label="Subject">
+                {{range .Subjects}}<option value="{{.ID}}">{{.Name}}</option>{{end}}
+            </select>
+            <input type="text" name="title" placeholder="What is the lesson?" required>
+            <div class="add-row">
+                <input type="number" name="minutes" min="0" step="5" placeholder="min" aria-label="Minutes">
+                <label class="check">
+                    <input type="checkbox" name="status" value="done"> Already done
+                </label>
+            </div>
+            <button type="submit">Add</button>
+        </form>
+    </details>
+    {{end}}
+</section>
+{{end}}
+
+
+{{define "progress_bar"}}
+<div class="progress" role="img" aria-label="{{.Done}} of {{.Total}} done">
+    <div class="progress-fill" style="width:{{.PercentDone}}%"></div>
+</div>
+{{end}}
+
+
+{{define "file_list"}}
+<ul class="files">
+    {{range .Files}}
+        <li>
+            <a href="/files/{{.ID}}" target="_blank" rel="noopener">{{.OriginalName}}</a>
+            <span class="muted small">{{.SizeLabel}}</span>
+            <form method="post" action="/files/{{.ID}}/delete" class="inline-form">
+                <input type="hidden" name="back" value="{{$.Back}}">
+                <button class="link-button danger" type="submit"
+                        onclick="return confirm('Remove this file?')">remove</button>
+            </form>
+        </li>
+    {{else}}
+        <li class="muted small">No files yet.</li>
+    {{end}}
+</ul>
+{{end}}
+
+
+{{define "upload_form"}}
+<form method="post" action="/files" enctype="multipart/form-data" class="upload">
+    <input type="hidden" name="owner_type" value="{{.OwnerType}}">
+    {{if .LessonID}}<input type="hidden" name="lesson_id" value="{{.LessonID}}">{{end}}
+    {{if .AssessmentID}}<input type="hidden" name="assessment_id" value="{{.AssessmentID}}">{{end}}
+    {{if .KidID}}<input type="hidden" name="kid_id" value="{{.KidID}}">{{end}}
+    {{if .SubjectID}}<input type="hidden" name="subject_id" value="{{.SubjectID}}">{{end}}
+    <input type="hidden" name="back" value="{{.Back}}">
+    <input type="file" name="file" multiple required aria-label="Choose files">
+    <button type="submit">Attach</button>
+</form>
+{{end}}
+
+
+{{define "note_list"}}
+<ul class="notes">
+    {{range .Notes}}
+        <li>
+            <p class="note-body">{{.Body}}</p>
+            <div class="muted small note-meta">
+                <span>{{prettyDate .NotedOn}}{{if and $.ShowSubject .SubjectName}} &middot; {{.SubjectName}}{{end}}</span>
+                <form method="post" action="/notes/{{.ID}}/delete" class="inline-form">
+                    <input type="hidden" name="back" value="{{$.Back}}">
+                    <button class="link-button danger" type="submit"
+                            onclick="return confirm('Delete this note?')">delete</button>
+                </form>
+            </div>
+        </li>
+    {{else}}
+        <li class="muted small">No notes yet.</li>
+    {{end}}
+</ul>
+{{end}}
+
+
+{{define "note_form"}}
+<form method="post" action="/notes" class="note-form">
+    <input type="hidden" name="kid_id" value="{{.KidID}}">
+    {{if .SubjectID}}<input type="hidden" name="subject_id" value="{{.SubjectID}}">{{end}}
+    <input type="hidden" name="noted_on" value="{{.Today}}">
+    <input type="hidden" name="back" value="{{.Back}}">
+    <textarea name="body" rows="2" placeholder="Something worth remembering" required></textarea>
+    <button type="submit">Add note</button>
+</form>
+{{end}}
+
+
+{{define "test_row"}}
+<article class="test">
+    <div>
+        <strong>{{.Test.Name}}</strong>
+        <p class="muted small">
+            {{.Test.SubjectName}} &middot; {{prettyDate .Test.GivenOn}}
+            {{if .Test.ScoreLabel}} &middot; {{.Test.ScoreLabel}}{{end}}
+        </p>
+        {{if .Test.Notes}}<p class="lesson-notes">{{.Test.Notes}}</p>{{end}}
+        {{if .Test.Attachments}}
+            {{template "file_list" (dict "Files" .Test.Attachments "Back" .Back)}}
+        {{end}}
+    </div>
+    <div class="test-side">
+        {{if .Test.HasPercent}}<span class="score">{{.Test.Percent}}%</span>{{end}}
+        <form method="post" action="/assessments/{{.Test.ID}}/delete" class="inline-form">
+            <input type="hidden" name="back" value="{{.Back}}">
+            <button class="link-button danger" type="submit"
+                    onclick="return confirm('Delete this test?')">delete</button>
+        </form>
+    </div>
+</article>
+{{end}}

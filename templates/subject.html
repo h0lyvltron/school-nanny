@@ -1,0 +1,94 @@
+{{define "content"}}
+{{$back := printf "/kids/%d/subjects/%d" .Kid.ID .Subject.ID}}
+<div class="page-head">
+    <div>
+        <p class="crumbs"><a href="/kids/{{.Kid.ID}}">{{.Kid.Name}}</a></p>
+        <h1>{{.Subject.Name}}</h1>
+        <p class="muted">{{.YearName}}</p>
+    </div>
+    <div class="week-summary">
+        <span><strong>{{.Week.Done}}</strong> done this week</span>
+        <span><strong>{{.Year.Done}}</strong> done this year</span>
+        {{if .Year.Minutes}}<span><strong>{{.Year.HoursLabel}}</strong> logged</span>{{end}}
+    </div>
+</div>
+
+<section class="panel">
+    <h2>Add a lesson</h2>
+    <form method="post" action="/lessons" class="inline-grid">
+        <input type="hidden" name="kid_id" value="{{.Kid.ID}}">
+        <input type="hidden" name="subject_id" value="{{.Subject.ID}}">
+        <input type="hidden" name="back" value="{{$back}}">
+        <input type="text" name="title" placeholder="What is the lesson?" required>
+        <input type="date" name="scheduled_on" value="{{.Today}}" aria-label="Date">
+        <input type="number" name="minutes" min="0" step="5" placeholder="min" aria-label="Minutes">
+        <label class="check"><input type="checkbox" name="status" value="done"> Already done</label>
+        <button type="submit">Add</button>
+    </form>
+</section>
+
+<div class="two-col">
+    <section class="panel">
+        <h2>Coming up</h2>
+        <div class="stack">
+            {{range .Upcoming}}
+                {{template "lesson_row" (dict "Lesson" . "ShowKid" false "ShowSubject" false "Back" $back)}}
+            {{else}}
+                <p class="muted small">Nothing planned in this subject.</p>
+            {{end}}
+        </div>
+    </section>
+
+    <section class="panel">
+        <h2>Already done</h2>
+        <div class="stack">
+            {{range .Past}}
+                {{template "lesson_row" (dict "Lesson" . "ShowKid" false "ShowSubject" false "Back" $back)}}
+            {{else}}
+                <p class="muted small">Nothing recorded yet.</p>
+            {{end}}
+        </div>
+    </section>
+</div>
+
+<div class="two-col">
+    <section class="panel">
+        <h2>Files for this subject</h2>
+        <p class="muted small">Curriculum, worksheets, anything worth keeping around.</p>
+        {{template "upload_form" (dict "OwnerType" "resource" "KidID" .Kid.ID "SubjectID" .Subject.ID "Back" $back)}}
+        {{template "file_list" (dict "Files" .Resources "Back" $back)}}
+    </section>
+
+    <section class="panel">
+        <h2>Tests</h2>
+        <details class="add-box">
+            <summary>Record a test</summary>
+            <form method="post" action="/assessments">
+                <input type="hidden" name="kid_id" value="{{.Kid.ID}}">
+                <input type="hidden" name="subject_id" value="{{.Subject.ID}}">
+                <input type="hidden" name="back" value="{{$back}}">
+                <input type="text" name="name" placeholder="Test name" required>
+                <div class="add-row">
+                    <input type="date" name="given_on" value="{{.Today}}" aria-label="Date">
+                    <input type="number" name="score" step="any" placeholder="score" aria-label="Score">
+                    <input type="number" name="max_score" step="any" placeholder="out of" aria-label="Out of">
+                </div>
+                <button type="submit">Save test</button>
+            </form>
+        </details>
+        <div class="stack">
+            {{range .Tests}}
+                {{template "test_row" (dict "Test" . "Back" $back)}}
+            {{else}}
+                <p class="muted small">No tests in this subject yet.</p>
+            {{end}}
+        </div>
+    </section>
+</div>
+
+<section class="panel">
+    <h2>Subject notes</h2>
+    {{template "note_form" (dict "KidID" .Kid.ID "SubjectID" .Subject.ID "Today" .Today "Back" $back)}}
+    {{template "note_list" (dict "Notes" .Notes "ShowSubject" false "Back" $back)}}
+</section>
+{{end}}
