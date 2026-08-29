@@ -1,0 +1,99 @@
+{{define "content"}}
+<div class="page-head">
+    <div>
+        <h1>Archive</h1>
+        <p class="muted">Previous school years, as they were recorded.</p>
+    </div>
+</div>
+
+{{if or (not .Kids) (not .Years)}}
+    <p class="muted">Archive needs at least one child and one school year in <a href="/settings">Settings</a>.</p>
+{{else}}
+    <form method="get" action="/archive" class="planner-controls">
+        <div class="inline-grid">
+            <select name="kid" aria-label="Child" onchange="this.form.submit()">
+                {{$kidID := .KidID}}
+                {{range .Kids}}
+                    <option value="{{.ID}}" {{if eq $kidID .ID}}selected{{end}}>{{.Name}}{{if .Archived}} (hidden){{end}}</option>
+                {{end}}
+            </select>
+            <select name="year" aria-label="School year" onchange="this.form.submit()">
+                {{$yearID := .YearID}}
+                {{range .Years}}
+                    <option value="{{.ID}}" {{if eq $yearID .ID}}selected{{end}}>{{.Name}}</option>
+                {{end}}
+            </select>
+            <select name="subject" aria-label="Subject" onchange="this.form.submit()">
+                <option value="">All subjects</option>
+                {{$sid := .SubjectFilter}}
+                {{range .Subjects}}
+                    <option value="{{.ID}}" {{if eq $sid .ID}}selected{{end}}>{{.Name}}</option>
+                {{end}}
+            </select>
+            <noscript><button type="submit">Show</button></noscript>
+        </div>
+    </form>
+{{end}}
+
+{{if .HasYear}}
+    <div class="week-summary">
+        <span><strong>{{.Progress.Done}}</strong> done</span>
+        <span><strong>{{.Progress.Skipped}}</strong> skipped</span>
+        {{if .Progress.Minutes}}<span><strong>{{.Progress.HoursLabel}}</strong> logged</span>{{end}}
+        <span><strong>{{.Attendance.Present}}</strong> days present</span>
+        <span>{{.Attendance.Absent}} absent &middot; {{.Attendance.Excused}} excused</span>
+    </div>
+
+    {{if .Cards}}
+        <section class="panel">
+            <h2>By subject</h2>
+            <div class="subject-grid">
+                {{$kid := .Kid}}
+                {{$year := .Year}}
+                {{range .Cards}}
+                    <div class="subject-card">
+                        <h3>{{.Subject.Name}}</h3>
+                        {{template "progress_bar" .Year}}
+                        <p class="muted small">{{.Year.Done}} of {{.Year.Total}} done</p>
+                        <form method="post" action="/archive/export">
+                            <input type="hidden" name="kid_id" value="{{$kid.ID}}">
+                            <input type="hidden" name="year_id" value="{{$year.ID}}">
+                            <input type="hidden" name="subject_id" value="{{.Subject.ID}}">
+                            <button type="submit" class="secondary">Save as curriculum template</button>
+                        </form>
+                    </div>
+                {{end}}
+            </div>
+        </section>
+    {{end}}
+
+    <div class="two-col">
+        <section class="panel">
+            <h2>Lessons</h2>
+            <div class="stack">
+                {{range .Lessons}}
+                    {{template "lesson_row" (dict "Lesson" . "ShowKid" false "ShowSubject" true "Back" "/archive")}}
+                {{else}}
+                    <p class="muted small">Nothing recorded in this stretch.</p>
+                {{end}}
+            </div>
+        </section>
+        <div class="stack">
+            <section class="panel">
+                <h2>Tests</h2>
+                <div class="stack">
+                    {{range .Tests}}
+                        {{template "test_row" (dict "Test" . "Back" "/archive")}}
+                    {{else}}
+                        <p class="muted small">No tests this year.</p>
+                    {{end}}
+                </div>
+            </section>
+            <section class="panel">
+                <h2>Notes</h2>
+                {{template "note_list" (dict "Notes" .Notes "ShowSubject" true "Back" "/archive")}}
+            </section>
+        </div>
+    </div>
+{{end}}
+{{end}}

@@ -81,7 +81,7 @@
 
 <section class="panel">
     <h2>School year</h2>
-    <p class="muted small">The year sets what "this year" means on the progress numbers.</p>
+    <p class="muted small">The year sets what "this year" means on the progress numbers. Past years stay available in Archive; deleting a year does not delete the lessons, but it makes that stretch harder to label.</p>
     <div class="settings-rows">
         {{range .Years}}
             <form method="post" action="/settings/years" class="settings-row">
@@ -102,6 +102,22 @@
         <label class="check"><input type="checkbox" name="is_current" checked> Current</label>
         <button type="submit">Add year</button>
     </form>
+
+    {{if .Years}}
+        <details class="add-box">
+            <summary class="danger">Remove a year</summary>
+            <p class="muted small">Lessons stay, but Archive can no longer name that stretch. There is no undo.</p>
+            <div class="settings-rows">
+                {{range .Years}}
+                    <form method="post" action="/settings/years/{{.ID}}/delete" class="settings-row">
+                        <span>{{.Name}}</span>
+                        <button type="submit" class="link-button danger"
+                                onclick="return confirm('Remove the {{.Name}} school year label?')">Remove</button>
+                    </form>
+                {{end}}
+            </div>
+        </details>
+    {{end}}
 </section>
 
 <section class="panel">

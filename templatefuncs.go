@@ -9,16 +9,20 @@ import (
 
 func templateFuncs() template.FuncMap {
 	return template.FuncMap{
-		"prettyDate": prettyDate,
-		"dayName":    func(d string) string { return formatDate(d, "Monday") },
-		"dayShort":   func(d string) string { return formatDate(d, "Mon") },
-		"monthDay":   func(d string) string { return formatDate(d, "Jan 2") },
-		"isToday":    func(d string) bool { return d == today() },
-		"isPast":     func(d string) bool { return d < today() },
-		"addDays":    addDays,
-		"dict":       dict,
-		"initial":    initial,
-		"color":      safeColor,
+		"prettyDate":     prettyDate,
+		"dayName":        func(d string) string { return formatDate(d, "Monday") },
+		"dayShort":       func(d string) string { return formatDate(d, "Mon") },
+		"monthDay":       func(d string) string { return formatDate(d, "Jan 2") },
+		"isToday":        func(d string) bool { return d == today() },
+		"isPast":         func(d string) bool { return d < today() },
+		"monthYear":      func(d string) string { return formatDate(d, "January 2006") },
+		"dayNum":         func(d string) string { return formatDate(d, "2") },
+		"addDays":        addDays,
+		"addMonths":      addMonths,
+		"weekdayChoices": weekdayChoices,
+		"dict":           dict,
+		"initial":        initial,
+		"color":          safeColor,
 	}
 }
 

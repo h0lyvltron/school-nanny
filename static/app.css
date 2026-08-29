@@ -731,6 +731,46 @@ h3 { font-size: 1rem; }
     font-size: 0.9rem;
 }
 
+.import-help { margin: 0.6rem 0 0.85rem; }
+.import-help summary { cursor: pointer; color: var(--ink-soft); font-size: 0.9rem; }
+.import-help summary:hover { color: var(--accent); }
+.schema-sample {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 0.5rem;
+    padding: 0.7rem 0.85rem;
+    font-size: 0.8rem;
+    overflow: auto;
+    margin: 0.6rem 0;
+}
+
+.save-toast {
+    position: fixed;
+    bottom: 1.25rem;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 40;
+    background: var(--card);
+    border: 1px solid var(--good);
+    color: var(--good);
+    border-radius: 0.7rem;
+    padding: 0.65rem 1.15rem;
+    font-size: 0.95rem;
+    font-weight: 600;
+    box-shadow: 0 8px 24px var(--accent-soft);
+    animation: save-toast-in 0.2s ease-out;
+}
+.save-toast.is-leaving {
+    animation: save-toast-out 0.35s ease-in forwards;
+}
+@keyframes save-toast-in {
+    from { opacity: 0; transform: translateX(-50%) translateY(0.6rem); }
+    to { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+@keyframes save-toast-out {
+    to { opacity: 0; transform: translateX(-50%) translateY(0.4rem); }
+}
+
 .login {
     max-width: 22rem;
     margin: 4rem auto;
@@ -771,3 +811,121 @@ h3 { font-size: 1rem; }
     .day-lessons { grid-template-columns: 1fr; }
     .week-summary { gap: 0.6rem 1rem; }
 }
+
+/* Attendance ---------------------------------------------------------- */
+
+.attendance-mark {
+    margin: 0 0 0.8rem;
+    padding-bottom: 0.8rem;
+    border-bottom: 1px dashed var(--line);
+}
+
+.att-pills { display: flex; gap: 0.35rem; flex-wrap: wrap; margin-bottom: 0.35rem; }
+.pill.att-absent { background: var(--danger); border-color: var(--danger); color: var(--on-accent); }
+.pill.att-excused { background: var(--warn); border-color: var(--warn); color: var(--on-accent); }
+
+.att-totals { margin: 0 0 1rem; }
+
+.cal-grid {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 0.35rem;
+    margin-bottom: 1.5rem;
+}
+
+.cal-dow {
+    font-size: 0.78rem;
+    color: var(--ink-soft);
+    text-align: center;
+    padding: 0.2rem 0;
+}
+
+.cal-cell {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 0.5rem;
+    min-height: 5.5rem;
+    padding: 0.35rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.cal-cell.is-today { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+.cal-cell.out-month { opacity: 0.45; }
+.cal-num { font-size: 0.8rem; color: var(--ink-soft); }
+
+.cal-marks { display: flex; flex-direction: column; gap: 0.2rem; }
+.cal-mark {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    margin: 0;
+    padding: 0.15rem 0.4rem;
+    width: auto;
+    font-size: 0.72rem;
+    line-height: 1.2;
+    background: var(--card);
+    color: var(--ink-soft);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    cursor: pointer;
+}
+.cal-mark:hover { border-color: var(--accent); color: var(--accent); background: var(--card); }
+.cal-mark.status-present { border-color: var(--good); color: var(--good); background: var(--good-bg); }
+.cal-mark.status-absent { border-color: var(--danger); color: var(--danger); background: var(--danger-bg); }
+.cal-mark.status-excused { border-color: var(--warn); color: var(--warn); }
+
+.report-table table { width: 100%; font-size: 0.9rem; }
+.report-table th, .report-table td { text-align: left; padding: 0.35rem 0.5rem; }
+.report-table h3 {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin: 1rem 0 0.35rem;
+}
+
+.weekday-checks {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem 0.75rem;
+    margin: 0.35rem 0 0.6rem;
+}
+
+.plan-row, .item-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    margin: 0;
+    padding: 0.45rem 0;
+    border-bottom: 1px dashed var(--line);
+}
+
+a.plan-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.15rem;
+    text-decoration: none;
+    color: var(--ink);
+}
+a.plan-row:hover { color: var(--accent); }
+a.plan-row .muted { color: var(--ink-soft); }
+a.plan-row:hover .muted { color: var(--ink-soft); }
+.item-row input { margin: 0; }
+.item-row button { margin: 0; width: auto; }
+.item-row input[name="title"] { flex: 2 1 12rem; }
+.item-row input[name="week_number"] { flex: 0 0 4.5rem; }
+.item-row input[name="minutes"] { flex: 0 0 5rem; }
+.item-row input[name="notes"] { flex: 1 1 8rem; }
+.new-item { margin-top: 0.9rem; }
+
+.preview-list { margin: 0 0 1rem; padding-left: 1.2rem; }
+.preview-list li { margin: 0.25rem 0; }
+
+@media (max-width: 760px) {
+    .cal-grid { font-size: 0.8rem; }
+    .cal-cell { min-height: 4.2rem; padding: 0.25rem; }
+    .cal-mark .dot { display: none; }
+}
+

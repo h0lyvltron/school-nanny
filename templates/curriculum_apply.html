@@ -1,0 +1,42 @@
+{{define "content"}}
+<div class="page-head">
+    <div>
+        <p class="crumbs"><a href="/curriculum">Curriculum</a> &middot; <a href="/curriculum/{{.Plan.ID}}">{{.Plan.Name}}</a></p>
+        <h1>Apply {{.Plan.Name}}</h1>
+        <p class="muted">{{.Count}} lesson{{if ne .Count 1}}s{{end}}{{if .LastDate}} from {{prettyDate .Start}} through {{prettyDate .LastDate}}{{end}}</p>
+    </div>
+</div>
+
+<section class="panel">
+    <form method="get" action="/curriculum/{{.Plan.ID}}/apply" class="inline-grid">
+        <select name="kid" required aria-label="Child">
+            {{$kidID := .KidID}}
+            {{range .Kids}}
+                <option value="{{.ID}}" {{if eq $kidID .ID}}selected{{end}}>{{.Name}}</option>
+            {{end}}
+        </select>
+        <input type="date" name="start" value="{{.Start}}" aria-label="Start date">
+        {{template "weekday_checks" (dict "Choices" .Weekdays)}}
+        <button type="submit" class="secondary">Update preview</button>
+    </form>
+</section>
+
+<section class="panel">
+    <h2>Preview</h2>
+    <ol class="preview-list">
+        {{range .Preview}}
+            <li><span class="muted">{{prettyDate .Date}}</span> {{.Title}}</li>
+        {{end}}
+    </ol>
+    {{if .Kids}}
+        <form method="post" action="/curriculum/{{.Plan.ID}}/apply">
+            <input type="hidden" name="kid_id" value="{{.KidID}}">
+            <input type="hidden" name="start" value="{{.Start}}">
+            {{range .Weekdays}}
+                {{if .On}}<input type="hidden" name="weekday" value="{{.Value}}">{{end}}
+            {{end}}
+            <button type="submit">Create {{.Count}} planned lessons</button>
+        </form>
+    {{end}}
+</section>
+{{end}}

@@ -74,6 +74,18 @@
                     <input type="checkbox" name="status" value="done"> Already done
                 </label>
             </div>
+            <details class="add-box">
+                <summary>Repeat</summary>
+                <label class="check">
+                    <input type="checkbox" name="repeat" value="on"> Repeat this lesson
+                </label>
+                {{template "weekday_checks" (dict "Choices" (weekdayChoices "1,2,3,4,5"))}}
+                <div class="add-row">
+                    <input type="number" name="repeat_count" min="1" max="400" placeholder="times" aria-label="How many times">
+                    <span class="muted small">or until</span>
+                    <input type="date" name="repeat_until" aria-label="Repeat until">
+                </div>
+            </details>
             <button type="submit">Add</button>
         </form>
     </details>
@@ -115,6 +127,7 @@
     {{if .AssessmentID}}<input type="hidden" name="assessment_id" value="{{.AssessmentID}}">{{end}}
     {{if .KidID}}<input type="hidden" name="kid_id" value="{{.KidID}}">{{end}}
     {{if .SubjectID}}<input type="hidden" name="subject_id" value="{{.SubjectID}}">{{end}}
+    {{if .CurriculumPlanID}}<input type="hidden" name="curriculum_plan_id" value="{{.CurriculumPlanID}}">{{end}}
     <input type="hidden" name="back" value="{{.Back}}">
     <input type="file" name="file" multiple required aria-label="Choose files">
     <button type="submit">Attach</button>
@@ -177,4 +190,106 @@
         </form>
     </div>
 </article>
+{{end}}
+
+
+{{define "weekday_checks"}}
+<div class="weekday-checks">
+    {{range .Choices}}
+        <label class="check"><input type="checkbox" name="weekday" value="{{.Value}}" {{if .On}}checked{{end}}> {{.Label}}</label>
+    {{end}}
+</div>
+{{end}}
+
+
+{{define "attendance_mark"}}
+<div class="attendance-mark" id="attendance-{{.Kid.ID}}">
+    <div class="att-pills">
+        <button type="button" class="pill{{if .Attendance.IsPresent}} done{{end}}"
+                hx-post="/attendance"
+                hx-vals='{"kid_id":"{{.Kid.ID}}","attended_on":"{{.Today}}","status":"present","view":"today"}'
+                hx-target="#attendance-{{.Kid.ID}}" hx-swap="outerHTML">Present</button>
+        <button type="button" class="pill{{if .Attendance.IsAbsent}} att-absent{{end}}"
+                hx-post="/attendance"
+                hx-vals='{"kid_id":"{{.Kid.ID}}","attended_on":"{{.Today}}","status":"absent","view":"today"}'
+                hx-target="#attendance-{{.Kid.ID}}" hx-swap="outerHTML">Absent</button>
+        <button type="button" class="pill{{if .Attendance.IsExcused}} att-excused{{end}}"
+                hx-post="/attendance"
+                hx-vals='{"kid_id":"{{.Kid.ID}}","attended_on":"{{.Today}}","status":"excused","view":"today"}'
+                hx-target="#attendance-{{.Kid.ID}}" hx-swap="outerHTML">Excused</button>
+    </div>
+    <details class="add-box">
+        <summary>{{if .Attendance.Notes}}Note{{else}}Add a note{{end}}</summary>
+        <form hx-post="/attendance" hx-target="#attendance-{{.Kid.ID}}" hx-swap="outerHTML">
+            <input type="hidden" name="kid_id" value="{{.Kid.ID}}">
+            <input type="hidden" name="attended_on" value="{{.Today}}">
+            <input type="hidden" name="view" value="today">
+            <input type="hidden" name="status" value="{{if .Attendance.Marked}}{{.Attendance.Status}}{{else}}present{{end}}">
+            <textarea name="notes" rows="2" placeholder="Optional note">{{.Attendance.Notes}}</textarea>
+            <button type="submit">Save note</button>
+        </form>
+    </details>
+</div>
+{{end}}
+
+
+{{define "attendance_board"}}
+<div id="attendance-board">
+    <div class="planner-controls">
+        <div class="week-nav">
+            <a role="button" class="secondary" href="/attendance?month={{.PrevMonth}}{{if .KidFilter}}&kid={{.KidFilter}}{{end}}">&larr; Previous</a>
+            <a role="button" class="secondary" href="/attendance{{if .KidFilter}}?kid={{.KidFilter}}{{end}}">This month</a>
+            <a role="button" class="secondary" href="/attendance?month={{.NextMonth}}{{if .KidFilter}}&kid={{.KidFilter}}{{end}}">Next &rarr;</a>
+        </div>
+        <div class="kid-filter">
+            <a href="/attendance?month={{.Month}}" class="filter-chip{{if not .KidFilter}} current{{end}}">All kids</a>
+            {{$month := .Month}}
+            {{$filter := .KidFilter}}
+            {{range .NavKids}}
+                <a href="/attendance?month={{$month}}&kid={{.ID}}"
+                   class="filter-chip{{if eq $filter .ID}} current{{end}}">
+                    <span class="dot" style="background:{{color .Color}}"></span>{{.Name}}
+                </a>
+            {{end}}
+        </div>
+    </div>
+
+    <div class="week-summary att-totals">
+        <span><strong>{{.Totals.Present}}</strong> present</span>
+        <span><strong>{{.Totals.Absent}}</strong> absent</span>
+        <span><strong>{{.Totals.Excused}}</strong> excused</span>
+        <span><strong>{{.Totals.Unmarked}}</strong> unmarked weekdays</span>
+    </div>
+
+    <div class="cal-grid">
+        <div class="cal-dow">Mon</div>
+        <div class="cal-dow">Tue</div>
+        <div class="cal-dow">Wed</div>
+        <div class="cal-dow">Thu</div>
+        <div class="cal-dow">Fri</div>
+        <div class="cal-dow">Sat</div>
+        <div class="cal-dow">Sun</div>
+        {{$month := .Month}}
+        {{$filter := .KidFilter}}
+        {{range .Weeks}}
+            {{range .}}
+                <div class="cal-cell{{if not .InMonth}} out-month{{end}}{{if isToday .Date}} is-today{{end}}">
+                    <span class="cal-num">{{dayNum .Date}}</span>
+                    <div class="cal-marks">
+                        {{range .Marks}}
+                            <button type="button" class="cal-mark status-{{if .Status}}{{.Status}}{{else}}none{{end}}"
+                                    title="{{.KidName}}: {{.Label}}"
+                                    hx-post="/attendance"
+                                    hx-vals='{"kid_id":"{{.KidID}}","attended_on":"{{.AttendedOn}}","status":"cycle","view":"calendar","month":"{{$month}}","kid_filter":"{{$filter}}"}'
+                                    hx-target="#attendance-board" hx-swap="outerHTML">
+                                <span class="dot" style="background:{{color .KidColor}}"></span>
+                                {{.Label}}
+                            </button>
+                        {{end}}
+                    </div>
+                </div>
+            {{end}}
+        {{end}}
+    </div>
+</div>
 {{end}}

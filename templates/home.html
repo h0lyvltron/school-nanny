@@ -35,6 +35,8 @@
                     <span class="muted small">{{.Week.Done}} of {{.Week.Total}} this week</span>
                 </div>
 
+                {{template "attendance_mark" (dict "Kid" .Kid "Attendance" .Attendance "Today" $today)}}
+
                 <div class="today-lessons">
                     {{range .Lessons}}
                         {{template "lesson_row" (dict "Lesson" . "ShowKid" false "ShowSubject" true "Back" "/")}}

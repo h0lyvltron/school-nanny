@@ -44,7 +44,10 @@ type App struct {
 
 // pageNames are the full-page templates; each one defines a "content" block
 // that the shared layout renders.
-var pageNames = []string{"home", "planner", "kid", "subject", "lesson", "tests", "settings", "login"}
+var pageNames = []string{
+	"home", "planner", "kid", "subject", "lesson", "tests", "settings", "login",
+	"attendance", "curriculum", "curriculum_plan", "curriculum_apply", "archive", "series",
+}
 
 func NewApp(store *Store, dataDir string) (*App, error) {
 	app := &App{
@@ -100,12 +103,36 @@ func (a *App) Routes() http.Handler {
 	mux.HandleFunc("GET /{$}", a.handleHome)
 	mux.HandleFunc("GET /planner", a.handlePlanner)
 
+	mux.HandleFunc("GET /attendance", a.handleAttendance)
+	mux.HandleFunc("POST /attendance", a.handleSaveAttendance)
+
+	mux.HandleFunc("GET /curriculum", a.handleCurriculum)
+	mux.HandleFunc("POST /curriculum", a.handleCreateCurriculumPlan)
+	mux.HandleFunc("POST /curriculum/import", a.handleImportCurriculum)
+	mux.HandleFunc("GET /curriculum/{id}", a.handleCurriculumPlan)
+	mux.HandleFunc("POST /curriculum/{id}", a.handleUpdateCurriculumPlan)
+	mux.HandleFunc("POST /curriculum/{id}/delete", a.handleDeleteCurriculumPlan)
+	mux.HandleFunc("POST /curriculum/{id}/items", a.handleCreateCurriculumItem)
+	mux.HandleFunc("POST /curriculum/{id}/items/{itemID}", a.handleUpdateCurriculumItem)
+	mux.HandleFunc("POST /curriculum/{id}/items/{itemID}/delete", a.handleDeleteCurriculumItem)
+	mux.HandleFunc("POST /curriculum/{id}/items/{itemID}/move", a.handleMoveCurriculumItem)
+	mux.HandleFunc("GET /curriculum/{id}/apply", a.handleApplyCurriculumForm)
+	mux.HandleFunc("POST /curriculum/{id}/apply", a.handleApplyCurriculum)
+
+	mux.HandleFunc("GET /archive", a.handleArchive)
+	mux.HandleFunc("POST /archive/export", a.handleArchiveExport)
+
 	mux.HandleFunc("POST /lessons", a.handleCreateLesson)
 	mux.HandleFunc("GET /lessons/{id}", a.handleLesson)
 	mux.HandleFunc("POST /lessons/{id}", a.handleUpdateLesson)
 	mux.HandleFunc("POST /lessons/{id}/status", a.handleLessonStatus)
 	mux.HandleFunc("POST /lessons/{id}/reschedule", a.handleRescheduleLesson)
 	mux.HandleFunc("POST /lessons/{id}/delete", a.handleDeleteLesson)
+	mux.HandleFunc("POST /lessons/{id}/delete-future", a.handleDeleteSeriesFuture)
+
+	mux.HandleFunc("GET /series/{id}", a.handleSeries)
+	mux.HandleFunc("POST /series/{id}", a.handleUpdateSeries)
+	mux.HandleFunc("POST /series/{id}/stop", a.handleStopSeries)
 
 	mux.HandleFunc("GET /kids/{id}", a.handleKid)
 	mux.HandleFunc("GET /kids/{id}/subjects/{subjectID}", a.handleSubject)
@@ -317,6 +344,14 @@ func formDate(r *http.Request, name string) string {
 	raw := strings.TrimSpace(r.FormValue(name))
 	if _, err := time.Parse(dateLayout, raw); err != nil {
 		return today()
+	}
+	return raw
+}
+
+func formDateOrEmpty(r *http.Request, name string) string {
+	raw := strings.TrimSpace(r.FormValue(name))
+	if _, err := time.Parse(dateLayout, raw); err != nil {
+		return ""
 	}
 	return raw
 }

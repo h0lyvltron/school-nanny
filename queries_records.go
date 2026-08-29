@@ -106,6 +106,54 @@ func (s *Store) DeleteAssessment(id int64) error {
 	return err
 }
 
+func (s *Store) AssessmentsBetween(from, to string, kidID, subjectID int64, limit int) ([]Assessment, error) {
+	q := assessmentSelect + ` WHERE a.given_on BETWEEN ? AND ? AND a.kid_id = ?`
+	args := []any{from, to, kidID}
+	if subjectID > 0 {
+		q += ` AND a.subject_id = ?`
+		args = append(args, subjectID)
+	}
+	q += ` ORDER BY a.given_on DESC, a.id DESC LIMIT ?`
+	args = append(args, limit)
+
+	rows, err := s.db().Query(q, args...)
+	if err != nil {
+		return nil, err
+	}
+	return scanAssessments(rows)
+}
+
+func (s *Store) NotesBetween(from, to string, kidID, subjectID int64, limit int) ([]Note, error) {
+	q := `SELECT n.id, n.kid_id, COALESCE(n.subject_id, 0), n.noted_on, n.body, n.created_at,
+			COALESCE(s.name, '')
+		FROM notes n
+		LEFT JOIN subjects s ON s.id = n.subject_id
+		WHERE n.kid_id = ? AND n.noted_on BETWEEN ? AND ?`
+	args := []any{kidID, from, to}
+	if subjectID > 0 {
+		q += ` AND n.subject_id = ?`
+		args = append(args, subjectID)
+	}
+	q += ` ORDER BY n.noted_on DESC, n.id DESC LIMIT ?`
+	args = append(args, limit)
+
+	rows, err := s.db().Query(q, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []Note
+	for rows.Next() {
+		var n Note
+		if err := rows.Scan(&n.ID, &n.KidID, &n.SubjectID, &n.NotedOn, &n.Body, &n.CreatedAt, &n.SubjectName); err != nil {
+			return nil, err
+		}
+		out = append(out, n)
+	}
+	return out, rows.Err()
+}
+
 func (s *Store) Notes(kidID, subjectID int64, limit int) ([]Note, error) {
 	q := `SELECT n.id, n.kid_id, COALESCE(n.subject_id, 0), n.noted_on, n.body, n.created_at,
 			COALESCE(s.name, '')
@@ -153,8 +201,8 @@ func (s *Store) DeleteNote(id int64) error {
 }
 
 const attachmentSelect = `SELECT id, owner_type, COALESCE(lesson_id, 0), COALESCE(assessment_id, 0),
-		COALESCE(kid_id, 0), COALESCE(subject_id, 0), original_name, stored_path,
-		size_bytes, content_type, created_at
+		COALESCE(kid_id, 0), COALESCE(subject_id, 0), COALESCE(curriculum_plan_id, 0),
+		original_name, stored_path, size_bytes, content_type, created_at
 	FROM attachments`
 
 func scanAttachments(rows *sql.Rows) ([]Attachment, error) {
@@ -163,8 +211,8 @@ func scanAttachments(rows *sql.Rows) ([]Attachment, error) {
 	for rows.Next() {
 		var a Attachment
 		if err := rows.Scan(&a.ID, &a.OwnerType, &a.LessonID, &a.AssessmentID, &a.KidID,
-			&a.SubjectID, &a.OriginalName, &a.StoredPath, &a.SizeBytes, &a.ContentType,
-			&a.CreatedAt); err != nil {
+			&a.SubjectID, &a.CurriculumPlanID, &a.OriginalName, &a.StoredPath, &a.SizeBytes,
+			&a.ContentType, &a.CreatedAt); err != nil {
 			return nil, err
 		}
 		out = append(out, a)
@@ -218,12 +266,12 @@ func (s *Store) ResourceAttachments(kidID, subjectID int64) ([]Attachment, error
 
 func (s *Store) CreateAttachment(a Attachment) (int64, error) {
 	res, err := s.db().Exec(`INSERT INTO attachments
-		(owner_type, lesson_id, assessment_id, kid_id, subject_id, original_name, stored_path,
-		 size_bytes, content_type, created_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		(owner_type, lesson_id, assessment_id, kid_id, subject_id, curriculum_plan_id,
+		 original_name, stored_path, size_bytes, content_type, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		a.OwnerType, nullableID(a.LessonID), nullableID(a.AssessmentID), nullableID(a.KidID),
-		nullableID(a.SubjectID), a.OriginalName, a.StoredPath, a.SizeBytes, a.ContentType,
-		time.Now().Format(time.RFC3339))
+		nullableID(a.SubjectID), nullableID(a.CurriculumPlanID), a.OriginalName, a.StoredPath,
+		a.SizeBytes, a.ContentType, time.Now().Format(time.RFC3339))
 	if err != nil {
 		return 0, err
 	}

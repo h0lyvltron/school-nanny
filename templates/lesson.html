@@ -78,6 +78,24 @@
             <button type="submit" class="link-button danger"
                     onclick="return confirm('Delete this lesson and its files?')">Delete this lesson</button>
         </form>
+        {{if .Series.ID}}
+            <div class="danger-zone">
+                <p class="muted small">This is one copy of a repeating series.</p>
+                <p>
+                    <a href="/series/{{.Series.ID}}">Edit series</a>
+                </p>
+                <form method="post" action="/series/{{.Series.ID}}/stop" class="inline-form">
+                    <input type="hidden" name="back" value="{{$back}}">
+                    <button type="submit" class="link-button"
+                            onclick="return confirm('Remove remaining planned copies?')">Stop series</button>
+                </form>
+                <form method="post" action="/lessons/{{.Lesson.ID}}/delete-future" class="inline-form">
+                    <input type="hidden" name="back" value="/planner">
+                    <button type="submit" class="link-button danger"
+                            onclick="return confirm('Delete this planned copy and every planned copy after it?')">Delete this and future planned</button>
+                </form>
+            </div>
+        {{end}}
     </section>
 
     <div class="stack">

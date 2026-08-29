@@ -1,0 +1,92 @@
+{{define "content"}}
+{{$back := printf "/curriculum/%d" .Plan.ID}}
+<div class="page-head">
+    <div>
+        <p class="crumbs"><a href="/curriculum">Curriculum</a></p>
+        <h1>{{.Plan.Name}}</h1>
+        <p class="muted">{{.Plan.SubjectName}} &middot; {{.Plan.KindLabel}}</p>
+    </div>
+</div>
+
+<div class="two-col">
+    <section class="panel">
+        <h2>Plan</h2>
+        <form method="post" action="/curriculum/{{.Plan.ID}}">
+            <label>Name
+                <input type="text" name="name" value="{{.Plan.Name}}" required>
+            </label>
+            <label>Subject
+                <select name="subject_id">
+                    {{$sid := .Plan.SubjectID}}
+                    {{range .Subjects}}
+                        <option value="{{.ID}}" {{if eq $sid .ID}}selected{{end}}>{{.Name}}</option>
+                    {{end}}
+                </select>
+            </label>
+            <label>Notes
+                <textarea name="notes" rows="3" placeholder="Anything about this sequence">{{.Plan.Notes}}</textarea>
+            </label>
+            <button type="submit">Save</button>
+        </form>
+        <form method="post" action="/curriculum/{{.Plan.ID}}/delete" class="danger-zone">
+            <button type="submit" class="link-button danger"
+                    onclick="return confirm('Delete this plan and its files?')">Delete this plan</button>
+        </form>
+    </section>
+
+    <section class="panel">
+        <h2>Source files</h2>
+        <p class="muted small">PDFs for the year and subject live on the plan, not on a child.</p>
+        {{template "upload_form" (dict "OwnerType" "curriculum" "CurriculumPlanID" .Plan.ID "Back" $back)}}
+        {{template "file_list" (dict "Files" .Plan.Attachments "Back" $back)}}
+    </section>
+</div>
+
+<section class="panel">
+    <h2>Sequence</h2>
+    <p class="muted small">Week numbers are only for grouping. Applying still walks this list in order.</p>
+    <div class="stack">
+        {{range .Plan.Items}}
+            <form method="post" action="/curriculum/{{$.Plan.ID}}/items/{{.ID}}" class="item-row">
+                <input type="text" name="title" value="{{.Title}}" required aria-label="Title">
+                <input type="number" name="week_number" min="0" value="{{if .WeekNumber}}{{.WeekNumber}}{{end}}" placeholder="wk" aria-label="Week number">
+                <input type="number" name="minutes" min="0" step="5" value="{{if .Minutes}}{{.Minutes}}{{end}}" placeholder="min" aria-label="Minutes">
+                <input type="text" name="notes" value="{{.Notes}}" placeholder="Notes" aria-label="Notes">
+                <button type="submit" class="secondary">Save</button>
+                <button type="submit" class="link-button" formmethod="post"
+                        formaction="/curriculum/{{$.Plan.ID}}/items/{{.ID}}/move" name="dir" value="up">Up</button>
+                <button type="submit" class="link-button" formmethod="post"
+                        formaction="/curriculum/{{$.Plan.ID}}/items/{{.ID}}/move" name="dir" value="down">Down</button>
+                <button type="submit" class="link-button danger" formmethod="post"
+                        formaction="/curriculum/{{$.Plan.ID}}/items/{{.ID}}/delete"
+                        onclick="return confirm('Remove this lesson from the sequence?')">Remove</button>
+            </form>
+        {{else}}
+            <p class="muted small">No lessons in this sequence yet.</p>
+        {{end}}
+    </div>
+
+    <form method="post" action="/curriculum/{{.Plan.ID}}/items" class="inline-grid new-item">
+        <input type="text" name="title" placeholder="Next lesson title" required>
+        <input type="number" name="week_number" min="0" placeholder="wk" aria-label="Week number">
+        <input type="number" name="minutes" min="0" step="5" placeholder="min" aria-label="Minutes">
+        <input type="text" name="notes" placeholder="Notes" aria-label="Notes">
+        <button type="submit">Add to sequence</button>
+    </form>
+</section>
+
+{{if and .Plan.Items .Kids}}
+<section class="panel">
+    <h2>Apply to a child</h2>
+    <p class="muted small">Creates planned lessons on the chosen weekdays, one sequence item per day.</p>
+    <form method="get" action="/curriculum/{{.Plan.ID}}/apply" class="inline-grid">
+        <select name="kid" required aria-label="Child">
+            {{range .Kids}}<option value="{{.ID}}">{{.Name}}</option>{{end}}
+        </select>
+        <input type="date" name="start" value="{{.Start}}" aria-label="Start date">
+        {{template "weekday_checks" (dict "Choices" .Weekdays)}}
+        <button type="submit">Preview</button>
+    </form>
+</section>
+{{end}}
+{{end}}

@@ -7,6 +7,7 @@ import (
 )
 
 const lessonSelect = `SELECT l.id, l.kid_id, l.subject_id, COALESCE(l.school_year_id, 0),
+		COALESCE(l.series_id, 0),
 		l.scheduled_on, l.status, l.title, l.minutes, l.notes,
 		COALESCE(l.completed_at, ''), l.created_at,
 		k.name, k.color, s.name
@@ -19,7 +20,7 @@ func scanLessons(rows *sql.Rows) ([]Lesson, error) {
 	var lessons []Lesson
 	for rows.Next() {
 		var l Lesson
-		if err := rows.Scan(&l.ID, &l.KidID, &l.SubjectID, &l.SchoolYearID,
+		if err := rows.Scan(&l.ID, &l.KidID, &l.SubjectID, &l.SchoolYearID, &l.SeriesID,
 			&l.ScheduledOn, &l.Status, &l.Title, &l.Minutes, &l.Notes,
 			&l.CompletedAt, &l.CreatedAt,
 			&l.KidName, &l.KidColor, &l.SubjectName); err != nil {
@@ -93,9 +94,9 @@ func (s *Store) CreateLesson(l Lesson) (int64, error) {
 		completedAt = time.Now().Format(time.RFC3339)
 	}
 	res, err := s.db().Exec(`INSERT INTO lessons
-		(kid_id, subject_id, school_year_id, scheduled_on, status, title, minutes, notes, completed_at, created_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		l.KidID, l.SubjectID, nullableID(yearID), l.ScheduledOn, l.Status, l.Title, l.Minutes, l.Notes,
+		(kid_id, subject_id, school_year_id, series_id, scheduled_on, status, title, minutes, notes, completed_at, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		l.KidID, l.SubjectID, nullableID(yearID), nullableID(l.SeriesID), l.ScheduledOn, l.Status, l.Title, l.Minutes, l.Notes,
 		completedAt, time.Now().Format(time.RFC3339))
 	if err != nil {
 		return 0, err
@@ -205,6 +206,44 @@ func (s *Store) LessonsForKidSubjectSplit(kidID, subjectID int64, limit int) (up
 		upcoming[i], upcoming[j] = upcoming[j], upcoming[i]
 	}
 	return upcoming, past, nil
+}
+
+// LessonsInRange lists work in a date range, optionally for one child and one
+// subject. A zero id means every child or every subject.
+func (s *Store) LessonsInRange(from, to string, kidID, subjectID int64) ([]Lesson, error) {
+	q := lessonSelect + ` WHERE l.scheduled_on BETWEEN ? AND ?`
+	args := []any{from, to}
+	if kidID > 0 {
+		q += ` AND l.kid_id = ?`
+		args = append(args, kidID)
+	}
+	if subjectID > 0 {
+		q += ` AND l.subject_id = ?`
+		args = append(args, subjectID)
+	}
+	q += ` ORDER BY l.scheduled_on, k.sort_order, s.sort_order, l.id`
+
+	rows, err := s.db().Query(q, args...)
+	if err != nil {
+		return nil, err
+	}
+	return scanLessons(rows)
+}
+
+func (s *Store) DoneLessonsInRange(from, to string, kidID, subjectID int64) ([]Lesson, error) {
+	q := lessonSelect + ` WHERE l.status = ? AND l.scheduled_on BETWEEN ? AND ? AND l.kid_id = ?`
+	args := []any{StatusDone, from, to, kidID}
+	if subjectID > 0 {
+		q += ` AND l.subject_id = ?`
+		args = append(args, subjectID)
+	}
+	q += ` ORDER BY l.scheduled_on, l.id`
+
+	rows, err := s.db().Query(q, args...)
+	if err != nil {
+		return nil, err
+	}
+	return scanLessons(rows)
 }
 
 func (s *Store) currentYearID() (int64, error) {

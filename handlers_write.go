@@ -32,13 +32,27 @@ func (a *App) handleCreateLesson(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if r.FormValue("repeat") == "on" {
+		series, dates, err := seriesFromForm(r, lesson)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		if _, err := a.store.CreateSeries(series, dates); err != nil {
+			a.serverError(w, err)
+			return
+		}
+		a.redirect(w, r, safeRedirect(r.FormValue("back"), "/planner?week="+weekStart(parseDate(lesson.ScheduledOn)).Format(dateLayout)))
+		return
+	}
+
 	if _, err := a.store.CreateLesson(lesson); err != nil {
 		a.serverError(w, err)
 		return
 	}
 
 	// The planner swaps just the day that changed; everywhere else reloads.
-	if r.Header.Get("HX-Request") == "true" && r.FormValue("view") == "planner" {
+	if r.Header.Get("HX-Request") == "true" && r.FormValue("view") == "planner" && r.FormValue("repeat") != "on" {
 		a.renderPlannerDay(w, lesson.ScheduledOn, formID(r, "kid_filter"))
 		return
 	}

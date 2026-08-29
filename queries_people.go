@@ -160,6 +160,14 @@ func (s *Store) SchoolYears() ([]SchoolYear, error) {
 	return years, rows.Err()
 }
 
+func (s *Store) SchoolYear(id int64) (SchoolYear, error) {
+	var y SchoolYear
+	err := s.db().QueryRow(`SELECT id, name, starts_on, ends_on, is_current
+		FROM school_years WHERE id = ?`, id).
+		Scan(&y.ID, &y.Name, &y.StartsOn, &y.EndsOn, &y.IsCurrent)
+	return y, err
+}
+
 // CurrentSchoolYear returns the year marked current, or a zero value when the
 // family has not set one up yet.
 func (s *Store) CurrentSchoolYear() (SchoolYear, error) {

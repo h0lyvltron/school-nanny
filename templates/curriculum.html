@@ -1,0 +1,75 @@
+{{define "content"}}
+<div class="page-head">
+    <div>
+        <h1>Curriculum</h1>
+        <p class="muted">Scope and sequence for a subject, applied to a child when you are ready.</p>
+    </div>
+</div>
+
+{{if .ImportError}}<p class="form-error">{{.ImportError}}</p>{{end}}
+{{if .Imported}}
+    <p class="saved-flash">Imported {{.Imported}} plan{{if ne .Imported 1}}s{{end}}.</p>
+{{end}}
+
+<div class="two-col">
+<section class="panel">
+    <h2>New plan</h2>
+    {{if .Subjects}}
+        <form method="post" action="/curriculum" class="inline-grid">
+            <input type="text" name="name" placeholder="Name, like 3rd grade Math" required aria-label="Plan name">
+            <select name="subject_id" required aria-label="Subject">
+                {{range .Subjects}}<option value="{{.ID}}">{{.Name}}</option>{{end}}
+            </select>
+            <button type="submit">Create plan</button>
+        </form>
+    {{else}}
+        <p class="muted">Add subjects in Settings first.</p>
+    {{end}}
+</section>
+
+<section class="panel">
+    <h2>Import</h2>
+    <p class="muted small">Adds new written plans from a YAML or CSV file. It never merges into a plan you already have.</p>
+    <details class="import-help">
+        <summary>File format</summary>
+        <p class="muted small">Same fields either way. <code>subject</code> is a name or slug, like <code>math</code> or <code>Language Arts</code>. Lesson order in the file becomes the sequence. PDFs are attached on the plan page after.</p>
+        <pre class="schema-sample">plans:
+  - name: 3rd grade Math
+    subject: math
+    items:
+      - week: 1
+        title: Place value
+        minutes: 40</pre>
+        <p class="muted small">CSV header: <code>plan,subject,week,title,minutes,notes</code></p>
+    </details>
+    <form method="post" action="/curriculum/import" enctype="multipart/form-data" class="upload"
+          data-toast="Imported!"
+          onsubmit="return confirm('This adds new plans. It will not change any plan you already have.')">
+        <input type="file" name="file" accept=".yaml,.yml,.csv" required aria-label="Curriculum file">
+        <button type="submit">Import</button>
+    </form>
+</section>
+</div>
+
+{{if eq .PlanCount 0}}
+    <p class="muted">No plans yet. Create one, attach the PDF, and list the lessons in order.</p>
+{{end}}
+
+{{range .Groups}}
+    {{if .Plans}}
+        <section class="panel">
+            <h2>{{.Subject.Name}}</h2>
+            <div class="stack">
+                {{range .Plans}}
+                    <a href="/curriculum/{{.ID}}" class="plan-row">
+                        <strong>{{.Name}}</strong>
+                        <span class="muted small">
+                            {{.KindLabel}} &middot; {{.ItemCount}} lesson{{if ne .ItemCount 1}}s{{end}}
+                        </span>
+                    </a>
+                {{end}}
+            </div>
+        </section>
+    {{end}}
+{{end}}
+{{end}}

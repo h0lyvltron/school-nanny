@@ -1,0 +1,58 @@
+{{define "content"}}
+<div class="page-head">
+    <div>
+        <h1>Attendance</h1>
+        <p class="muted">{{.MonthLabel}}{{if .YearName}} &middot; {{.YearName}}{{end}}</p>
+    </div>
+</div>
+
+{{if not .NavKids}}
+    <p class="muted">Add the kids in <a href="/settings">Settings</a> before marking attendance.</p>
+{{else}}
+    {{template "attendance_board" .}}
+
+    <section class="panel report-table">
+        <h2>Year report</h2>
+        <p class="muted small">Mon–Fri in {{.YearName}} that have not been marked stay unmarked, not absent.</p>
+        {{range .Reports}}
+            <h3>
+                <span class="dot" style="background:{{color .Kid.Color}}"></span>
+                {{.Kid.Name}}
+            </h3>
+            <p class="muted small">
+                {{.Year.Present}} present &middot; {{.Year.Absent}} absent &middot;
+                {{.Year.Excused}} excused &middot; {{.Year.Unmarked}} unmarked weekdays
+            </p>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Month</th>
+                        <th>Present</th>
+                        <th>Absent</th>
+                        <th>Excused</th>
+                        <th>Unmarked</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {{range .Months}}
+                        <tr>
+                            <td>{{.Label}}</td>
+                            <td>{{.Totals.Present}}</td>
+                            <td>{{.Totals.Absent}}</td>
+                            <td>{{.Totals.Excused}}</td>
+                            <td>{{.Totals.Unmarked}}</td>
+                        </tr>
+                    {{end}}
+                    <tr>
+                        <th>{{$.YearName}}</th>
+                        <th>{{.Year.Present}}</th>
+                        <th>{{.Year.Absent}}</th>
+                        <th>{{.Year.Excused}}</th>
+                        <th>{{.Year.Unmarked}}</th>
+                    </tr>
+                </tbody>
+            </table>
+        {{end}}
+    </section>
+{{end}}
+{{end}}

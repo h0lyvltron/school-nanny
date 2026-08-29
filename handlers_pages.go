@@ -9,9 +9,10 @@ import (
 
 // KidToday is one child's slice of the family home page.
 type KidToday struct {
-	Kid     Kid
-	Lessons []Lesson
-	Week    Progress
+	Kid        Kid
+	Lessons    []Lesson
+	Week       Progress
+	Attendance Attendance
 }
 
 func (a *App) handleHome(w http.ResponseWriter, r *http.Request) {
@@ -39,6 +40,12 @@ func (a *App) handleHome(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	todayAtt, err := a.store.AttendanceOnDate(now)
+	if err != nil {
+		a.serverError(w, err)
+		return
+	}
+
 	cards := make([]KidToday, 0, len(kids))
 	for _, kid := range kids {
 		progress, err := a.store.ProgressBetween(start, end, kid.ID, 0)
@@ -46,7 +53,12 @@ func (a *App) handleHome(w http.ResponseWriter, r *http.Request) {
 			a.serverError(w, err)
 			return
 		}
-		cards = append(cards, KidToday{Kid: kid, Lessons: byKidToday[kid.ID], Week: progress})
+		cards = append(cards, KidToday{
+			Kid:        kid,
+			Lessons:    byKidToday[kid.ID],
+			Week:       progress,
+			Attendance: todayAtt[kid.ID],
+		})
 	}
 
 	overdue, err := a.store.LessonsOverdue(now, 25)
@@ -355,7 +367,17 @@ func (a *App) handleLesson(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var series LessonSeries
+	if lesson.SeriesID != 0 {
+		series, err = a.store.Series(lesson.SeriesID)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			a.serverError(w, err)
+			return
+		}
+	}
+
 	data["Lesson"] = lesson
+	data["Series"] = series
 	data["Subjects"] = subjects
 	data["Kids"] = data["NavKids"]
 	a.render(w, "lesson", data)

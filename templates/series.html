@@ -1,0 +1,73 @@
+{{define "content"}}
+<div class="page-head">
+    <div>
+        <p class="crumbs"><a href="/planner">Week</a></p>
+        <h1>{{.Series.Title}}</h1>
+        <p class="muted">Repeating series for {{.Series.KidName}} &middot; {{.Series.SubjectName}}</p>
+    </div>
+</div>
+
+<section class="panel">
+    <h2>Series</h2>
+    <p class="muted small">Saving updates future planned copies. Done and skipped lessons stay as they were.</p>
+    <form method="post" action="/series/{{.Series.ID}}">
+        <label>Title
+            <input type="text" name="title" value="{{.Series.Title}}" required>
+        </label>
+        <div class="field-row">
+            <label>Child
+                <select name="kid_id">
+                    {{$kidID := .Series.KidID}}
+                    {{range .Kids}}
+                        <option value="{{.ID}}" {{if eq $kidID .ID}}selected{{end}}>{{.Name}}</option>
+                    {{end}}
+                </select>
+            </label>
+            <label>Subject
+                <select name="subject_id">
+                    {{$subjectID := .Series.SubjectID}}
+                    {{range .Subjects}}
+                        <option value="{{.ID}}" {{if eq $subjectID .ID}}selected{{end}}>{{.Name}}</option>
+                    {{end}}
+                </select>
+            </label>
+        </div>
+        <div class="field-row">
+            <label>Starts
+                <input type="date" name="starts_on" value="{{.Series.StartsOn}}">
+            </label>
+            <label>Until
+                <input type="date" name="ends_on" value="{{.Series.EndsOn}}">
+            </label>
+            <label>Or this many times
+                <input type="number" name="occurrence_count" min="0" max="400" value="{{if .Series.OccurrenceCount}}{{.Series.OccurrenceCount}}{{end}}">
+            </label>
+            <label>Minutes
+                <input type="number" name="minutes" min="0" step="5" value="{{.Series.Minutes}}">
+            </label>
+        </div>
+        <p class="muted small">Days</p>
+        {{template "weekday_checks" (dict "Choices" .Weekdays)}}
+        <label>Notes
+            <textarea name="notes" rows="3">{{.Series.Notes}}</textarea>
+        </label>
+        <button type="submit">Save series</button>
+    </form>
+    <form method="post" action="/series/{{.Series.ID}}/stop" class="danger-zone">
+        <input type="hidden" name="back" value="/planner">
+        <button type="submit" class="link-button danger"
+                onclick="return confirm('Remove remaining planned copies of this series?')">Stop series</button>
+    </form>
+</section>
+
+<section class="panel">
+    <h2>Copies</h2>
+    <div class="stack">
+        {{range .Lessons}}
+            {{template "lesson_row" (dict "Lesson" . "ShowKid" false "ShowSubject" false "Back" (printf "/series/%d" $.Series.ID))}}
+        {{else}}
+            <p class="muted small">No copies left.</p>
+        {{end}}
+    </div>
+</section>
+{{end}}

@@ -24,6 +24,7 @@
     <link rel="stylesheet" href="/static/app.css">
     <script src="/static/htmx.min.js" defer></script>
     <script src="/static/theme.js" defer></script>
+    <script src="/static/ui.js" defer></script>
 </head>
 <body>
 <header class="app-bar">
@@ -32,6 +33,9 @@
         <nav class="app-nav">
             <a href="/" class="{{if eq .Active "home"}}current{{end}}">Today</a>
             <a href="/planner" class="{{if eq .Active "planner"}}current{{end}}">Week</a>
+            <a href="/curriculum" class="{{if eq .Active "curriculum"}}current{{end}}">Curriculum</a>
+            <a href="/attendance" class="{{if eq .Active "attendance"}}current{{end}}">Attendance</a>
+            <a href="/archive" class="{{if eq .Active "archive"}}current{{end}}">Archive</a>
             {{range .NavKids}}
                 <a href="/kids/{{.ID}}" class="nav-kid">
                     <span class="dot" style="background:{{color .Color}}"></span>{{.Name}}

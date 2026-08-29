@@ -76,6 +76,29 @@ func (ta *testApp) get(path string) (int, string) {
 	return resp.StatusCode, string(body)
 }
 
+func (ta *testApp) postFile(path, field, filename string, content []byte) (int, string) {
+	ta.t.Helper()
+	var buf bytes.Buffer
+	writer := multipart.NewWriter(&buf)
+	part, err := writer.CreateFormFile(field, filename)
+	if err != nil {
+		ta.t.Fatalf("building upload: %v", err)
+	}
+	if _, err := part.Write(content); err != nil {
+		ta.t.Fatalf("writing upload: %v", err)
+	}
+	if err := writer.Close(); err != nil {
+		ta.t.Fatalf("closing upload: %v", err)
+	}
+	resp, err := ta.client.Post(ta.server.URL+path, writer.FormDataContentType(), &buf)
+	if err != nil {
+		ta.t.Fatalf("POST %s: %v", path, err)
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+	return resp.StatusCode, string(body)
+}
+
 func (ta *testApp) post(path string, form url.Values) (int, string) {
 	ta.t.Helper()
 	resp, err := ta.client.PostForm(ta.server.URL+path, form)
@@ -191,6 +214,24 @@ func TestThemeSwitchIsWiredUp(t *testing.T) {
 
 	_, css := ta.get("/static/app.css")
 	mustContain(t, css, `[data-theme="dark"]`, "dark palette in app.css")
+}
+
+func TestSaveToastIsWiredUp(t *testing.T) {
+	ta := newTestApp(t)
+
+	_, body := ta.get("/")
+	mustContain(t, body, `src="/static/ui.js"`, "ui script tag")
+
+	status, script := ta.get("/static/ui.js")
+	if status != http.StatusOK {
+		t.Fatalf("ui.js returned %d, so it is missing from the binary", status)
+	}
+	mustContain(t, script, "school-nanny-scroll", "ui.js")
+	mustContain(t, script, "Saved!", "ui.js default toast")
+	mustContain(t, script, "scrollRestoration", "ui.js")
+
+	_, css := ta.get("/static/app.css")
+	mustContain(t, css, ".save-toast", "toast styles")
 }
 
 func TestFirstRunAsksForKids(t *testing.T) {
@@ -603,7 +644,7 @@ func TestCrossSiteWritesAreRefused(t *testing.T) {
 
 func TestUnknownRecordsReturnNotFound(t *testing.T) {
 	ta := newTestApp(t)
-	for _, path := range []string{"/kids/4242", "/lessons/4242", "/files/4242", "/kids/4242/tests"} {
+	for _, path := range []string{"/kids/4242", "/lessons/4242", "/files/4242", "/kids/4242/tests", "/curriculum/4242", "/series/4242"} {
 		if status, _ := ta.get(path); status != http.StatusNotFound {
 			t.Errorf("%s: expected 404, got %d", path, status)
 		}
@@ -634,4 +675,366 @@ func TestSafeRedirectStaysInsideTheApp(t *testing.T) {
 			t.Errorf("safeRedirect(%q) = %q, want %q", input, got, want)
 		}
 	}
+}
+
+func TestOccurrenceDatesSkipsOtherDays(t *testing.T) {
+	dates, err := occurrenceDates("2026-08-26", "", 3, parseWeekdays("1,2,3,4,5"))
+	if err != nil {
+		t.Fatalf("occurrenceDates: %v", err)
+	}
+	want := []string{"2026-08-26", "2026-08-27", "2026-08-28"}
+	if len(dates) != len(want) {
+		t.Fatalf("got %v, want %v", dates, want)
+	}
+	for i := range want {
+		if dates[i] != want[i] {
+			t.Errorf("date %d: got %s, want %s", i, dates[i], want[i])
+		}
+	}
+}
+
+func TestAttendanceMarkAndMonthTotals(t *testing.T) {
+	ta := newTestApp(t)
+	kid := ta.addKid("Mia")
+	if _, err := ta.store.CreateSchoolYear("2026–2027", "2026-08-01", "2027-05-31", true); err != nil {
+		t.Fatalf("creating year: %v", err)
+	}
+
+	status, _ := ta.post("/attendance", url.Values{
+		"kid_id":      {itoa64(kid)},
+		"attended_on": {today()},
+		"status":      {AttendancePresent},
+		"notes":       {"On the porch"},
+		"back":        {"/"},
+	})
+	if status != http.StatusOK {
+		t.Fatalf("marking present returned %d", status)
+	}
+
+	marks, err := ta.store.AttendanceOnDate(today())
+	if err != nil {
+		t.Fatalf("reading attendance: %v", err)
+	}
+	got, ok := marks[kid]
+	if !ok || !got.IsPresent() {
+		t.Fatalf("expected present, got %+v", got)
+	}
+	if got.Notes != "On the porch" {
+		t.Errorf("expected the note to stick, got %q", got.Notes)
+	}
+
+	_, body := ta.get("/")
+	mustContain(t, body, "Present", "home attendance")
+
+	_, page := ta.get("/attendance?kid=" + itoa64(kid))
+	mustContain(t, page, "present", "attendance page")
+	mustContain(t, page, "Year report", "attendance page")
+
+	totals, err := ta.store.AttendanceTotalsBetween(today(), today(), kid)
+	if err != nil {
+		t.Fatalf("totals: %v", err)
+	}
+	if totals.Present != 1 {
+		t.Errorf("expected 1 present, got %d", totals.Present)
+	}
+}
+
+func TestRepeatingSeriesClonesAndEditFutureOnly(t *testing.T) {
+	ta := newTestApp(t)
+	kid := ta.addKid("Mia")
+	subject := ta.mathSubjectID()
+	start := today()
+
+	status, _ := ta.post("/lessons", url.Values{
+		"kid_id":       {itoa64(kid)},
+		"subject_id":   {itoa64(subject)},
+		"scheduled_on": {start},
+		"title":        {"Piano"},
+		"minutes":      {"20"},
+		"repeat":       {"on"},
+		"weekday":      {"1", "3", "5"},
+		"repeat_count": {"6"},
+		"back":         {"/planner"},
+	})
+	if status != http.StatusOK {
+		t.Fatalf("creating series returned %d", status)
+	}
+
+	lessons, err := ta.store.LessonsInRange(start, addDays(start, 40), kid, subject)
+	if err != nil {
+		t.Fatalf("listing lessons: %v", err)
+	}
+	if len(lessons) != 6 {
+		t.Fatalf("expected 6 clones, got %d", len(lessons))
+	}
+	if lessons[0].SeriesID == 0 {
+		t.Fatal("clones should point at the series")
+	}
+
+	first := lessons[0]
+	if err := ta.store.SetLessonStatus(first.ID, StatusDone); err != nil {
+		t.Fatalf("marking first done: %v", err)
+	}
+
+	seriesID := first.SeriesID
+	status, _ = ta.post("/series/"+itoa64(seriesID), url.Values{
+		"kid_id":           {itoa64(kid)},
+		"subject_id":       {itoa64(subject)},
+		"title":            {"Piano practice"},
+		"minutes":          {"20"},
+		"weekday":          {"1", "3", "5"},
+		"starts_on":        {start},
+		"occurrence_count": {"6"},
+	})
+	if status != http.StatusOK {
+		t.Fatalf("updating series returned %d", status)
+	}
+
+	first, _ = ta.store.Lesson(first.ID)
+	if first.Title != "Piano" {
+		t.Errorf("done copy should keep its title, got %q", first.Title)
+	}
+	updated := 0
+	for _, l := range lessons[1:] {
+		got, err := ta.store.Lesson(l.ID)
+		if err != nil {
+			t.Fatalf("reloading clone: %v", err)
+		}
+		if got.Title != "Piano practice" {
+			t.Errorf("future planned copy %s should take the new title, got %q", got.ScheduledOn, got.Title)
+		}
+		updated++
+	}
+	if updated != 5 {
+		t.Errorf("expected 5 future copies to update, got %d", updated)
+	}
+}
+
+func TestCurriculumImportYAMLAndCSV(t *testing.T) {
+	ta := newTestApp(t)
+
+	_, page := ta.get("/curriculum")
+	mustContain(t, page, `accept=".yaml,.yml,.csv"`, "import file picker")
+	mustContain(t, page, "plans:", "YAML schema hint")
+	mustContain(t, page, "plan,subject,week,title,minutes,notes", "CSV schema hint")
+	mustContain(t, page, `data-toast="Imported!"`, "import toast")
+
+	yamlBody := []byte(`plans:
+  - name: 3rd grade Math
+    subject: math
+    notes: Scope and sequence
+    items:
+      - week: 1
+        title: Place value
+        minutes: 40
+      - title: Addition
+        minutes: 30
+        notes: extra drill
+  - name: 3rd grade LA
+    subject: Language Arts
+    items:
+      - week: 2
+        title: Nouns
+`)
+	status, page := ta.postFile("/curriculum/import", "file", "plans.yaml", yamlBody)
+	if status != http.StatusOK {
+		t.Fatalf("importing YAML returned %d", status)
+	}
+	mustContain(t, page, "Imported 2 plans.", "YAML import flash")
+
+	plans, err := ta.store.CurriculumPlans()
+	if err != nil || len(plans) != 2 {
+		t.Fatalf("expected 2 plans after YAML import, got %d (err %v)", len(plans), err)
+	}
+	math, ok := planByName(plans, "3rd grade Math")
+	if !ok {
+		t.Fatal("math plan missing after YAML import")
+	}
+	if math.Kind != PlanAuthored || math.Notes != "Scope and sequence" {
+		t.Errorf("math plan: %+v", math)
+	}
+	full, err := ta.store.CurriculumPlan(math.ID)
+	if err != nil {
+		t.Fatalf("loading math plan: %v", err)
+	}
+	if len(full.Items) != 2 || full.Items[0].Title != "Place value" || full.Items[0].WeekNumber != 1 ||
+		full.Items[0].Minutes != 40 || full.Items[1].Title != "Addition" || full.Items[1].Notes != "extra drill" {
+		t.Fatalf("math items: %+v", full.Items)
+	}
+	la, ok := planByName(plans, "3rd grade LA")
+	if !ok {
+		t.Fatal("language arts plan missing after YAML import")
+	}
+	laFull, err := ta.store.CurriculumPlan(la.ID)
+	if err != nil || len(laFull.Items) != 1 || laFull.Items[0].Title != "Nouns" || laFull.Items[0].WeekNumber != 2 {
+		t.Fatalf("language arts items: %+v (err %v)", laFull.Items, err)
+	}
+
+	csvBody := []byte("plan,subject,week,title,minutes,notes\n" +
+		"CSV Math,math,1,Place value,40,\n" +
+		"CSV Math,math,,Addition,30,extra drill\n" +
+		"CSV LA,Language Arts,2,Nouns,,\n")
+	status, page = ta.postFile("/curriculum/import", "file", "plans.csv", csvBody)
+	if status != http.StatusOK {
+		t.Fatalf("importing CSV returned %d", status)
+	}
+	mustContain(t, page, "Imported 2 plans.", "CSV import flash")
+
+	plans, err = ta.store.CurriculumPlans()
+	if err != nil || len(plans) != 4 {
+		t.Fatalf("expected 4 plans after CSV import, got %d (err %v)", len(plans), err)
+	}
+	csvMath, ok := planByName(plans, "CSV Math")
+	if !ok {
+		t.Fatal("CSV math plan missing")
+	}
+	csvFull, err := ta.store.CurriculumPlan(csvMath.ID)
+	if err != nil || len(csvFull.Items) != 2 || csvFull.Items[0].Title != "Place value" ||
+		csvFull.Items[1].Title != "Addition" {
+		t.Fatalf("CSV math items: %+v (err %v)", csvFull.Items, err)
+	}
+}
+
+func TestCurriculumImportUnknownSubjectWritesNothing(t *testing.T) {
+	ta := newTestApp(t)
+
+	status, page := ta.postFile("/curriculum/import", "file", "bad.yaml", []byte(`plans:
+  - name: 3rd grade Math
+    subject: math
+    items:
+      - title: Place value
+  - name: Bogus
+    subject: unicorn
+    items:
+      - title: Hello
+`))
+	if status != http.StatusOK {
+		t.Fatalf("unknown subject import returned %d", status)
+	}
+	mustContain(t, page, "form-error", "import error on page")
+	mustContain(t, page, "unknown subject", "unknown subject message")
+	mustNotContain(t, page, "saved-flash", "failed import flash")
+
+	plans, err := ta.store.CurriculumPlans()
+	if err != nil {
+		t.Fatalf("listing plans: %v", err)
+	}
+	if len(plans) != 0 {
+		t.Fatalf("failed import should write nothing, got %d plans", len(plans))
+	}
+}
+
+func planByName(plans []CurriculumPlan, name string) (CurriculumPlan, bool) {
+	for _, p := range plans {
+		if p.Name == name {
+			return p, true
+		}
+	}
+	return CurriculumPlan{}, false
+}
+
+func TestCurriculumApplyCreatesWeekdayLessons(t *testing.T) {
+	ta := newTestApp(t)
+	kid := ta.addKid("Mia")
+	subject := ta.mathSubjectID()
+
+	status, _ := ta.post("/curriculum", url.Values{
+		"name":       {"3rd grade Math"},
+		"subject_id": {itoa64(subject)},
+	})
+	if status != http.StatusOK {
+		t.Fatalf("creating plan returned %d", status)
+	}
+	plans, err := ta.store.CurriculumPlans()
+	if err != nil || len(plans) != 1 {
+		t.Fatalf("expected 1 plan, got %d (err %v)", len(plans), err)
+	}
+	planID := plans[0].ID
+
+	for _, title := range []string{"Place value", "Addition", "Subtraction"} {
+		ta.post("/curriculum/"+itoa64(planID)+"/items", url.Values{"title": {title}})
+	}
+
+	_, page := ta.get("/curriculum/" + itoa64(planID))
+	mustContain(t, page, "Place value", "plan page")
+
+	status, _ = ta.post("/curriculum/"+itoa64(planID)+"/apply", url.Values{
+		"kid_id":  {itoa64(kid)},
+		"start":   {"2026-08-26"},
+		"weekday": {"1", "2", "3", "4", "5"},
+	})
+	if status != http.StatusOK {
+		t.Fatalf("applying plan returned %d", status)
+	}
+
+	lessons, err := ta.store.LessonsInRange("2026-08-26", "2026-08-28", kid, subject)
+	if err != nil {
+		t.Fatalf("listing applied lessons: %v", err)
+	}
+	if len(lessons) != 3 {
+		t.Fatalf("expected 3 lessons, got %d", len(lessons))
+	}
+	if lessons[0].Title != "Place value" || lessons[0].ScheduledOn != "2026-08-26" {
+		t.Errorf("first applied lesson: %+v", lessons[0])
+	}
+	if lessons[2].Title != "Subtraction" || lessons[2].ScheduledOn != "2026-08-28" {
+		t.Errorf("last applied lesson: %+v", lessons[2])
+	}
+}
+
+func TestArchiveExportsDoneLessonsAsFromYearPlan(t *testing.T) {
+	ta := newTestApp(t)
+	kid := ta.addKid("Mia")
+	subject := ta.mathSubjectID()
+	yearID, err := ta.store.CreateSchoolYear("2025–2026", "2025-08-01", "2026-05-31", true)
+	if err != nil {
+		t.Fatalf("creating year: %v", err)
+	}
+
+	if _, err := ta.store.CreateLesson(Lesson{
+		KidID: kid, SubjectID: subject, ScheduledOn: "2025-09-10",
+		Title: "Fractions", Minutes: 40, Status: StatusDone, Notes: "Went well",
+	}); err != nil {
+		t.Fatalf("creating done lesson: %v", err)
+	}
+	if _, err := ta.store.CreateLesson(Lesson{
+		KidID: kid, SubjectID: subject, ScheduledOn: "2025-09-11",
+		Title: "Skip this", Status: StatusSkipped,
+	}); err != nil {
+		t.Fatalf("creating skipped lesson: %v", err)
+	}
+
+	_, body := ta.get("/archive?kid=" + itoa64(kid) + "&year=" + itoa64(yearID))
+	mustContain(t, body, "Fractions", "archive page")
+	mustContain(t, body, "Save as curriculum template", "archive page")
+
+	status, _ := ta.post("/archive/export", url.Values{
+		"kid_id":     {itoa64(kid)},
+		"year_id":    {itoa64(yearID)},
+		"subject_id": {itoa64(subject)},
+	})
+	if status != http.StatusOK {
+		t.Fatalf("export returned %d", status)
+	}
+
+	plans, err := ta.store.CurriculumPlans()
+	if err != nil || len(plans) != 1 {
+		t.Fatalf("expected 1 exported plan, got %d (err %v)", len(plans), err)
+	}
+	if plans[0].Kind != PlanFromYear {
+		t.Errorf("expected from_year kind, got %q", plans[0].Kind)
+	}
+	plan, err := ta.store.CurriculumPlan(plans[0].ID)
+	if err != nil {
+		t.Fatalf("loading plan: %v", err)
+	}
+	if len(plan.Items) != 1 || plan.Items[0].Title != "Fractions" {
+		t.Fatalf("exported items: %+v", plan.Items)
+	}
+	if plan.Items[0].Minutes != 40 || plan.Items[0].Notes != "Went well" {
+		t.Errorf("exported item should keep minutes and notes, got %+v", plan.Items[0])
+	}
+
+	_, page := ta.get("/curriculum")
+	mustContain(t, page, "Saved from a year", "curriculum index")
 }

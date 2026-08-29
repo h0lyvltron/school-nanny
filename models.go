@@ -18,6 +18,18 @@ const (
 	OwnerLesson     = "lesson"
 	OwnerAssessment = "assessment"
 	OwnerResource   = "resource"
+	OwnerCurriculum = "curriculum"
+)
+
+const (
+	AttendancePresent = "present"
+	AttendanceAbsent  = "absent"
+	AttendanceExcused = "excused"
+)
+
+const (
+	PlanAuthored = "authored"
+	PlanFromYear = "from_year"
 )
 
 type Kid struct {
@@ -50,6 +62,7 @@ type Lesson struct {
 	KidID        int64
 	SubjectID    int64
 	SchoolYearID int64
+	SeriesID     int64
 	ScheduledOn  string
 	Status       string
 	Title        string
@@ -136,17 +149,18 @@ type Note struct {
 }
 
 type Attachment struct {
-	ID           int64
-	OwnerType    string
-	LessonID     int64
-	AssessmentID int64
-	KidID        int64
-	SubjectID    int64
-	OriginalName string
-	StoredPath   string
-	SizeBytes    int64
-	ContentType  string
-	CreatedAt    string
+	ID               int64
+	OwnerType        string
+	LessonID         int64
+	AssessmentID     int64
+	KidID            int64
+	SubjectID        int64
+	CurriculumPlanID int64
+	OriginalName     string
+	StoredPath       string
+	SizeBytes        int64
+	ContentType      string
+	CreatedAt        string
 }
 
 func (a Attachment) SizeLabel() string { return sizeLabel(a.SizeBytes) }
@@ -185,6 +199,104 @@ func (p Progress) HoursLabel() string {
 		return fmt.Sprintf("%dh", h)
 	}
 	return fmt.Sprintf("%dh %dm", h, m)
+}
+
+type Attendance struct {
+	ID         int64
+	KidID      int64
+	AttendedOn string
+	Status     string
+	Notes      string
+	CreatedAt  string
+
+	KidName  string
+	KidColor string
+}
+
+func (a Attendance) IsPresent() bool { return a.Status == AttendancePresent }
+func (a Attendance) IsAbsent() bool  { return a.Status == AttendanceAbsent }
+func (a Attendance) IsExcused() bool { return a.Status == AttendanceExcused }
+func (a Attendance) Marked() bool    { return a.Status != "" }
+
+func (a Attendance) Label() string {
+	switch a.Status {
+	case AttendancePresent:
+		return "Present"
+	case AttendanceAbsent:
+		return "Absent"
+	case AttendanceExcused:
+		return "Excused"
+	default:
+		return "Not marked"
+	}
+}
+
+type AttendanceTotals struct {
+	Present  int
+	Absent   int
+	Excused  int
+	Unmarked int
+}
+
+func (t AttendanceTotals) Recorded() int {
+	return t.Present + t.Absent + t.Excused
+}
+
+type CurriculumPlan struct {
+	ID           int64
+	Name         string
+	SubjectID    int64
+	Kind         string
+	SourceKidID  int64
+	SourceYearID int64
+	Notes        string
+	CreatedAt    string
+
+	SubjectName string
+	ItemCount   int
+	Items       []CurriculumItem
+	Attachments []Attachment
+}
+
+func (p CurriculumPlan) KindLabel() string {
+	if p.Kind == PlanFromYear {
+		return "Saved from a year"
+	}
+	return "Written"
+}
+
+func (p CurriculumPlan) FromYear() bool {
+	return p.Kind == PlanFromYear
+}
+
+type CurriculumItem struct {
+	ID         int64
+	PlanID     int64
+	SortOrder  int
+	Title      string
+	Notes      string
+	Minutes    int
+	WeekNumber int
+	CreatedAt  string
+}
+
+type LessonSeries struct {
+	ID              int64
+	KidID           int64
+	SubjectID       int64
+	SchoolYearID    int64
+	Title           string
+	Minutes         int
+	Notes           string
+	Weekdays        string
+	StartsOn        string
+	EndsOn          string
+	OccurrenceCount int
+	CreatedAt       string
+
+	KidName     string
+	KidColor    string
+	SubjectName string
 }
 
 func today() string {

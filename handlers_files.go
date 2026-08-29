@@ -36,11 +36,12 @@ func (a *App) handleUpload(w http.ResponseWriter, r *http.Request) {
 	}
 
 	record := Attachment{
-		OwnerType:    r.FormValue("owner_type"),
-		LessonID:     formID(r, "lesson_id"),
-		AssessmentID: formID(r, "assessment_id"),
-		KidID:        formID(r, "kid_id"),
-		SubjectID:    formID(r, "subject_id"),
+		OwnerType:        r.FormValue("owner_type"),
+		LessonID:         formID(r, "lesson_id"),
+		AssessmentID:     formID(r, "assessment_id"),
+		KidID:            formID(r, "kid_id"),
+		SubjectID:        formID(r, "subject_id"),
+		CurriculumPlanID: formID(r, "curriculum_plan_id"),
 	}
 	switch record.OwnerType {
 	case OwnerLesson:
@@ -56,6 +57,11 @@ func (a *App) handleUpload(w http.ResponseWriter, r *http.Request) {
 	case OwnerResource:
 		if record.KidID == 0 || record.SubjectID == 0 {
 			http.Error(w, "Missing child or subject for this file.", http.StatusBadRequest)
+			return
+		}
+	case OwnerCurriculum:
+		if record.CurriculumPlanID == 0 {
+			http.Error(w, "Missing curriculum plan for this file.", http.StatusBadRequest)
 			return
 		}
 	default:
@@ -211,7 +217,7 @@ func (a *App) removeFiles(records []Attachment) {
 // anything that would escape the upload folder.
 func (a *App) resolveUpload(stored string) (string, bool) {
 	clean := filepath.Clean(filepath.FromSlash(stored))
-	if filepath.IsAbs(clean) || strings.HasPrefix(clean, "..") {
+	if filepath.IsAbs(clean) || strings.HasPrefix(clean, "..") || strings.HasPrefix(clean, string(os.PathSeparator)) {
 		return "", false
 	}
 	full := filepath.Join(a.uploadDir, clean)
