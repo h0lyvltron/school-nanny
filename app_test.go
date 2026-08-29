@@ -35,7 +35,7 @@ func newTestApp(t *testing.T) *testApp {
 	t.Helper()
 
 	dir := t.TempDir()
-	store, err := OpenStore(filepath.Join(dir, "test.db"))
+	store, err := OpenStore(filepath.Join(dir, dbFileName))
 	if err != nil {
 		t.Fatalf("opening store: %v", err)
 	}
@@ -44,7 +44,7 @@ func newTestApp(t *testing.T) *testApp {
 		t.Fatalf("migrating: %v", err)
 	}
 
-	app, err := NewApp(store, filepath.Join(dir, "uploads"))
+	app, err := NewApp(store, dir)
 	if err != nil {
 		t.Fatalf("building app: %v", err)
 	}

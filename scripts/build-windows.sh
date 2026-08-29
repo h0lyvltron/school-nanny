@@ -19,9 +19,11 @@ if ! command -v go >/dev/null 2>&1; then
 fi
 
 OUT=dist/windows
-rm -rf "$OUT"
 mkdir -p "$OUT"
 
+# Only the three files written below belong to the build. The folder is never
+# cleared, because the launcher runs the app from here and so a "data" folder
+# can live here too: emptying the folder would delete the family's records.
 echo "Building school-nanny.exe ..."
 GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -o "$OUT/school-nanny.exe" .
 
@@ -60,15 +62,21 @@ To stop it:
     Close the black window.
 
 Where your information lives:
-    The "data" folder next to this file. It holds the database and every
-    file you have attached.
+    Not in this folder. It is kept safely out of the way, so that replacing
+    the program can never disturb it. The Settings page inside the app shows
+    you the exact folder, and so does the black window when it starts.
 
 To back it up:
-    Copy the "data" folder somewhere safe (a USB stick or cloud folder).
-    That is the whole backup.
+    The app saves a backup of your records every day by itself, and the
+    Settings page can put things back to any of them.
+
+    For a copy that would survive this computer dying, open Settings and
+    copy the folder it names onto a USB stick or into a cloud folder. That
+    holds everything, including the files you have attached.
 
 To install a newer version:
-    Replace school-nanny.exe with the new one. Keep the "data" folder.
+    Replace school-nanny.exe with the new one. Nothing else to do, and
+    nothing here to preserve.
 
 If Windows warns about an unrecognized app:
     Click "More info", then "Run anyway". The program was built at home and
@@ -78,5 +86,9 @@ TXT
 echo
 echo "Ready: $OUT"
 ls -la "$OUT"
+if [ -d "$OUT/data" ]; then
+    echo
+    echo "Kept the existing records in $OUT/data"
+fi
 echo
 echo "Copy that folder to her Windows PC and double-click \"Start School Nanny.bat\"."

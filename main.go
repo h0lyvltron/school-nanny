@@ -24,7 +24,7 @@ import (
 func main() {
 	var (
 		addr    = flag.String("addr", "127.0.0.1:8080", "address to listen on")
-		dataDir = flag.String("data", "data", "folder holding the database and uploaded files")
+		dataDir = flag.String("data", "", "folder holding the database and uploaded files (default: this computer's app data folder)")
 		lan     = flag.Bool("lan", false, "listen on all interfaces so other devices on the home network can connect")
 		open    = flag.Bool("open", false, "open the app in a browser once it is listening")
 	)
@@ -44,16 +44,12 @@ func main() {
 }
 
 func run(addr, dataDir string, open bool) error {
-	dataDir, err := filepath.Abs(dataDir)
+	dataDir, adopted, err := prepareDataDir(dataDir)
 	if err != nil {
 		return err
 	}
-	uploadDir := filepath.Join(dataDir, "uploads")
-	if err := os.MkdirAll(uploadDir, 0o755); err != nil {
-		return fmt.Errorf("creating %s: %w", uploadDir, err)
-	}
 
-	store, err := OpenStore(filepath.Join(dataDir, "school.db"))
+	store, err := OpenStore(filepath.Join(dataDir, dbFileName))
 	if err != nil {
 		return err
 	}
@@ -63,9 +59,15 @@ func run(addr, dataDir string, open bool) error {
 		return fmt.Errorf("applying migrations: %w", err)
 	}
 
-	app, err := NewApp(store, uploadDir)
+	app, err := NewApp(store, dataDir)
 	if err != nil {
 		return err
+	}
+
+	// Best effort: not being able to write a backup is worth saying out loud,
+	// but it is no reason to refuse to open the app.
+	if err := app.backupOnStartup(); err != nil {
+		log.Printf("could not save a backup: %v", err)
 	}
 
 	listener, err := net.Listen("tcp", addr)
@@ -82,6 +84,10 @@ func run(addr, dataDir string, open bool) error {
 	url := browserURL(listener.Addr())
 	log.Printf("School Nanny is running at %s", url)
 	log.Printf("data folder: %s", dataDir)
+	if adopted != "" {
+		log.Printf("copied your existing records here from %s", adopted)
+		log.Printf("that older folder is untouched; delete it once you are happy")
+	}
 	log.Printf("press Ctrl+C to stop")
 	if open {
 		go openBrowser(url)
@@ -108,6 +114,38 @@ func run(addr, dataDir string, open bool) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	return srv.Shutdown(ctx)
+}
+
+// prepareDataDir settles where the records live and makes sure the folder is
+// there. It returns the folder, plus the older folder its contents came from
+// when this was the move to the per-user location.
+func prepareDataDir(chosen string) (dir, adoptedFrom string, err error) {
+	explicit := chosen != ""
+	if !explicit {
+		if chosen, err = defaultDataDir(); err != nil {
+			return "", "", err
+		}
+	}
+	dir, err = filepath.Abs(chosen)
+	if err != nil {
+		return "", "", err
+	}
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return "", "", fmt.Errorf("creating %s: %w", dir, err)
+	}
+
+	// Asking for a folder outright means meaning it, so nothing is copied in.
+	if !explicit {
+		if adoptedFrom, err = adoptExistingData(dir); err != nil {
+			return "", "", err
+		}
+	}
+
+	uploads := filepath.Join(dir, uploadsFolderName)
+	if err := os.MkdirAll(uploads, 0o755); err != nil {
+		return "", "", fmt.Errorf("creating %s: %w", uploads, err)
+	}
+	return dir, adoptedFrom, nil
 }
 
 // browserURL turns a listening address into something a browser can open,

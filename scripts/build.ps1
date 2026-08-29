@@ -8,13 +8,17 @@ if (-not (Get-Command go -ErrorAction SilentlyContinue)) {
 }
 
 $out = 'dist\windows'
-if (Test-Path $out) { Remove-Item $out -Recurse -Force }
 New-Item -ItemType Directory -Force -Path $out | Out-Null
 
+# Only the three files below belong to the build. The folder is never cleared,
+# because the launcher runs the app from here and so the family's "data" folder
+# lives here too: emptying the folder would delete their records.
 Write-Host 'Building school-nanny.exe ...'
 $env:CGO_ENABLED = '0'
 & go build -trimpath -o (Join-Path $out 'school-nanny.exe') .
-if ($LASTEXITCODE -ne 0) { Write-Error 'Build failed.' }
+if ($LASTEXITCODE -ne 0) {
+    Write-Error 'Build failed. If School Nanny is open, close its window and run this again.'
+}
 
 $bat = @'
 @echo off
@@ -46,15 +50,21 @@ To stop it:
     Close the black window.
 
 Where your information lives:
-    The "data" folder next to this file. It holds the database and every
-    file you have attached.
+    Not in this folder. It is kept safely out of the way, so that replacing
+    the program can never disturb it. The Settings page inside the app shows
+    you the exact folder, and so does the black window when it starts.
 
 To back it up:
-    Copy the "data" folder somewhere safe (a USB stick or cloud folder).
-    That is the whole backup.
+    The app saves a backup of your records every day by itself, and the
+    Settings page can put things back to any of them.
+
+    For a copy that would survive this computer dying, open Settings and
+    copy the folder it names onto a USB stick or into a cloud folder. That
+    holds everything, including the files you have attached.
 
 To install a newer version:
-    Replace school-nanny.exe with the new one. Keep the "data" folder.
+    Replace school-nanny.exe with the new one. Nothing else to do, and
+    nothing here to preserve.
 '@
 
 Set-Content -Path (Join-Path $out 'Start School Nanny.bat') -Value $bat -Encoding ASCII
@@ -63,3 +73,9 @@ Set-Content -Path (Join-Path $out 'README.txt') -Value $readme -Encoding ASCII
 Write-Host ''
 Write-Host "Ready: $out"
 Get-ChildItem $out
+
+$data = Join-Path $out 'data'
+if (Test-Path $data) {
+    Write-Host ''
+    Write-Host "Kept the existing records in $data"
+}

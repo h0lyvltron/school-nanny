@@ -586,6 +586,34 @@ h3 { font-size: 1rem; }
 }
 
 .notes li { padding: 0.5rem 0; border-bottom: 1px dashed var(--line); }
+
+/* Backups ------------------------------------------------------------- */
+
+.backups { list-style: none; padding: 0; margin: 0.5rem 0 0.75rem; }
+
+.backups li {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    padding: 0.4rem 0;
+    border-bottom: 1px dashed var(--line);
+}
+
+.backup-when { display: flex; align-items: baseline; gap: 0.5rem; flex-wrap: wrap; }
+.backup-actions { display: flex; align-items: baseline; gap: 0.9rem; }
+
+/* The folder path is the one place a monospace face earns its keep: it is
+   something to be typed or pasted rather than read. */
+.path {
+    background: var(--muted-surface);
+    color: var(--ink);
+    border-radius: 0.3rem;
+    padding: 0.1rem 0.35rem;
+    font-size: 0.85em;
+    word-break: break-all;
+}
 .note-body { margin: 0; white-space: pre-wrap; }
 .note-meta { display: flex; align-items: baseline; gap: 0.5rem; margin-top: 0.15rem; }
 

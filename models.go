@@ -149,16 +149,7 @@ type Attachment struct {
 	CreatedAt    string
 }
 
-func (a Attachment) SizeLabel() string {
-	switch {
-	case a.SizeBytes >= 1<<20:
-		return fmt.Sprintf("%.1f MB", float64(a.SizeBytes)/(1<<20))
-	case a.SizeBytes >= 1<<10:
-		return fmt.Sprintf("%.0f KB", float64(a.SizeBytes)/(1<<10))
-	default:
-		return fmt.Sprintf("%d B", a.SizeBytes)
-	}
-}
+func (a Attachment) SizeLabel() string { return sizeLabel(a.SizeBytes) }
 
 // Progress is the derived view of how a stretch of time went: counts of
 // lessons by status plus recorded minutes.

@@ -31,7 +31,7 @@ func scanLessons(rows *sql.Rows) ([]Lesson, error) {
 }
 
 func (s *Store) Lesson(id int64) (Lesson, error) {
-	rows, err := s.db.Query(lessonSelect+` WHERE l.id = ?`, id)
+	rows, err := s.db().Query(lessonSelect+` WHERE l.id = ?`, id)
 	if err != nil {
 		return Lesson{}, err
 	}
@@ -56,7 +56,7 @@ func (s *Store) LessonsBetween(from, to string, kidID int64) ([]Lesson, error) {
 	}
 	q += ` ORDER BY l.scheduled_on, k.sort_order, s.sort_order, l.id`
 
-	rows, err := s.db.Query(q, args...)
+	rows, err := s.db().Query(q, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -65,7 +65,7 @@ func (s *Store) LessonsBetween(from, to string, kidID int64) ([]Lesson, error) {
 
 // LessonsOverdue lists planned lessons whose day has passed, oldest first.
 func (s *Store) LessonsOverdue(before string, limit int) ([]Lesson, error) {
-	rows, err := s.db.Query(lessonSelect+` WHERE l.status = ? AND l.scheduled_on < ?
+	rows, err := s.db().Query(lessonSelect+` WHERE l.status = ? AND l.scheduled_on < ?
 		ORDER BY l.scheduled_on, k.sort_order LIMIT ?`, StatusPlanned, before, limit)
 	if err != nil {
 		return nil, err
@@ -75,7 +75,7 @@ func (s *Store) LessonsOverdue(before string, limit int) ([]Lesson, error) {
 
 // LessonsForSubject lists a child's work in one subject, newest first.
 func (s *Store) LessonsForSubject(kidID, subjectID int64, limit int) ([]Lesson, error) {
-	rows, err := s.db.Query(lessonSelect+` WHERE l.kid_id = ? AND l.subject_id = ?
+	rows, err := s.db().Query(lessonSelect+` WHERE l.kid_id = ? AND l.subject_id = ?
 		ORDER BY l.scheduled_on DESC, l.id DESC LIMIT ?`, kidID, subjectID, limit)
 	if err != nil {
 		return nil, err
@@ -92,7 +92,7 @@ func (s *Store) CreateLesson(l Lesson) (int64, error) {
 	if l.Status == StatusDone {
 		completedAt = time.Now().Format(time.RFC3339)
 	}
-	res, err := s.db.Exec(`INSERT INTO lessons
+	res, err := s.db().Exec(`INSERT INTO lessons
 		(kid_id, subject_id, school_year_id, scheduled_on, status, title, minutes, notes, completed_at, created_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		l.KidID, l.SubjectID, nullableID(yearID), l.ScheduledOn, l.Status, l.Title, l.Minutes, l.Notes,
@@ -104,7 +104,7 @@ func (s *Store) CreateLesson(l Lesson) (int64, error) {
 }
 
 func (s *Store) UpdateLesson(id int64, l Lesson) error {
-	_, err := s.db.Exec(`UPDATE lessons
+	_, err := s.db().Exec(`UPDATE lessons
 		SET kid_id = ?, subject_id = ?, scheduled_on = ?, title = ?, minutes = ?, notes = ?
 		WHERE id = ?`,
 		l.KidID, l.SubjectID, l.ScheduledOn, l.Title, l.Minutes, l.Notes, id)
@@ -118,18 +118,18 @@ func (s *Store) SetLessonStatus(id int64, status string) error {
 	if status == StatusDone {
 		completedAt = time.Now().Format(time.RFC3339)
 	}
-	_, err := s.db.Exec(`UPDATE lessons SET status = ?, completed_at = ? WHERE id = ?`,
+	_, err := s.db().Exec(`UPDATE lessons SET status = ?, completed_at = ? WHERE id = ?`,
 		status, completedAt, id)
 	return err
 }
 
 func (s *Store) RescheduleLesson(id int64, date string) error {
-	_, err := s.db.Exec(`UPDATE lessons SET scheduled_on = ? WHERE id = ?`, date, id)
+	_, err := s.db().Exec(`UPDATE lessons SET scheduled_on = ? WHERE id = ?`, date, id)
 	return err
 }
 
 func (s *Store) DeleteLesson(id int64) error {
-	_, err := s.db.Exec(`DELETE FROM lessons WHERE id = ?`, id)
+	_, err := s.db().Exec(`DELETE FROM lessons WHERE id = ?`, id)
 	return err
 }
 
@@ -153,14 +153,14 @@ func (s *Store) ProgressBetween(from, to string, kidID, subjectID int64) (Progre
 	}
 
 	var p Progress
-	err := s.db.QueryRow(q, args...).Scan(&p.Planned, &p.Done, &p.Skipped, &p.Minutes)
+	err := s.db().QueryRow(q, args...).Scan(&p.Planned, &p.Done, &p.Skipped, &p.Minutes)
 	return p, err
 }
 
 // ProgressBySubject totals a child's lessons per subject in one pass, so a
 // dashboard with a card per subject stays a single query.
 func (s *Store) ProgressBySubject(from, to string, kidID int64) (map[int64]Progress, error) {
-	rows, err := s.db.Query(`SELECT subject_id,
+	rows, err := s.db().Query(`SELECT subject_id,
 			COALESCE(SUM(status = 'planned'), 0),
 			COALESCE(SUM(status = 'done'), 0),
 			COALESCE(SUM(status = 'skipped'), 0),

@@ -45,11 +45,15 @@ Copy that whole folder to her PC (USB stick, shared folder, however you like).
 She double-clicks **Start School Nanny.bat**; a small black window opens and the
 browser goes to the app. Closing the black window closes the app.
 
-Her records live in `data\` next to the program:
+Her records live in `%LOCALAPPDATA%\school-nanny`, not beside the program, so
+that rebuilding or replacing the program folder cannot touch them. The exact
+path is on the Settings page and in the console window at startup.
 
-- **Back up** by copying the `data` folder somewhere safe. That is the entire
-  backup, database and attachments together.
-- **Update** by replacing `school-nanny.exe` and keeping `data`.
+- **Back up** by copying that folder somewhere safe. That is the entire backup,
+  database and attachments together. The app also keeps its own daily snapshots
+  of the database, which Settings can restore from.
+- **Update** by replacing `school-nanny.exe`. There is nothing to preserve
+  alongside it.
 
 Windows may warn that the app is unrecognised, because it is not signed by a
 company. "More info" then "Run anyway" gets past it.
@@ -78,13 +82,47 @@ To build a binary for this machine instead of running from source:
 | Flag | Default | What it does |
 | --- | --- | --- |
 | `-addr` | `127.0.0.1:8080` | Address to listen on |
-| `-data` | `data` | Folder holding the database and uploads |
+| `-data` | this computer's app data folder | Folder holding the database and uploads |
 | `-lan` | off | Listen on the whole home network, not just this computer |
 | `-open` | off | Open a browser once the server is up |
 
 By default the app is reachable only from the computer it runs on. `-lan` opens
 it to other devices on the house network, which is how you would use it from a
 tablet. Set a password in Settings first if you do that.
+
+## Where the records live, and backups
+
+The database and the attachments sit in one folder per computer:
+
+| System | Folder |
+| --- | --- |
+| Windows | `%LOCALAPPDATA%\school-nanny` |
+| Linux | `~/.local/share/school-nanny` (or `$XDG_DATA_HOME`) |
+| macOS | `~/Library/Application Support/school-nanny` |
+
+It is deliberately nowhere near the source tree or the build output. An earlier
+version defaulted to a `data` folder beside whatever started the app, which
+meant `run.ps1` and the Windows launcher quietly used two different databases,
+and a rebuild that cleared `dist\windows` took the records with it. Starting the
+app from anywhere now finds the same records, and no build touches them.
+
+The first run after that change copies an older `data` folder into the new home
+if it finds one, leaving the original where it was and saying so in the console.
+Pass `-data <folder>` to override all of this, for a portable copy on a USB
+stick; an explicit folder is taken at face value and nothing is copied into it.
+
+Inside that folder, `backups\` holds snapshots of the database:
+
+- One is taken automatically the first time the app opens each day.
+- **Back up now** in Settings takes one on demand.
+- **Restore** puts the records back to a snapshot, after first snapshotting what
+  it is about to replace, so restoring the wrong one is itself undoable.
+- **Download** saves a snapshot through the browser, which is how you get one
+  off this computer.
+
+A snapshot is the database only. Attachments are ordinary files in `uploads\`,
+so copying the whole folder remains the real backup, and the one worth keeping
+somewhere other than this machine.
 
 ## Tests
 
@@ -95,6 +133,12 @@ go test ./...
 The suite drives the real HTTP handlers: planning a lesson and completing it,
 logging work after the fact, overdue work reaching the home page, file upload
 and download, scores, notes, and the password lock.
+
+It also covers the things that would be expensive to get wrong: that a restore
+puts the right records back and can itself be undone, that the app keeps serving
+and writing after the database is swapped underneath it, that a file which is
+not a backup is refused, and that an older data folder is adopted exactly once
+and left in place.
 
 ## How it is put together
 
@@ -116,7 +160,9 @@ Building needs Go 1.25 or newer. Running needs nothing at all.
 ```
 main.go                 startup, flags, graceful shutdown
 server.go               routes, templates, sessions, password hashing
-store.go                database connection and migration runner
+store.go                database connection, migrations, snapshot and restore
+datadir.go              where the records live, and adopting an older folder
+backup.go               daily snapshots, restoring, pruning
 models.go               the records and how they are displayed
 queries_*.go            SQL for people, lessons, and records
 handlers_*.go           one file per area of the app

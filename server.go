@@ -13,6 +13,7 @@ import (
 	"html/template"
 	"log"
 	"net/http"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -31,9 +32,10 @@ const (
 	settingSecret   = "session_secret"
 )
 
-// App wires the store, the upload folder, and the parsed templates together.
+// App wires the store, the data folder, and the parsed templates together.
 type App struct {
 	store     *Store
+	dataDir   string
 	uploadDir string
 	pages     map[string]*template.Template
 	partials  *template.Template
@@ -44,8 +46,13 @@ type App struct {
 // that the shared layout renders.
 var pageNames = []string{"home", "planner", "kid", "subject", "lesson", "tests", "settings", "login"}
 
-func NewApp(store *Store, uploadDir string) (*App, error) {
-	app := &App{store: store, uploadDir: uploadDir, pages: map[string]*template.Template{}}
+func NewApp(store *Store, dataDir string) (*App, error) {
+	app := &App{
+		store:     store,
+		dataDir:   dataDir,
+		uploadDir: filepath.Join(dataDir, uploadsFolderName),
+		pages:     map[string]*template.Template{},
+	}
 
 	for _, name := range pageNames {
 		t, err := template.New(name).Funcs(templateFuncs()).ParseFS(templateFS,
@@ -122,6 +129,10 @@ func (a *App) Routes() http.Handler {
 	mux.HandleFunc("POST /settings/years", a.handleSaveSchoolYear)
 	mux.HandleFunc("POST /settings/years/{id}/delete", a.handleDeleteSchoolYear)
 	mux.HandleFunc("POST /settings/password", a.handleSavePassword)
+	mux.HandleFunc("POST /settings/backups", a.handleMakeBackup)
+	mux.HandleFunc("GET /settings/backups/{name}", a.handleDownloadBackup)
+	mux.HandleFunc("POST /settings/backups/{name}/restore", a.handleRestoreBackup)
+	mux.HandleFunc("POST /settings/backups/{name}/delete", a.handleDeleteBackup)
 
 	return a.recoverPanic(a.sameSiteOnly(a.requireLogin(mux)))
 }

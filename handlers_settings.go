@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"net/http"
 	"strings"
 	"time"
@@ -29,6 +30,12 @@ func (a *App) handleSettings(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	backups, err := a.Backups()
+	if err != nil {
+		a.serverError(w, err)
+		return
+	}
+
 	data["Kids"] = kids
 	data["Subjects"] = subjects
 	data["Years"] = years
@@ -36,6 +43,8 @@ func (a *App) handleSettings(w http.ResponseWriter, r *http.Request) {
 	data["Palette"] = kidPalette
 	data["NextColor"] = kidPalette[len(kids)%len(kidPalette)]
 	data["Saved"] = r.URL.Query().Get("saved")
+	data["Backups"] = backups
+	data["DataDir"] = a.dataDir
 	a.render(w, "settings", data)
 }
 
@@ -181,6 +190,60 @@ func (a *App) handleSavePassword(w http.ResponseWriter, r *http.Request) {
 	}
 	a.issueSession(w)
 	a.redirect(w, r, "/settings?saved=password")
+}
+
+// Backups --------------------------------------------------------------------
+
+func (a *App) handleMakeBackup(w http.ResponseWriter, r *http.Request) {
+	if _, err := a.MakeBackup(); err != nil {
+		a.serverError(w, err)
+		return
+	}
+	a.redirect(w, r, "/settings?saved=backup")
+}
+
+func (a *App) handleRestoreBackup(w http.ResponseWriter, r *http.Request) {
+	err := a.RestoreBackup(r.PathValue("name"))
+	if errors.Is(err, errNoSuchBackup) || errors.Is(err, errNotABackup) {
+		http.Error(w, "That backup could not be found.", http.StatusNotFound)
+		return
+	}
+	if err != nil {
+		a.serverError(w, err)
+		return
+	}
+	a.redirect(w, r, "/settings?saved=restored")
+}
+
+func (a *App) handleDeleteBackup(w http.ResponseWriter, r *http.Request) {
+	err := a.DeleteBackup(r.PathValue("name"))
+	if errors.Is(err, errNoSuchBackup) {
+		http.Error(w, "That backup could not be found.", http.StatusNotFound)
+		return
+	}
+	if err != nil {
+		a.serverError(w, err)
+		return
+	}
+	a.redirect(w, r, "/settings?saved=backup-removed")
+}
+
+// handleDownloadBackup hands over a snapshot so it can be kept somewhere other
+// than this computer, which is the only kind of backup that survives the disk.
+func (a *App) handleDownloadBackup(w http.ResponseWriter, r *http.Request) {
+	name := r.PathValue("name")
+	path, err := a.backupPath(name)
+	if errors.Is(err, errNoSuchBackup) {
+		a.notFound(w)
+		return
+	}
+	if err != nil {
+		a.serverError(w, err)
+		return
+	}
+	w.Header().Set("Content-Type", "application/vnd.sqlite3")
+	w.Header().Set("Content-Disposition", `attachment; filename="`+name+`"`)
+	http.ServeFile(w, r, path)
 }
 
 // suggestedSchoolYear proposes the academic year the family is most likely

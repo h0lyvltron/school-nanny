@@ -6,7 +6,19 @@
     </div>
 </div>
 
-{{if .Saved}}<p class="saved-flash">Saved.</p>{{end}}
+{{if .Saved}}
+    <p class="saved-flash">
+        {{if eq .Saved "restored"}}
+            Records restored. A copy of what they replaced was saved first, in the backups below.
+        {{else if eq .Saved "backup"}}
+            Backup saved.
+        {{else if eq .Saved "backup-removed"}}
+            Backup deleted.
+        {{else}}
+            Saved.
+        {{end}}
+    </p>
+{{end}}
 
 <section class="panel">
     <h2>Kids</h2>
@@ -103,5 +115,50 @@
         <input type="password" name="password" placeholder="Family password" autocomplete="new-password">
         <button type="submit">Save password</button>
     </form>
+</section>
+
+<section class="panel" id="backups">
+    <h2>Backups</h2>
+    <p class="muted small">
+        Everything is kept in <code class="path">{{.DataDir}}</code>. A backup of the
+        records is saved automatically the first time the app opens each day.
+    </p>
+
+    <form method="post" action="/settings/backups" class="settings-row new">
+        <button type="submit">Back up now</button>
+    </form>
+
+    {{if .Backups}}
+        <ul class="backups">
+            {{range .Backups}}
+                <li>
+                    <div class="backup-when">
+                        <strong>{{.TakenLabel}}</strong>
+                        {{if .BeforeRestore}}<span class="pill ghost">kept before a restore</span>{{end}}
+                        <span class="muted small">{{.SizeLabel}}</span>
+                    </div>
+                    <div class="backup-actions">
+                        <a href="/settings/backups/{{.Name}}" class="small">Download</a>
+                        <form method="post" action="/settings/backups/{{.Name}}/restore" class="inline-form">
+                            <button type="submit" class="link-button"
+                                    onclick="return confirm('Put the records back to {{.TakenLabel}}? Everything since then is replaced. A copy of the current records is saved first, so this can be undone.')">Restore</button>
+                        </form>
+                        <form method="post" action="/settings/backups/{{.Name}}/delete" class="inline-form">
+                            <button type="submit" class="link-button danger"
+                                    onclick="return confirm('Delete the backup from {{.TakenLabel}}?')">Delete</button>
+                        </form>
+                    </div>
+                </li>
+            {{end}}
+        </ul>
+    {{else}}
+        <p class="muted small">No backups yet. One appears here after the first day of use.</p>
+    {{end}}
+
+    <p class="muted small">
+        A backup holds the lessons, tests, and notes, but not the files you have
+        attached. Copying the whole folder above to a USB stick or a cloud folder
+        is what saves those too, and is the backup worth having off this computer.
+    </p>
 </section>
 {{end}}

@@ -35,7 +35,7 @@ func scanAssessments(rows *sql.Rows) ([]Assessment, error) {
 }
 
 func (s *Store) Assessment(id int64) (Assessment, error) {
-	rows, err := s.db.Query(assessmentSelect+` WHERE a.id = ?`, id)
+	rows, err := s.db().Query(assessmentSelect+` WHERE a.id = ?`, id)
 	if err != nil {
 		return Assessment{}, err
 	}
@@ -60,7 +60,7 @@ func (s *Store) Assessments(kidID, subjectID int64, limit int) ([]Assessment, er
 	q += ` ORDER BY a.given_on DESC, a.id DESC LIMIT ?`
 	args = append(args, limit)
 
-	rows, err := s.db.Query(q, args...)
+	rows, err := s.db().Query(q, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -68,7 +68,7 @@ func (s *Store) Assessments(kidID, subjectID int64, limit int) ([]Assessment, er
 }
 
 func (s *Store) AssessmentsForLesson(lessonID int64) ([]Assessment, error) {
-	rows, err := s.db.Query(assessmentSelect+` WHERE a.lesson_id = ? ORDER BY a.given_on DESC`, lessonID)
+	rows, err := s.db().Query(assessmentSelect+` WHERE a.lesson_id = ? ORDER BY a.given_on DESC`, lessonID)
 	if err != nil {
 		return nil, err
 	}
@@ -80,7 +80,7 @@ func (s *Store) CreateAssessment(a Assessment) (int64, error) {
 	if err != nil {
 		return 0, err
 	}
-	res, err := s.db.Exec(`INSERT INTO assessments
+	res, err := s.db().Exec(`INSERT INTO assessments
 		(kid_id, subject_id, lesson_id, school_year_id, given_on, name, score, max_score, letter, notes, created_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		a.KidID, a.SubjectID, nullableID(a.LessonID), nullableID(yearID), a.GivenOn, a.Name,
@@ -93,7 +93,7 @@ func (s *Store) CreateAssessment(a Assessment) (int64, error) {
 }
 
 func (s *Store) UpdateAssessment(id int64, a Assessment) error {
-	_, err := s.db.Exec(`UPDATE assessments
+	_, err := s.db().Exec(`UPDATE assessments
 		SET subject_id = ?, given_on = ?, name = ?, score = ?, max_score = ?, letter = ?, notes = ?
 		WHERE id = ?`,
 		a.SubjectID, a.GivenOn, a.Name, nullableFloat(a.Score), nullableFloat(a.MaxScore),
@@ -102,7 +102,7 @@ func (s *Store) UpdateAssessment(id int64, a Assessment) error {
 }
 
 func (s *Store) DeleteAssessment(id int64) error {
-	_, err := s.db.Exec(`DELETE FROM assessments WHERE id = ?`, id)
+	_, err := s.db().Exec(`DELETE FROM assessments WHERE id = ?`, id)
 	return err
 }
 
@@ -120,7 +120,7 @@ func (s *Store) Notes(kidID, subjectID int64, limit int) ([]Note, error) {
 	q += ` ORDER BY n.noted_on DESC, n.id DESC LIMIT ?`
 	args = append(args, limit)
 
-	rows, err := s.db.Query(q, args...)
+	rows, err := s.db().Query(q, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -138,7 +138,7 @@ func (s *Store) Notes(kidID, subjectID int64, limit int) ([]Note, error) {
 }
 
 func (s *Store) CreateNote(n Note) (int64, error) {
-	res, err := s.db.Exec(`INSERT INTO notes (kid_id, subject_id, noted_on, body, created_at)
+	res, err := s.db().Exec(`INSERT INTO notes (kid_id, subject_id, noted_on, body, created_at)
 		VALUES (?, ?, ?, ?, ?)`,
 		n.KidID, nullableID(n.SubjectID), n.NotedOn, n.Body, time.Now().Format(time.RFC3339))
 	if err != nil {
@@ -148,7 +148,7 @@ func (s *Store) CreateNote(n Note) (int64, error) {
 }
 
 func (s *Store) DeleteNote(id int64) error {
-	_, err := s.db.Exec(`DELETE FROM notes WHERE id = ?`, id)
+	_, err := s.db().Exec(`DELETE FROM notes WHERE id = ?`, id)
 	return err
 }
 
@@ -173,7 +173,7 @@ func scanAttachments(rows *sql.Rows) ([]Attachment, error) {
 }
 
 func (s *Store) Attachment(id int64) (Attachment, error) {
-	rows, err := s.db.Query(attachmentSelect+` WHERE id = ?`, id)
+	rows, err := s.db().Query(attachmentSelect+` WHERE id = ?`, id)
 	if err != nil {
 		return Attachment{}, err
 	}
@@ -188,7 +188,7 @@ func (s *Store) Attachment(id int64) (Attachment, error) {
 }
 
 func (s *Store) AttachmentsForLesson(lessonID int64) ([]Attachment, error) {
-	rows, err := s.db.Query(attachmentSelect+` WHERE owner_type = ? AND lesson_id = ? ORDER BY id`,
+	rows, err := s.db().Query(attachmentSelect+` WHERE owner_type = ? AND lesson_id = ? ORDER BY id`,
 		OwnerLesson, lessonID)
 	if err != nil {
 		return nil, err
@@ -197,7 +197,7 @@ func (s *Store) AttachmentsForLesson(lessonID int64) ([]Attachment, error) {
 }
 
 func (s *Store) AttachmentsForAssessment(assessmentID int64) ([]Attachment, error) {
-	rows, err := s.db.Query(attachmentSelect+` WHERE owner_type = ? AND assessment_id = ? ORDER BY id`,
+	rows, err := s.db().Query(attachmentSelect+` WHERE owner_type = ? AND assessment_id = ? ORDER BY id`,
 		OwnerAssessment, assessmentID)
 	if err != nil {
 		return nil, err
@@ -208,7 +208,7 @@ func (s *Store) AttachmentsForAssessment(assessmentID int64) ([]Attachment, erro
 // ResourceAttachments returns the reusable file pile for a child and subject:
 // curriculum PDFs, worksheets, anything worth keeping around.
 func (s *Store) ResourceAttachments(kidID, subjectID int64) ([]Attachment, error) {
-	rows, err := s.db.Query(attachmentSelect+` WHERE owner_type = ? AND kid_id = ? AND subject_id = ?
+	rows, err := s.db().Query(attachmentSelect+` WHERE owner_type = ? AND kid_id = ? AND subject_id = ?
 		ORDER BY id DESC`, OwnerResource, kidID, subjectID)
 	if err != nil {
 		return nil, err
@@ -217,7 +217,7 @@ func (s *Store) ResourceAttachments(kidID, subjectID int64) ([]Attachment, error
 }
 
 func (s *Store) CreateAttachment(a Attachment) (int64, error) {
-	res, err := s.db.Exec(`INSERT INTO attachments
+	res, err := s.db().Exec(`INSERT INTO attachments
 		(owner_type, lesson_id, assessment_id, kid_id, subject_id, original_name, stored_path,
 		 size_bytes, content_type, created_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -231,7 +231,7 @@ func (s *Store) CreateAttachment(a Attachment) (int64, error) {
 }
 
 func (s *Store) DeleteAttachment(id int64) error {
-	_, err := s.db.Exec(`DELETE FROM attachments WHERE id = ?`, id)
+	_, err := s.db().Exec(`DELETE FROM attachments WHERE id = ?`, id)
 	return err
 }
 
