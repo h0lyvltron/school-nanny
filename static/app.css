@@ -1,53 +1,152 @@
+/* Shape and type, shared by both themes. */
 :root {
-    --paper: #fbf7f0;
-    --card: #ffffff;
-    --ink: #33302b;
-    --ink-soft: #7d766c;
-    --line: #e6ded1;
-    --accent: #b4622f;
-    --accent-soft: #f3e3d6;
-    --good: #3f8f63;
-    --warn: #c2703c;
     --pico-border-radius: 0.6rem;
     --pico-font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia,
         ui-serif, serif;
     --pico-font-size: 100%;
 }
 
-/* Pico ships a cool blue theme; pull it toward the warm paper palette so
-   buttons and links stop fighting the rest of the page. Pico scopes these
-   under :root:not([data-theme=dark]), so plain :root would lose. */
+/* Colour tokens.
+   The page resolves data-theme to "light" or "dark" in the document head
+   before anything paints, so each palette is a plain attribute selector and
+   there is no duplicated prefers-color-scheme block to keep in step. Every
+   colour below is a token: nothing further down this file hardcodes one. */
+:root,
+[data-theme="light"] {
+    color-scheme: light;
+
+    --paper: #fbf7f0;
+    --card: #ffffff;
+    --ink: #33302b;
+    --ink-soft: #7d766c;
+    --line: #e6ded1;
+
+    --accent: #b4622f;
+    --accent-hover: #9b5327;
+    --accent-soft: #f3e3d6;
+    --on-accent: #ffffff;
+
+    --track: #f3e3d6;
+
+    --good: #3f8f63;
+    --good-bg: #eef7f0;
+    --on-good: #ffffff;
+    --done-bg: #f7fbf8;
+
+    --warn: #c2703c;
+
+    --danger: #a8452f;
+    --danger-bg: #fdeeea;
+    --danger-border: #d8917f;
+
+    --field-bg: #ffffff;
+    --field-border: #d9cfbe;
+    --field-placeholder: #9c9384;
+
+    --muted-surface: #efe7db;
+    --muted-surface-hover: #e6dacb;
+    --muted-surface-border: #e0d4c2;
+
+    --chip-ink: #ffffff;
+    --shadow-ring: rgba(180, 98, 47, 0.3);
+}
+
+/* The same design after dark: warm charcoal rather than a cold blue-black, so
+   it still reads as paper rather than a terminal. */
+[data-theme="dark"] {
+    color-scheme: dark;
+
+    --paper: #14120f;
+    --card: #1e1a15;
+    --ink: #ece4d8;
+    --ink-soft: #a79d8d;
+    --line: #342e26;
+
+    --accent: #e2884d;
+    --accent-hover: #efa066;
+    --accent-soft: #3a2a1c;
+    --on-accent: #1e1408;
+
+    --track: #302a22;
+
+    --good: #5fbc86;
+    --good-bg: #17281e;
+    --on-good: #10231a;
+    --done-bg: #1a231d;
+
+    --warn: #e0994f;
+
+    --danger: #f0907a;
+    --danger-bg: #2c1a16;
+    --danger-border: #7a4034;
+
+    --field-bg: #262019;
+    --field-border: #3f382e;
+    --field-placeholder: #8d8375;
+
+    --muted-surface: #2b2620;
+    --muted-surface-hover: #342e26;
+    --muted-surface-border: #3a332b;
+
+    --chip-ink: #ffffff;
+    --shadow-ring: rgba(226, 136, 77, 0.35);
+}
+
+/* Pico's own palette, restated in those tokens.
+   Pico scopes its themes with :root:not([data-theme=dark]) and
+   [data-theme=dark], so this selector list has to match that specificity or
+   Pico wins. The :not() entry also covers a browser with JavaScript turned
+   off, where no data-theme is ever set. */
 :root,
 :root:not([data-theme="dark"]),
-[data-theme="light"] {
-    --pico-primary: #ffffff;
+[data-theme="light"],
+[data-theme="dark"] {
+    --pico-primary: var(--accent);
     --pico-primary-background: var(--accent);
     --pico-primary-border: var(--accent);
-    --pico-primary-hover: #ffffff;
-    --pico-primary-hover-background: #9b5327;
-    --pico-primary-hover-border: #9b5327;
-    --pico-primary-focus: rgba(180, 98, 47, 0.3);
-    --pico-primary-inverse: #ffffff;
-    --pico-primary-underline: rgba(180, 98, 47, 0.4);
+    --pico-primary-hover: var(--accent-hover);
+    --pico-primary-hover-background: var(--accent-hover);
+    --pico-primary-hover-border: var(--accent-hover);
+    --pico-primary-focus: var(--shadow-ring);
+    --pico-primary-inverse: var(--on-accent);
+    --pico-primary-underline: var(--accent-soft);
 
     --pico-secondary: var(--ink);
-    --pico-secondary-background: #efe7db;
-    --pico-secondary-border: #e0d4c2;
+    --pico-secondary-background: var(--muted-surface);
+    --pico-secondary-border: var(--muted-surface-border);
     --pico-secondary-hover: var(--ink);
-    --pico-secondary-hover-background: #e6dacb;
-    --pico-secondary-hover-border: #d6c7b2;
-    --pico-secondary-focus: rgba(180, 98, 47, 0.2);
+    --pico-secondary-hover-background: var(--muted-surface-hover);
+    --pico-secondary-hover-border: var(--muted-surface-border);
+    --pico-secondary-focus: var(--shadow-ring);
     --pico-secondary-inverse: var(--ink);
 
+    --pico-background-color: var(--paper);
     --pico-color: var(--ink);
     --pico-muted-color: var(--ink-soft);
     --pico-border-color: var(--line);
-    --pico-form-element-background-color: #fffdfa;
-    --pico-form-element-border-color: var(--line);
+    --pico-card-background-color: var(--card);
+    --pico-card-border-color: var(--line);
+    --pico-text-selection-color: var(--accent-soft);
+
+    /* The active colour matters as much as the resting one: it is what shows
+       while a field has focus, which is when you are reading what you typed. */
+    --pico-form-element-background-color: var(--field-bg);
+    --pico-form-element-active-background-color: var(--field-bg);
+    --pico-form-element-selected-background-color: var(--accent-soft);
+    --pico-form-element-border-color: var(--field-border);
     --pico-form-element-color: var(--ink);
-    --pico-form-element-placeholder-color: #a89f92;
+    --pico-form-element-placeholder-color: var(--field-placeholder);
     --pico-form-element-active-border-color: var(--accent);
     --pico-form-element-focus-color: var(--accent);
+}
+
+/* A focused field gets a warm ring instead of Pico's blue glow. */
+input:focus,
+select:focus,
+textarea:focus {
+    background-color: var(--field-bg);
+    color: var(--ink);
+    box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
 a { color: var(--accent); }
@@ -115,6 +214,38 @@ h3 { font-size: 1rem; }
 
 .app-nav a:hover { color: var(--accent); }
 .app-nav a.current { border-bottom-color: var(--accent); color: var(--accent); }
+
+/* Theme switch: cycles automatic, light, dark. Only the icon for the current
+   mode is shown; the others stay in the markup so no scripting has to build
+   them. */
+.theme-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin: 0;
+    padding: 0.2rem 0.7rem;
+    width: auto;
+    background: none;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    color: var(--ink-soft);
+    font-family: inherit;
+    font-size: 0.82rem;
+    line-height: 1.4;
+    cursor: pointer;
+}
+
+.theme-toggle:hover,
+.theme-toggle:focus {
+    background: none;
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+.theme-toggle svg { display: none; flex: none; }
+.theme-toggle[data-mode="auto"] .icon-auto,
+.theme-toggle[data-mode="light"] .icon-light,
+.theme-toggle[data-mode="dark"] .icon-dark { display: block; }
 
 .dot {
     width: 0.7rem;
@@ -230,7 +361,7 @@ h3 { font-size: 1rem; }
 /* Progress ------------------------------------------------------------ */
 
 .progress {
-    background: var(--accent-soft);
+    background: var(--track);
     border-radius: 999px;
     height: 0.5rem;
     overflow: hidden;
@@ -259,7 +390,7 @@ h3 { font-size: 1rem; }
     gap: 0.75rem;
 }
 
-.lesson.status-done { border-left-color: var(--good); background: #f7fbf8; }
+.lesson.status-done { border-left-color: var(--good); background: var(--done-bg); }
 .lesson.status-skipped { opacity: 0.65; }
 .lesson.is-overdue { border-left-color: var(--warn); }
 
@@ -292,7 +423,7 @@ h3 { font-size: 1rem; }
 .overdue-flag { color: var(--warn); }
 
 .chip {
-    color: #fff;
+    color: var(--chip-ink);
     font-size: 0.72rem;
     font-weight: 600;
     padding: 0.1rem 0.5rem;
@@ -315,7 +446,7 @@ h3 { font-size: 1rem; }
 }
 
 .pill:hover { border-color: var(--accent); color: var(--accent); background: var(--card); }
-.pill.done { background: var(--good); border-color: var(--good); color: #fff; }
+.pill.done { background: var(--good); border-color: var(--good); color: var(--on-good); }
 .pill.ghost { color: var(--ink-soft); }
 
 /* Week planner -------------------------------------------------------- */
@@ -551,11 +682,11 @@ h3 { font-size: 1rem; }
 }
 
 .link-button:hover { background: none; color: var(--accent); }
-.link-button.danger, .danger { color: #a8452f; }
+.link-button.danger, .danger { color: var(--danger); }
 .danger-zone { margin-top: 1.25rem; padding-top: 0.75rem; border-top: 1px dashed var(--line); }
 
 .saved-flash {
-    background: #eef7f0;
+    background: var(--good-bg);
     border: 1px solid var(--good);
     color: var(--good);
     border-radius: 0.5rem;
@@ -564,9 +695,9 @@ h3 { font-size: 1rem; }
 }
 
 .form-error {
-    background: #fdeeea;
-    border: 1px solid #d8917f;
-    color: #a8452f;
+    background: var(--danger-bg);
+    border: 1px solid var(--danger-border);
+    color: var(--danger);
     border-radius: 0.5rem;
     padding: 0.5rem 0.9rem;
     font-size: 0.9rem;

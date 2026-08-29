@@ -22,6 +22,11 @@ connection needed once it is built.
 - **Settings** — the kids, the subjects, the school year, and an optional
   password.
 
+The button at the right of the top bar switches between light and dark. It
+starts on **Auto**, which follows whatever the computer is set to, and clicking
+it cycles to **Light** and then **Dark** if you would rather pin one. The choice
+is remembered in the browser, so it is per-computer rather than per-family.
+
 Subjects start out as Math, Language Arts, Science, Social Studies, History,
 Japanese, Music & Art, and Other/Elective. You can rename them, hide the ones
 you do not use, and add your own.
@@ -117,9 +122,18 @@ queries_*.go            SQL for people, lessons, and records
 handlers_*.go           one file per area of the app
 migrations/             numbered schema changes, embedded in the binary
 templates/              layout, one file per page, shared partials
-static/                 HTMX, Pico CSS, and the app stylesheet
+static/                 HTMX, Pico CSS, the app stylesheet, the theme switch
 scripts/                setup, build, run, and the Windows package
 ```
+
+### A note on the two themes
+
+`app.css` names every colour once as a token and then gives that token a light
+value and a dark one. Nothing below the palette blocks hardcodes a colour, so
+adding a screen costs no theme work. The head of every page resolves the choice
+to `data-theme="light"` or `data-theme="dark"` before the stylesheet paints,
+which keeps both palettes as plain attribute selectors and means there is no
+`prefers-color-scheme` block to keep in step with them.
 
 ### A note on the data model
 

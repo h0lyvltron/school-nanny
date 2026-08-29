@@ -172,6 +172,27 @@ func TestSubjectsAreSeeded(t *testing.T) {
 	}
 }
 
+// The theme is applied by a script in the head, so a page that renders without
+// it flashes the wrong colours or ignores the saved choice entirely. go:embed
+// silently skips files it does not match, so check the asset is really served.
+func TestThemeSwitchIsWiredUp(t *testing.T) {
+	ta := newTestApp(t)
+
+	_, body := ta.get("/")
+	mustContain(t, body, `data-theme-toggle`, "theme button on home")
+	mustContain(t, body, "school-nanny-theme", "inline theme script")
+	mustContain(t, body, `src="/static/theme.js"`, "theme script tag")
+
+	status, script := ta.get("/static/theme.js")
+	if status != http.StatusOK {
+		t.Fatalf("theme.js returned %d, so it is missing from the binary", status)
+	}
+	mustContain(t, script, "prefers-color-scheme", "theme.js")
+
+	_, css := ta.get("/static/app.css")
+	mustContain(t, css, `[data-theme="dark"]`, "dark palette in app.css")
+}
+
 func TestFirstRunAsksForKids(t *testing.T) {
 	ta := newTestApp(t)
 
