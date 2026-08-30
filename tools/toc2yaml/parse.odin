@@ -3,7 +3,6 @@ package toc2yaml
 import "core:fmt"
 import "core:strconv"
 import "core:strings"
-import "core:unicode/utf8"
 
 EN_DASH :: "–"
 
@@ -50,9 +49,11 @@ parse_toc :: proc(text, curriculum_name: string) -> (items: []Item, err: string)
 			continue
 		}
 
-		if open {
+		// Wrap lines only come before the page number. After that, paste junk
+		// from running headers ("vii", "© Good and Beautiful", "Continued")
+		// must not glue onto the title.
+		if open && !cur.has_page {
 			apply_fragment(&cur, line)
-			continue
 		}
 	}
 	flush_item(&out, &cur, &open)
@@ -202,11 +203,15 @@ parse_lesson_start :: proc(line: string) -> (item: Item, rest: string, ok: bool)
 			return {}, "", false
 		}
 		after = strings.trim_left_space(after)
-		if after == "" || after[0] != ':' {
+		if after == "" {
+			return {}, "", false
+		}
+		after, ok = skip_title_sep(after)
+		if !ok {
 			return {}, "", false
 		}
 		item = Item{is_range = true, number = n, end = m}
-		return item, strings.trim_space(after[1:]), true
+		return item, after, true
 	}
 
 	if !has_ascii_prefix_ci(line, "lesson") {
@@ -223,20 +228,74 @@ parse_lesson_start :: proc(line: string) -> (item: Item, rest: string, ok: bool)
 		return {}, "", false
 	}
 	after = strings.trim_left_space(after)
-	if after == "" || after[0] != ':' {
+
+	// Singular "Lesson 32–33: Unit Assessment" still counts as a range.
+	if dash_rest, dash_ok := skip_dash(after); dash_ok {
+		range_end, after_m, mok := parse_int_prefix(dash_rest)
+		if mok {
+			after_m = strings.trim_left_space(after_m)
+			if rest, sep_ok := skip_title_sep(after_m); sep_ok {
+				item = Item{is_range = true, number = n, end = range_end}
+				return item, rest, true
+			}
+		}
+	}
+
+	after, ok = skip_title_sep(after)
+	if !ok {
 		return {}, "", false
 	}
 	item = Item{number = n}
-	return item, strings.trim_space(after[1:]), true
+	return item, after, true
+}
+
+// Colons, dashes, and the mojibake that shows up when an em dash is pasted
+// from a PDF (UTF-8 bytes read as Windows-1252).
+skip_title_sep :: proc(s: string) -> (rest: string, ok: bool) {
+	s := strings.trim_left_space(s)
+	em_bytes := [8]u8{0xC3, 0xA2, 0xE2, 0x82, 0xAC, 0xE2, 0x80, 0x9D}
+	en_bytes := [8]u8{0xC3, 0xA2, 0xE2, 0x82, 0xAC, 0xE2, 0x80, 0x9C}
+	em_mojibake := string(em_bytes[:])
+	en_mojibake := string(en_bytes[:])
+	seps := [?]string{
+		em_mojibake,
+		en_mojibake,
+		"—",
+		"–",
+		"−",
+		"：",
+		":",
+		"-",
+	}
+	for sep in seps {
+		if strings.has_prefix(s, sep) {
+			return strings.trim_left_space(s[len(sep):]), true
+		}
+	}
+	return s, false
 }
 
 skip_dash :: proc(s: string) -> (rest: string, ok: bool) {
+	s := strings.trim_left_space(s)
 	if s == "" {
 		return s, false
 	}
-	r, size := utf8.decode_rune_in_string(s)
-	if r == '-' || r == '–' || r == '—' {
-		return strings.trim_left_space(s[size:]), true
+	em_bytes := [8]u8{0xC3, 0xA2, 0xE2, 0x82, 0xAC, 0xE2, 0x80, 0x9D}
+	en_bytes := [8]u8{0xC3, 0xA2, 0xE2, 0x82, 0xAC, 0xE2, 0x80, 0x9C}
+	em_mojibake := string(em_bytes[:])
+	en_mojibake := string(en_bytes[:])
+	seps := [?]string{
+		em_mojibake,
+		en_mojibake,
+		"—",
+		"–",
+		"−",
+		"-",
+	}
+	for sep in seps {
+		if strings.has_prefix(s, sep) {
+			return strings.trim_left_space(s[len(sep):]), true
+		}
 	}
 	return s, false
 }
@@ -271,7 +330,7 @@ take_page :: proc(src: string) -> (rest: string, page: int, ok: bool) {
 		}
 		break
 	}
-	if dots < 2 {
+	if dots < 1 {
 		return s, 0, false
 	}
 	page, _ = strconv.parse_int(s[digit_start:])
