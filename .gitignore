@@ -6,3 +6,8 @@ dist/
 school-nanny
 school-nanny.exe
 .toolchain/
+
+# Local builds of the TOC converter.
+tools/toc2yaml/*.exe
+tools/toc2yaml/*.pdb
+

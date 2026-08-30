@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
 # Builds the portable Windows folder to copy to her computer.
 #
-# Produces dist/windows/ containing the program, a double-click starter, and a
-# short note for whoever opens the folder. Nothing else needs to be installed
-# on the Windows machine.
+# Produces dist/windows/ containing the program, a double-click starter, a
+# short note, and dist/windows/tools/toc2yaml.exe when Odin is available.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -21,7 +20,7 @@ fi
 OUT=dist/windows
 mkdir -p "$OUT"
 
-# Only the three files written below belong to the build. The folder is never
+# Only the files written below belong to the build. The folder is never
 # cleared, because the launcher runs the app from here and so a "data" folder
 # can live here too: emptying the folder would delete the family's records.
 echo "Building school-nanny.exe ..."
@@ -31,6 +30,30 @@ GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -o "$OUT/school-nanny
 write_crlf() {
     sed 's/$/\r/' > "$1"
 }
+
+write_tools_readme() {
+    mkdir -p "$OUT/tools"
+    write_crlf "$OUT/tools/README.txt" <<'TXT'
+TOC to curriculum YAML
+======================
+
+Copy the book's table of contents, paste it into a plain text file, then run:
+
+    toc2yaml -name "Grade 1 Math" -subject math -in toc.txt -out grade1-math.yaml
+
+Import that YAML on the Curriculum page in School Nanny. Minutes can be filled
+in per lesson after import. You do not need Odin installed to run this program.
+TXT
+}
+
+if command -v odin >/dev/null 2>&1; then
+    echo "Building toc2yaml.exe ..."
+    mkdir -p "$OUT/tools"
+    odin build tools/toc2yaml -target:windows_amd64 -out:"$OUT/tools/toc2yaml.exe"
+    write_tools_readme
+else
+    echo "warning: odin was not found; skipping dist/windows/tools/toc2yaml.exe" >&2
+fi
 
 write_crlf "$OUT/Start School Nanny.bat" <<'BAT'
 @echo off
