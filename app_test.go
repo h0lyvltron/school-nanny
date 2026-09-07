@@ -253,12 +253,12 @@ func TestPlanThenCompleteLesson(t *testing.T) {
 	ta := newTestApp(t)
 	kid := ta.addKid("Mia")
 	subject := ta.mathSubjectID()
-	tomorrow := addDays(today(), 1)
+	when := today()
 
 	status, _ := ta.post("/lessons", url.Values{
 		"kid_id":       {itoa64(kid)},
 		"subject_id":   {itoa64(subject)},
-		"scheduled_on": {tomorrow},
+		"scheduled_on": {when},
 		"title":        {"Long division"},
 		"minutes":      {"45"},
 		"back":         {"/planner"},
@@ -270,7 +270,7 @@ func TestPlanThenCompleteLesson(t *testing.T) {
 	_, body := ta.get("/planner")
 	mustContain(t, body, "Long division", "planner")
 
-	lessons, err := ta.store.LessonsBetween(tomorrow, tomorrow, kid)
+	lessons, err := ta.store.LessonsBetween(when, when, kid)
 	if err != nil || len(lessons) != 1 {
 		t.Fatalf("expected 1 lesson, got %d (err %v)", len(lessons), err)
 	}
@@ -980,6 +980,31 @@ func TestCurriculumApplyCreatesWeekdayLessons(t *testing.T) {
 	if lessons[2].Title != "Subtraction" || lessons[2].ScheduledOn != "2026-08-28" {
 		t.Errorf("last applied lesson: %+v", lessons[2])
 	}
+	if lessons[0].AssignmentID == 0 {
+		t.Fatal("applied lessons should belong to a plan assignment")
+	}
+	if lessons[0].AssignmentID != lessons[1].AssignmentID || lessons[1].AssignmentID != lessons[2].AssignmentID {
+		t.Fatal("applied lessons should share one assignment")
+	}
+	asg, err := ta.store.Assignment(lessons[0].AssignmentID)
+	if err != nil {
+		t.Fatalf("loading assignment: %v", err)
+	}
+	if asg.Name != "3rd grade Math" || asg.Weekdays != "1,2,3,4,5" {
+		t.Errorf("assignment: %+v", asg)
+	}
+	if lessons[0].Sequence == 0 || lessons[1].Sequence <= lessons[0].Sequence {
+		t.Errorf("expected increasing sequence, got %d, %d, %d",
+			lessons[0].Sequence, lessons[1].Sequence, lessons[2].Sequence)
+	}
+
+	_, page = ta.get("/curriculum/" + itoa64(planID))
+	mustContain(t, page, "Scheduled to a child", "plan page assignment")
+	mustContain(t, page, "3rd grade Math for Mia", "plan page assignment link")
+
+	_, page = ta.get("/assignments/" + itoa64(asg.ID))
+	mustContain(t, page, "Pause and shift remaining", "assignment page")
+	mustContain(t, page, "Place value", "assignment upcoming")
 }
 
 func TestArchiveExportsDoneLessonsAsFromYearPlan(t *testing.T) {
@@ -1037,4 +1062,281 @@ func TestArchiveExportsDoneLessonsAsFromYearPlan(t *testing.T) {
 
 	_, page := ta.get("/curriculum")
 	mustContain(t, page, "Saved from a year", "curriculum index")
+}
+
+func TestPushResumeOnUsesNextSchoolDay(t *testing.T) {
+	weekdays := "1,2,3,4,5"
+	got := pushResumeOn("2026-08-26", "2026-08-26", weekdays)
+	if got != "2026-08-27" {
+		t.Errorf("pushing Wednesday's lesson on Wednesday: got %s, want Thursday", got)
+	}
+	got = pushResumeOn("2026-09-04", "2026-08-31", weekdays)
+	if got != "2026-09-04" {
+		t.Errorf("pushing overdue Monday on Friday: got %s, want Friday", got)
+	}
+	got = nextMatchingWeekdayOnOrAfter("2026-08-29", parseWeekdays(weekdays))
+	if got != "2026-08-31" {
+		t.Errorf("Saturday should snap to Monday, got %s", got)
+	}
+}
+
+func TestSkipDoesNotShiftLaterLessons(t *testing.T) {
+	ta := newTestApp(t)
+	kid, subject, lessons := ta.applyThreeMathLessons()
+
+	status, _ := ta.post("/lessons/"+itoa64(lessons[0].ID)+"/status", url.Values{
+		"status": {StatusSkipped},
+		"back":   {"/"},
+	})
+	if status != http.StatusOK {
+		t.Fatalf("skip returned %d", status)
+	}
+
+	got, err := ta.store.LessonsInRange("2026-08-26", "2026-08-28", kid, subject)
+	if err != nil {
+		t.Fatalf("listing lessons: %v", err)
+	}
+	if len(got) != 3 {
+		t.Fatalf("expected 3 lessons, got %d", len(got))
+	}
+	if got[0].Status != StatusSkipped || got[0].ScheduledOn != "2026-08-26" {
+		t.Errorf("skipped lesson moved or lost status: %+v", got[0])
+	}
+	if got[1].ScheduledOn != "2026-08-27" || got[2].ScheduledOn != "2026-08-28" {
+		t.Errorf("later lessons shifted after skip: %s, %s", got[1].ScheduledOn, got[2].ScheduledOn)
+	}
+}
+
+func TestPushMovesThisAndLaterPlanned(t *testing.T) {
+	ta := newTestApp(t)
+	kid, subject, lessons := ta.applyThreeMathLessons()
+
+	if err := ta.store.SetLessonStatus(lessons[0].ID, StatusDone); err != nil {
+		t.Fatalf("marking first done: %v", err)
+	}
+
+	status, _ := ta.post("/lessons/"+itoa64(lessons[1].ID)+"/push", url.Values{"back": {"/"}})
+	if status != http.StatusOK {
+		t.Fatalf("push returned %d", status)
+	}
+
+	first, err := ta.store.Lesson(lessons[0].ID)
+	if err != nil {
+		t.Fatalf("reloading first: %v", err)
+	}
+	if first.ScheduledOn != "2026-08-26" || first.Status != StatusDone {
+		t.Errorf("done lesson should stay put: %+v", first)
+	}
+
+	asg, err := ta.store.Assignment(lessons[1].AssignmentID)
+	if err != nil {
+		t.Fatalf("assignment: %v", err)
+	}
+	resume := pushResumeOn(today(), lessons[1].ScheduledOn, asg.Weekdays)
+	want, err := occurrenceDates(resume, "", 2, parseWeekdays(asg.Weekdays))
+	if err != nil {
+		t.Fatalf("expected dates: %v", err)
+	}
+
+	second, _ := ta.store.Lesson(lessons[1].ID)
+	third, _ := ta.store.Lesson(lessons[2].ID)
+	if second.ScheduledOn != want[0] || third.ScheduledOn != want[1] {
+		t.Errorf("pushed dates %s, %s; want %s, %s",
+			second.ScheduledOn, third.ScheduledOn, want[0], want[1])
+	}
+	if second.Title != "Addition" || third.Title != "Subtraction" {
+		t.Errorf("titles should stay with the lessons: %q, %q", second.Title, third.Title)
+	}
+	_ = kid
+	_ = subject
+}
+
+func TestPauseUntilRelayoutsRemaining(t *testing.T) {
+	ta := newTestApp(t)
+	_, _, lessons := ta.applyThreeMathLessons()
+	asgID := lessons[0].AssignmentID
+
+	if err := ta.store.SetLessonStatus(lessons[0].ID, StatusDone); err != nil {
+		t.Fatalf("marking first done: %v", err)
+	}
+
+	status, _ := ta.post("/assignments/"+itoa64(asgID)+"/pause", url.Values{
+		"resume_on": {"2026-09-14"},
+		"back":      {"/assignments/" + itoa64(asgID)},
+	})
+	if status != http.StatusOK {
+		t.Fatalf("pause returned %d", status)
+	}
+
+	first, _ := ta.store.Lesson(lessons[0].ID)
+	if first.ScheduledOn != "2026-08-26" {
+		t.Errorf("done lesson should stay on 2026-08-26, got %s", first.ScheduledOn)
+	}
+	second, _ := ta.store.Lesson(lessons[1].ID)
+	third, _ := ta.store.Lesson(lessons[2].ID)
+	if second.ScheduledOn != "2026-09-14" || third.ScheduledOn != "2026-09-15" {
+		t.Errorf("remaining should land on Sep 14–15, got %s, %s", second.ScheduledOn, third.ScheduledOn)
+	}
+}
+
+func TestBackfillGroupsSameBatchAndLeavesOneOffs(t *testing.T) {
+	ta := newTestApp(t)
+	kid := ta.addKid("Mia")
+	subject := ta.mathSubjectID()
+
+	status, _ := ta.post("/curriculum", url.Values{
+		"name":       {"3rd grade Math"},
+		"subject_id": {itoa64(subject)},
+	})
+	if status != http.StatusOK {
+		t.Fatalf("creating plan returned %d", status)
+	}
+	plans, err := ta.store.CurriculumPlans()
+	if err != nil || len(plans) != 1 {
+		t.Fatalf("expected 1 plan, got %d (err %v)", len(plans), err)
+	}
+	planID := plans[0].ID
+	for _, title := range []string{"Place value", "Addition", "Subtraction"} {
+		ta.post("/curriculum/"+itoa64(planID)+"/items", url.Values{"title": {title}})
+	}
+
+	created := "2026-08-26T12:00:00Z"
+	titles := []string{"Place value", "Addition", "Subtraction"}
+	dates := []string{"2026-08-26", "2026-08-27", "2026-08-28"}
+	for i, title := range titles {
+		ta.insertUnassignedLesson(kid, subject, dates[i], title, created)
+	}
+	oneOffID := ta.insertUnassignedLesson(kid, subject, "2026-09-01", "Extra drill", "2026-08-26T12:00:01Z")
+
+	if err := ta.store.BackfillPlanAssignments(); err != nil {
+		t.Fatalf("backfill: %v", err)
+	}
+
+	grouped, err := ta.store.LessonsInRange("2026-08-26", "2026-08-28", kid, subject)
+	if err != nil {
+		t.Fatalf("listing grouped: %v", err)
+	}
+	if len(grouped) != 3 {
+		t.Fatalf("expected 3 grouped lessons, got %d", len(grouped))
+	}
+	if grouped[0].AssignmentID == 0 {
+		t.Fatal("backfill should assign the batch")
+	}
+	if grouped[0].AssignmentID != grouped[2].AssignmentID {
+		t.Fatal("batch should share one assignment")
+	}
+	asg, err := ta.store.Assignment(grouped[0].AssignmentID)
+	if err != nil {
+		t.Fatalf("assignment: %v", err)
+	}
+	if asg.Name != "3rd grade Math" || asg.PlanID != planID {
+		t.Errorf("expected plan match, got %+v", asg)
+	}
+	if grouped[0].Sequence != 1 || grouped[2].Sequence != 3 {
+		t.Errorf("sequence: %d, %d, %d", grouped[0].Sequence, grouped[1].Sequence, grouped[2].Sequence)
+	}
+
+	oneOff, err := ta.store.Lesson(oneOffID)
+	if err != nil {
+		t.Fatalf("one-off: %v", err)
+	}
+	if oneOff.AssignmentID != 0 {
+		t.Errorf("one-off should stay unassigned, got assignment %d", oneOff.AssignmentID)
+	}
+}
+
+func TestBackfillMatchesPlanPrefixWhenLessonsWereRemoved(t *testing.T) {
+	ta := newTestApp(t)
+	kid := ta.addKid("Mia")
+	subject := ta.mathSubjectID()
+
+	status, _ := ta.post("/curriculum", url.Values{
+		"name":       {"3rd grade Math"},
+		"subject_id": {itoa64(subject)},
+	})
+	if status != http.StatusOK {
+		t.Fatalf("creating plan returned %d", status)
+	}
+	plans, err := ta.store.CurriculumPlans()
+	if err != nil || len(plans) != 1 {
+		t.Fatalf("expected 1 plan, got %d (err %v)", len(plans), err)
+	}
+	planID := plans[0].ID
+	for _, title := range []string{"Place value", "Addition", "Subtraction"} {
+		ta.post("/curriculum/"+itoa64(planID)+"/items", url.Values{"title": {title}})
+	}
+
+	created := "2026-08-26T12:00:00Z"
+	ta.insertUnassignedLesson(kid, subject, "2026-08-26", "Place value", created)
+	ta.insertUnassignedLesson(kid, subject, "2026-08-27", "Addition", created)
+
+	if err := ta.store.BackfillPlanAssignments(); err != nil {
+		t.Fatalf("backfill: %v", err)
+	}
+	lessons, err := ta.store.LessonsInRange("2026-08-26", "2026-08-27", kid, subject)
+	if err != nil || len(lessons) != 2 {
+		t.Fatalf("lessons: %d (err %v)", len(lessons), err)
+	}
+	asg, err := ta.store.Assignment(lessons[0].AssignmentID)
+	if err != nil {
+		t.Fatalf("assignment: %v", err)
+	}
+	if asg.Name != "3rd grade Math" || asg.PlanID != planID {
+		t.Errorf("expected prefix match to the plan, got %+v", asg)
+	}
+}
+
+func (ta *testApp) applyThreeMathLessons() (kid, subject int64, lessons []Lesson) {
+	ta.t.Helper()
+	kid = ta.addKid("Mia")
+	subject = ta.mathSubjectID()
+
+	status, _ := ta.post("/curriculum", url.Values{
+		"name":       {"3rd grade Math"},
+		"subject_id": {itoa64(subject)},
+	})
+	if status != http.StatusOK {
+		ta.t.Fatalf("creating plan returned %d", status)
+	}
+	plans, err := ta.store.CurriculumPlans()
+	if err != nil || len(plans) != 1 {
+		ta.t.Fatalf("expected 1 plan, got %d (err %v)", len(plans), err)
+	}
+	planID := plans[0].ID
+	for _, title := range []string{"Place value", "Addition", "Subtraction"} {
+		ta.post("/curriculum/"+itoa64(planID)+"/items", url.Values{"title": {title}})
+	}
+	status, _ = ta.post("/curriculum/"+itoa64(planID)+"/apply", url.Values{
+		"kid_id":  {itoa64(kid)},
+		"start":   {"2026-08-26"},
+		"weekday": {"1", "2", "3", "4", "5"},
+	})
+	if status != http.StatusOK {
+		ta.t.Fatalf("applying plan returned %d", status)
+	}
+	lessons, err = ta.store.LessonsInRange("2026-08-26", "2026-08-28", kid, subject)
+	if err != nil {
+		ta.t.Fatalf("listing applied lessons: %v", err)
+	}
+	if len(lessons) != 3 {
+		ta.t.Fatalf("expected 3 lessons, got %d", len(lessons))
+	}
+	return kid, subject, lessons
+}
+
+func (ta *testApp) insertUnassignedLesson(kid, subject int64, date, title, createdAt string) int64 {
+	ta.t.Helper()
+	res, err := ta.store.db().Exec(`INSERT INTO lessons
+		(kid_id, subject_id, school_year_id, series_id, assignment_id, sequence,
+		 scheduled_on, status, title, minutes, notes, completed_at, created_at)
+		VALUES (?, ?, NULL, NULL, NULL, 0, ?, ?, ?, 0, '', NULL, ?)`,
+		kid, subject, date, StatusPlanned, title, createdAt)
+	if err != nil {
+		ta.t.Fatalf("inserting unassigned lesson: %v", err)
+	}
+	id, err := res.LastInsertId()
+	if err != nil {
+		ta.t.Fatalf("lesson id: %v", err)
+	}
+	return id
 }

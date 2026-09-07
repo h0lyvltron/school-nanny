@@ -78,6 +78,38 @@
             <button type="submit" class="link-button danger"
                     onclick="return confirm('Delete this lesson and its files?')">Delete this lesson</button>
         </form>
+        {{if .Assignment.ID}}
+            <div class="danger-zone">
+                <p class="muted small">This is part of {{.Assignment.Name}}.</p>
+                <p>
+                    <a href="/assignments/{{.Assignment.ID}}">Edit scheduled plan</a>
+                </p>
+                <form method="post" action="/assignments/{{.Assignment.ID}}/pause" class="inline-form">
+                    <input type="hidden" name="back" value="{{$back}}">
+                    <label class="muted small">Pause until
+                        <input type="date" name="resume_on" value="{{$.Today}}" required>
+                    </label>
+                    <button type="submit" class="link-button">Shift remaining</button>
+                </form>
+                {{if .Lesson.IsPlanned}}
+                    <form method="post" action="/lessons/{{.Lesson.ID}}/push" class="inline-form">
+                        <input type="hidden" name="back" value="{{$back}}">
+                        <button type="submit" class="link-button"
+                                onclick="return confirm('Move this lesson and every later planned lesson in this plan to the next school days?')">Push this and later</button>
+                    </form>
+                {{end}}
+                <form method="post" action="/assignments/{{.Assignment.ID}}/stop" class="inline-form">
+                    <input type="hidden" name="back" value="{{$back}}">
+                    <button type="submit" class="link-button"
+                            onclick="return confirm('Remove remaining planned lessons?')">Stop remaining</button>
+                </form>
+                <form method="post" action="/lessons/{{.Lesson.ID}}/delete-future" class="inline-form">
+                    <input type="hidden" name="back" value="/planner">
+                    <button type="submit" class="link-button danger"
+                            onclick="return confirm('Delete this planned lesson and every planned lesson after it in this plan?')">Delete this and future planned</button>
+                </form>
+            </div>
+        {{end}}
         {{if .Series.ID}}
             <div class="danger-zone">
                 <p class="muted small">This is one copy of a repeating series.</p>

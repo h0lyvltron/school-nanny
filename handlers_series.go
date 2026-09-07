@@ -137,20 +137,32 @@ func (a *App) handleDeleteSeriesFuture(w http.ResponseWriter, r *http.Request) {
 		a.serverError(w, err)
 		return
 	}
-	if lesson.SeriesID == 0 {
-		http.Error(w, "That lesson is not part of a series.", http.StatusBadRequest)
+	if lesson.SeriesID != 0 {
+		from := lesson.ScheduledOn
+		if err := a.deletePlannedSeriesFiles(lesson.SeriesID, from); err != nil {
+			a.serverError(w, err)
+			return
+		}
+		if err := a.store.DeletePlannedSeriesFrom(lesson.SeriesID, from); err != nil {
+			a.serverError(w, err)
+			return
+		}
+		a.redirect(w, r, safeRedirect(r.FormValue("back"), "/planner"))
 		return
 	}
-	from := lesson.ScheduledOn
-	if err := a.deletePlannedSeriesFiles(lesson.SeriesID, from); err != nil {
-		a.serverError(w, err)
+	if lesson.AssignmentID != 0 {
+		if err := a.deletePlannedAssignmentFiles(lesson.AssignmentID, lesson.Sequence); err != nil {
+			a.serverError(w, err)
+			return
+		}
+		if err := a.store.DeletePlannedAssignmentFromSequence(lesson.AssignmentID, lesson.Sequence); err != nil {
+			a.serverError(w, err)
+			return
+		}
+		a.redirect(w, r, safeRedirect(r.FormValue("back"), "/planner"))
 		return
 	}
-	if err := a.store.DeletePlannedSeriesFrom(lesson.SeriesID, from); err != nil {
-		a.serverError(w, err)
-		return
-	}
-	a.redirect(w, r, safeRedirect(r.FormValue("back"), "/planner"))
+	http.Error(w, "That lesson is not part of a series or scheduled plan.", http.StatusBadRequest)
 }
 
 func (a *App) lookupSeries(w http.ResponseWriter, r *http.Request) (LessonSeries, bool) {

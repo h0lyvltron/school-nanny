@@ -42,6 +42,20 @@
     </section>
 </div>
 
+{{if .Assignments}}
+<section class="panel">
+    <h2>Scheduled to a child</h2>
+    <div class="stack">
+        {{range .Assignments}}
+            <p>
+                <a href="/assignments/{{.ID}}">{{.Name}} for {{.KidName}}</a>
+                <span class="muted"> from {{prettyDate .StartsOn}}</span>
+            </p>
+        {{end}}
+    </div>
+</section>
+{{end}}
+
 <section class="panel">
     <h2>Sequence</h2>
     <p class="muted small">Week numbers are only for grouping. Applying still walks this list in order.</p>

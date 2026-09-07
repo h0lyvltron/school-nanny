@@ -274,7 +274,7 @@ func (s *Store) Migrate() error {
 			return fmt.Errorf("migration %s: %w", name, err)
 		}
 	}
-	return nil
+	return s.BackfillPlanAssignments()
 }
 
 func migrationVersion(name string) (int, error) {

@@ -431,7 +431,8 @@ h3 { font-size: 1rem; }
     white-space: nowrap;
 }
 
-.lesson-actions { display: flex; gap: 0.35rem; flex: none; }
+.lesson-actions { display: flex; gap: 0.35rem; flex: none; flex-wrap: wrap; }
+.lesson-actions form { display: contents; }
 
 .pill {
     background: var(--card);

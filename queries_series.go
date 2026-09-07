@@ -179,37 +179,3 @@ func (s *Store) RematerializeSeries(sr LessonSeries, from string) error {
 	}
 	return tx.Commit()
 }
-
-func (s *Store) ApplyCurriculum(plan CurriculumPlan, kidID int64, dates []string) error {
-	if len(plan.Items) == 0 {
-		return nil
-	}
-	yearID, err := s.currentYearID()
-	if err != nil {
-		return err
-	}
-	now := time.Now().Format(time.RFC3339)
-
-	tx, err := s.db().Begin()
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-
-	n := len(plan.Items)
-	if len(dates) < n {
-		n = len(dates)
-	}
-	for i := 0; i < n; i++ {
-		it := plan.Items[i]
-		if _, err := tx.Exec(`INSERT INTO lessons
-			(kid_id, subject_id, school_year_id, series_id, scheduled_on, status, title, minutes, notes,
-			 completed_at, created_at)
-			VALUES (?, ?, ?, NULL, ?, ?, ?, ?, ?, NULL, ?)`,
-			kidID, plan.SubjectID, nullableID(yearID), dates[i], StatusPlanned,
-			it.Title, it.Minutes, it.Notes, now); err != nil {
-			return err
-		}
-	}
-	return tx.Commit()
-}

@@ -174,10 +174,16 @@ func (a *App) handleCurriculumPlan(w http.ResponseWriter, r *http.Request) {
 		a.serverError(w, err)
 		return
 	}
+	assignments, err := a.store.AssignmentsForPlan(plan.ID)
+	if err != nil {
+		a.serverError(w, err)
+		return
+	}
 
 	data["Plan"] = plan
 	data["Subjects"] = subjects
 	data["Kids"] = kids
+	data["Assignments"] = assignments
 	data["Weekdays"] = weekdayChoices(defaultWeekdays())
 	data["Start"] = today()
 	a.render(w, "curriculum_plan", data)
@@ -361,7 +367,7 @@ func (a *App) handleApplyCurriculum(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	if err := a.store.ApplyCurriculum(plan, kidID, dates); err != nil {
+	if err := a.store.ApplyCurriculum(plan, kidID, dates, weekdays); err != nil {
 		a.serverError(w, err)
 		return
 	}

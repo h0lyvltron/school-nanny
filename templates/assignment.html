@@ -1,0 +1,49 @@
+{{define "content"}}
+<div class="page-head">
+    <div>
+        <p class="crumbs"><a href="/planner">Week</a></p>
+        <h1>{{.Assignment.Name}}</h1>
+        <p class="muted">Scheduled plan for {{.Assignment.KidName}} &middot; {{.Assignment.SubjectName}}</p>
+    </div>
+</div>
+
+<section class="panel">
+    <h2>Schedule</h2>
+    <p class="muted small">{{.Progress.Done}} done &middot; {{.Progress.Planned}} remaining{{if .Progress.Skipped}} &middot; {{.Progress.Skipped}} skipped{{end}}</p>
+    <p class="muted small">Saving new weekdays shifts remaining planned lessons onto those days, in order. Done and skipped lessons stay where they are.</p>
+    <form method="post" action="/assignments/{{.Assignment.ID}}">
+        <label>Name
+            <input type="text" name="name" value="{{.Assignment.Name}}" required>
+        </label>
+        <p class="muted small">Days</p>
+        {{template "weekday_checks" (dict "Choices" .Weekdays)}}
+        <button type="submit">Save schedule</button>
+    </form>
+    <form method="post" action="/assignments/{{.Assignment.ID}}/pause" class="danger-zone">
+        <input type="hidden" name="back" value="/assignments/{{.Assignment.ID}}">
+        <p class="muted small">Pause until a date, then lay the remaining planned lessons out from there.</p>
+        <div class="field-row">
+            <label>Resume on
+                <input type="date" name="resume_on" value="{{.ResumeOn}}" required>
+            </label>
+        </div>
+        <button type="submit">Pause and shift remaining</button>
+    </form>
+    <form method="post" action="/assignments/{{.Assignment.ID}}/stop" class="danger-zone">
+        <input type="hidden" name="back" value="/planner">
+        <button type="submit" class="link-button danger"
+                onclick="return confirm('Remove remaining planned lessons from this plan?')">Stop remaining</button>
+    </form>
+</section>
+
+<section class="panel">
+    <h2>Upcoming</h2>
+    <div class="stack">
+        {{range .Lessons}}
+            {{template "lesson_row" (dict "Lesson" . "ShowKid" false "ShowSubject" false "Back" (printf "/assignments/%d" $.Assignment.ID))}}
+        {{else}}
+            <p class="muted small">Nothing planned left.</p>
+        {{end}}
+    </div>
+</section>
+{{end}}

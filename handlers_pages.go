@@ -375,9 +375,18 @@ func (a *App) handleLesson(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	var assignment PlanAssignment
+	if lesson.AssignmentID != 0 {
+		assignment, err = a.store.Assignment(lesson.AssignmentID)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			a.serverError(w, err)
+			return
+		}
+	}
 
 	data["Lesson"] = lesson
 	data["Series"] = series
+	data["Assignment"] = assignment
 	data["Subjects"] = subjects
 	data["Kids"] = data["NavKids"]
 	a.render(w, "lesson", data)

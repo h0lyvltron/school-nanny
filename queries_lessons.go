@@ -7,7 +7,7 @@ import (
 )
 
 const lessonSelect = `SELECT l.id, l.kid_id, l.subject_id, COALESCE(l.school_year_id, 0),
-		COALESCE(l.series_id, 0),
+		COALESCE(l.series_id, 0), COALESCE(l.assignment_id, 0), COALESCE(l.sequence, 0),
 		l.scheduled_on, l.status, l.title, l.minutes, l.notes,
 		COALESCE(l.completed_at, ''), l.created_at,
 		k.name, k.color, s.name
@@ -21,6 +21,7 @@ func scanLessons(rows *sql.Rows) ([]Lesson, error) {
 	for rows.Next() {
 		var l Lesson
 		if err := rows.Scan(&l.ID, &l.KidID, &l.SubjectID, &l.SchoolYearID, &l.SeriesID,
+			&l.AssignmentID, &l.Sequence,
 			&l.ScheduledOn, &l.Status, &l.Title, &l.Minutes, &l.Notes,
 			&l.CompletedAt, &l.CreatedAt,
 			&l.KidName, &l.KidColor, &l.SubjectName); err != nil {
@@ -94,9 +95,11 @@ func (s *Store) CreateLesson(l Lesson) (int64, error) {
 		completedAt = time.Now().Format(time.RFC3339)
 	}
 	res, err := s.db().Exec(`INSERT INTO lessons
-		(kid_id, subject_id, school_year_id, series_id, scheduled_on, status, title, minutes, notes, completed_at, created_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		l.KidID, l.SubjectID, nullableID(yearID), nullableID(l.SeriesID), l.ScheduledOn, l.Status, l.Title, l.Minutes, l.Notes,
+		(kid_id, subject_id, school_year_id, series_id, assignment_id, sequence,
+		 scheduled_on, status, title, minutes, notes, completed_at, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		l.KidID, l.SubjectID, nullableID(yearID), nullableID(l.SeriesID), nullableID(l.AssignmentID), l.Sequence,
+		l.ScheduledOn, l.Status, l.Title, l.Minutes, l.Notes,
 		completedAt, time.Now().Format(time.RFC3339))
 	if err != nil {
 		return 0, err

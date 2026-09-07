@@ -26,6 +26,13 @@
                     hx-vals='{"status":"done","show_kid":"{{.ShowKid}}","show_subject":"{{.ShowSubject}}","back":"{{.Back}}"}'
                     hx-target="#lesson-{{.Lesson.ID}}" hx-swap="outerHTML">Mark done</button>
             {{if not .Lesson.IsSkipped}}
+                {{if .Lesson.HasAssignment}}
+                    <form method="post" action="/lessons/{{.Lesson.ID}}/push" class="inline-form">
+                        <input type="hidden" name="back" value="{{.Back}}">
+                        <button class="pill ghost" type="submit"
+                                onclick="return confirm('Move this lesson and every later planned lesson in this plan to the next school days?')">Push</button>
+                    </form>
+                {{end}}
                 <button class="pill ghost"
                         hx-post="/lessons/{{.Lesson.ID}}/status"
                         hx-vals='{"status":"skipped","show_kid":"{{.ShowKid}}","show_subject":"{{.ShowSubject}}","back":"{{.Back}}"}'

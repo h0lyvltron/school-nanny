@@ -63,6 +63,8 @@ type Lesson struct {
 	SubjectID    int64
 	SchoolYearID int64
 	SeriesID     int64
+	AssignmentID int64
+	Sequence     int
 	ScheduledOn  string
 	Status       string
 	Title        string
@@ -79,9 +81,11 @@ type Lesson struct {
 	Assessments []Assessment
 }
 
-func (l Lesson) IsDone() bool    { return l.Status == StatusDone }
-func (l Lesson) IsPlanned() bool { return l.Status == StatusPlanned }
-func (l Lesson) IsSkipped() bool { return l.Status == StatusSkipped }
+func (l Lesson) IsDone() bool        { return l.Status == StatusDone }
+func (l Lesson) IsPlanned() bool     { return l.Status == StatusPlanned }
+func (l Lesson) IsSkipped() bool     { return l.Status == StatusSkipped }
+func (l Lesson) HasAssignment() bool { return l.AssignmentID != 0 }
+func (l Lesson) HasSeries() bool     { return l.SeriesID != 0 }
 
 // Overdue reports a lesson still planned on a day that has already passed.
 func (l Lesson) Overdue() bool {
@@ -278,6 +282,23 @@ type CurriculumItem struct {
 	Minutes    int
 	WeekNumber int
 	CreatedAt  string
+}
+
+// PlanAssignment is one child's scheduled copy of a curriculum sequence.
+type PlanAssignment struct {
+	ID           int64
+	KidID        int64
+	SubjectID    int64
+	SchoolYearID int64
+	PlanID       int64
+	Name         string
+	Weekdays     string
+	StartsOn     string
+	CreatedAt    string
+
+	KidName     string
+	KidColor    string
+	SubjectName string
 }
 
 type LessonSeries struct {

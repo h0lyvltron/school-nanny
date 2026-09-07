@@ -195,6 +195,37 @@ func addMonths(value string, months int) string {
 	return t.AddDate(0, months, 0).Format(dateLayout)
 }
 
+func nextMatchingWeekdayOnOrAfter(date string, weekdays []int) string {
+	set := map[int]bool{}
+	for _, n := range weekdays {
+		if n >= 1 && n <= 7 {
+			set[n] = true
+		}
+	}
+	if len(set) == 0 {
+		return date
+	}
+	t, err := time.Parse(dateLayout, date)
+	if err != nil {
+		return date
+	}
+	for i := 0; i < 8; i++ {
+		if set[isoWeekday(t)] {
+			return t.Format(dateLayout)
+		}
+		t = t.AddDate(0, 0, 1)
+	}
+	return date
+}
+
+// pushResumeOn is the first school day a pushed lesson may land on: the next
+// matching weekday on or after today, and never earlier than the day after
+// the lesson's current date.
+func pushResumeOn(todayDate, scheduledOn, weekdays string) string {
+	floor := maxDate(todayDate, addDays(scheduledOn, 1))
+	return nextMatchingWeekdayOnOrAfter(floor, parseWeekdays(weekdays))
+}
+
 func maxDate(a, b string) string {
 	if a > b {
 		return a

@@ -46,7 +46,7 @@ type App struct {
 // that the shared layout renders.
 var pageNames = []string{
 	"home", "planner", "kid", "subject", "lesson", "tests", "settings", "login",
-	"attendance", "curriculum", "curriculum_plan", "curriculum_apply", "archive", "series",
+	"attendance", "curriculum", "curriculum_plan", "curriculum_apply", "archive", "series", "assignment",
 }
 
 func NewApp(store *Store, dataDir string) (*App, error) {
@@ -133,6 +133,12 @@ func (a *App) Routes() http.Handler {
 	mux.HandleFunc("GET /series/{id}", a.handleSeries)
 	mux.HandleFunc("POST /series/{id}", a.handleUpdateSeries)
 	mux.HandleFunc("POST /series/{id}/stop", a.handleStopSeries)
+
+	mux.HandleFunc("GET /assignments/{id}", a.handleAssignment)
+	mux.HandleFunc("POST /assignments/{id}", a.handleUpdateAssignment)
+	mux.HandleFunc("POST /assignments/{id}/stop", a.handleStopAssignment)
+	mux.HandleFunc("POST /assignments/{id}/pause", a.handlePauseAssignment)
+	mux.HandleFunc("POST /lessons/{id}/push", a.handlePushLesson)
 
 	mux.HandleFunc("GET /kids/{id}", a.handleKid)
 	mux.HandleFunc("GET /kids/{id}/subjects/{subjectID}", a.handleSubject)
