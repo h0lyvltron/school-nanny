@@ -221,7 +221,11 @@ func (a *App) resolveUpload(stored string) (string, bool) {
 		return "", false
 	}
 	full := filepath.Join(a.uploadDir, clean)
-	if !strings.HasPrefix(full, a.uploadDir+string(os.PathSeparator)) {
+	// Rel is the right check on Windows: drive-letter case can differ between
+	// the folder we opened and the path Join produces, and HasPrefix would
+	// refuse a photo that is sitting right where we put it.
+	rel, err := filepath.Rel(a.uploadDir, full)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
 		return "", false
 	}
 	return full, true

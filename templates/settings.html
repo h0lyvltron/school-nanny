@@ -28,6 +28,7 @@
 
 <section class="panel">
     <h2>Kids</h2>
+    <p class="muted small">Photos need to be a JPEG, PNG, GIF, or WebP under 8&nbsp;MB. Phone photos from an iPhone may need to be saved as a JPEG first.</p>
     <div class="settings-rows">
         {{range .Kids}}
             <div class="settings-kid">
@@ -43,7 +44,7 @@
                 <div class="settings-photo">
                     <form method="post" action="/settings/kids/{{.ID}}/avatar"
                           enctype="multipart/form-data" class="inline-form photo-form">
-                        <input type="file" name="file" accept="image/jpeg,image/png,image/gif,image/webp"
+                        <input type="file" name="file" accept="image/jpeg,image/png,image/gif,image/webp,.jpg,.jpeg,.png,.gif,.webp"
                                required aria-label="Photo for {{.Name}}">
                         <button type="submit" class="link-button">{{if .HasPhoto}}Change photo{{else}}Add photo{{end}}</button>
                     </form>
@@ -99,7 +100,7 @@
                 <div class="settings-photo">
                     <form method="post" action="/settings/adults/{{.ID}}/avatar"
                           enctype="multipart/form-data" class="inline-form photo-form">
-                        <input type="file" name="file" accept="image/jpeg,image/png,image/gif,image/webp"
+                        <input type="file" name="file" accept="image/jpeg,image/png,image/gif,image/webp,.jpg,.jpeg,.png,.gif,.webp"
                                required aria-label="Photo for {{.Name}}">
                         <button type="submit" class="link-button">{{if .HasPhoto}}Change photo{{else}}Add photo{{end}}</button>
                     </form>

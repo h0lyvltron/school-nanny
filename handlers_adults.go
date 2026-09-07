@@ -306,7 +306,10 @@ func (a *App) handleAdultAvatarUpload(w http.ResponseWriter, r *http.Request) {
 	}
 	stored, err := a.saveAvatarUpload(w, r)
 	switch {
-	case errors.Is(err, errNoPhotoChosen), errors.Is(err, errNotAnImage):
+	case errors.Is(err, errNoPhotoChosen),
+		errors.Is(err, errNotAnImage),
+		errors.Is(err, errPhotoTooLarge),
+		errors.Is(err, errPhotoIsHEIC):
 		http.Error(w, err.Error()+".", http.StatusBadRequest)
 		return
 	case err != nil:

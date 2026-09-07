@@ -643,15 +643,53 @@ func TestNonImagePhotoIsRejected(t *testing.T) {
 	ta := newTestApp(t)
 	kid := ta.addKid("Mia")
 
-	status, _ := ta.postFile("/settings/kids/"+itoa64(kid)+"/avatar", "file", "notes.png",
+	status, body := ta.postFile("/settings/kids/"+itoa64(kid)+"/avatar", "file", "notes.png",
 		[]byte("this is plain text pretending to be a png"))
 	if status != http.StatusBadRequest {
 		t.Fatalf("expected the upload to be refused, got %d", status)
 	}
+	mustContain(t, body, "not a JPEG", "rejection message")
 	saved, _ := ta.store.Kid(kid)
 	if saved.HasPhoto() {
 		t.Error("expected no photo to be recorded")
 	}
+}
+
+// Phone photos from Windows often sit well above the old 2 MB cap. A clear
+// size error is more useful than pretending the file was not an image.
+func TestOversizedPhotoIsRejectedWithAClearMessage(t *testing.T) {
+	ta := newTestApp(t)
+	kid := ta.addKid("Mia")
+
+	// A JPEG header followed by enough zeros to clear the limit. DetectContentType
+	// only needs the first bytes; the size check happens before a full decode.
+	big := make([]byte, maxAvatarBytes+1024)
+	copy(big, []byte{0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 'J', 'F', 'I', 'F'})
+	status, body := ta.postFile("/settings/kids/"+itoa64(kid)+"/avatar", "file", "huge.jpg", big)
+	if status != http.StatusBadRequest {
+		t.Fatalf("expected the upload to be refused, got %d", status)
+	}
+	mustContain(t, body, "8 MB", "size rejection")
+	saved, _ := ta.store.Kid(kid)
+	if saved.HasPhoto() {
+		t.Error("expected no photo to be recorded")
+	}
+}
+
+func TestHEICPhotoGetsAUsefulMessage(t *testing.T) {
+	ta := newTestApp(t)
+	kid := ta.addKid("Mia")
+
+	// Minimal ftyp/heic brand; enough for looksLikeHEIC without a real image.
+	heic := []byte{
+		0x00, 0x00, 0x00, 0x18, 'f', 't', 'y', 'p', 'h', 'e', 'i', 'c',
+		0x00, 0x00, 0x00, 0x00, 'm', 'i', 'f', '1', 'h', 'e', 'i', 'c',
+	}
+	status, body := ta.postFile("/settings/kids/"+itoa64(kid)+"/avatar", "file", "photo.heic", heic)
+	if status != http.StatusBadRequest {
+		t.Fatalf("expected the upload to be refused, got %d", status)
+	}
+	mustContain(t, body, "HEIC", "heic rejection")
 }
 
 func TestRemovingAChildDeletesTheirPhoto(t *testing.T) {
