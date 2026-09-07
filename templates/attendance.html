@@ -16,8 +16,7 @@
         <p class="muted small">Mon–Fri in {{.YearName}} that have not been marked stay unmarked, not absent.</p>
         {{range .Reports}}
             <h3>
-                <span class="dot" style="background:{{color .Kid.Color}}"></span>
-                {{.Kid.Name}}
+                {{template "avatar" (dict "Person" .Kid "Size" "nav")}}{{.Kid.Name}}
             </h3>
             <p class="muted small">
                 {{.Year.Present}} present &middot; {{.Year.Absent}} absent &middot;

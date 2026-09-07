@@ -382,6 +382,684 @@ func TestPlannerAddSwapsOnlyThatDay(t *testing.T) {
 	mustNotContain(t, fragment, "<!doctype html>", "planner day fragment")
 }
 
+// Dragging a lesson to another day has to fix up both ends of the move in one
+// response, or the planner shows the lesson twice until the next reload.
+func TestDragRescheduleRedrawsBothDays(t *testing.T) {
+	ta := newTestApp(t)
+	kid := ta.addKid("Mia")
+	subject := ta.mathSubjectID()
+	from := today()
+	to := addDays(from, 2)
+
+	lesson := ta.insertUnassignedLesson(kid, subject, from, "Long division", "")
+
+	status, fragment := ta.postHTMX("/lessons/"+itoa64(lesson)+"/reschedule", url.Values{
+		"view":         {"planner"},
+		"scheduled_on": {to},
+		"kid_filter":   {"0"},
+	})
+	if status != http.StatusOK {
+		t.Fatalf("reschedule returned %d", status)
+	}
+
+	// The destination day is swapped into the drop target; the day the lesson
+	// left rides along out of band.
+	mustContain(t, fragment, `id="day-`+to+`"`, "destination day")
+	mustContain(t, fragment, `id="day-`+from+`"`, "source day")
+	mustContain(t, fragment, `hx-swap-oob="true"`, "source day")
+	mustContain(t, fragment, "Long division", "destination day")
+
+	_, source, ok := strings.Cut(fragment, `id="day-`+from+`"`)
+	if !ok {
+		t.Fatal("source day fragment missing from the response")
+	}
+	mustNotContain(t, source, "Long division", "source day")
+
+	moved, err := ta.store.Lesson(lesson)
+	if err != nil {
+		t.Fatalf("reading lesson: %v", err)
+	}
+	if moved.ScheduledOn != to {
+		t.Errorf("expected lesson on %s, got %s", to, moved.ScheduledOn)
+	}
+}
+
+// A drop back onto the same day should not produce a stray out-of-band swap
+// for a day that is already the target.
+func TestRescheduleOntoTheSameDayRendersOneDay(t *testing.T) {
+	ta := newTestApp(t)
+	kid := ta.addKid("Mia")
+	lesson := ta.insertUnassignedLesson(kid, ta.mathSubjectID(), today(), "Long division", "")
+
+	_, fragment := ta.postHTMX("/lessons/"+itoa64(lesson)+"/reschedule", url.Values{
+		"view":         {"planner"},
+		"scheduled_on": {today()},
+		"kid_filter":   {"0"},
+	})
+	if got := strings.Count(fragment, `id="day-`); got != 1 {
+		t.Errorf("expected 1 day fragment, got %d", got)
+	}
+	mustNotContain(t, fragment, `hx-swap-oob`, "same-day reschedule")
+}
+
+// Ctrl-dragging leaves the original alone and drops a standalone copy, so a
+// repeating plan is not quietly rewritten by a copy.
+func TestCloneLessonLeavesTheOriginalInPlace(t *testing.T) {
+	ta := newTestApp(t)
+	_, _, lessons := ta.applyThreeMathLessons()
+	source := lessons[0]
+	to := addDays(source.ScheduledOn, 7)
+
+	status, fragment := ta.postHTMX("/lessons/"+itoa64(source.ID)+"/clone", url.Values{
+		"view":         {"planner"},
+		"scheduled_on": {to},
+		"kid_filter":   {"0"},
+	})
+	if status != http.StatusOK {
+		t.Fatalf("clone returned %d", status)
+	}
+	mustContain(t, fragment, `id="day-`+to+`"`, "clone destination day")
+	mustContain(t, fragment, source.Title, "clone destination day")
+
+	still, err := ta.store.Lesson(source.ID)
+	if err != nil {
+		t.Fatalf("reading original: %v", err)
+	}
+	if still.ScheduledOn != source.ScheduledOn {
+		t.Errorf("original moved to %s, expected it to stay on %s", still.ScheduledOn, source.ScheduledOn)
+	}
+
+	copies, err := ta.store.LessonsBetween(to, to, 0)
+	if err != nil {
+		t.Fatalf("listing destination day: %v", err)
+	}
+	var clone *Lesson
+	for i := range copies {
+		if copies[i].ID != source.ID && copies[i].Title == source.Title {
+			clone = &copies[i]
+		}
+	}
+	if clone == nil {
+		t.Fatal("expected a copy on the destination day")
+	}
+	if clone.Status != StatusPlanned {
+		t.Errorf("expected the copy to be planned, got %q", clone.Status)
+	}
+	if clone.AssignmentID != 0 || clone.SeriesID != 0 {
+		t.Errorf("expected a standalone copy, got assignment %d series %d",
+			clone.AssignmentID, clone.SeriesID)
+	}
+}
+
+// Dropping onto another child's chip copies the work across to them.
+func TestCloneLessonToAnotherKid(t *testing.T) {
+	ta := newTestApp(t)
+	mia := ta.addKid("Mia")
+	theo := ta.addKid("Theo")
+	subject := ta.mathSubjectID()
+	date := today()
+
+	lesson := ta.insertUnassignedLesson(mia, subject, date, "Long division", "")
+
+	status, _ := ta.postHTMX("/lessons/"+itoa64(lesson)+"/clone", url.Values{
+		"view":         {"planner"},
+		"scheduled_on": {date},
+		"kid_id":       {itoa64(theo)},
+		"kid_filter":   {"0"},
+	})
+	if status != http.StatusOK {
+		t.Fatalf("clone returned %d", status)
+	}
+
+	theirs, err := ta.store.LessonsBetween(date, date, theo)
+	if err != nil {
+		t.Fatalf("listing Theo's day: %v", err)
+	}
+	if len(theirs) != 1 || theirs[0].Title != "Long division" {
+		t.Fatalf("expected one copied lesson for Theo, got %d", len(theirs))
+	}
+
+	hers, err := ta.store.LessonsBetween(date, date, mia)
+	if err != nil {
+		t.Fatalf("listing Mia's day: %v", err)
+	}
+	if len(hers) != 1 {
+		t.Fatalf("expected Mia to keep exactly one lesson, got %d", len(hers))
+	}
+}
+
+// The planner needs the drag handles and the drop chips in its markup for any
+// of this to be reachable with a mouse.
+func TestPlannerMarkupIsDraggable(t *testing.T) {
+	ta := newTestApp(t)
+	kid := ta.addKid("Mia")
+	ta.insertUnassignedLesson(kid, ta.mathSubjectID(), today(), "Long division", "")
+
+	status, body := ta.get("/planner")
+	if status != http.StatusOK {
+		t.Fatalf("planner returned %d", status)
+	}
+	mustContain(t, body, `draggable="true"`, "planner")
+	mustContain(t, body, `class="kid-target"`, "planner")
+	mustContain(t, body, `data-kid-filter="0"`, "planner")
+	mustContain(t, body, "/static/planner.js", "planner")
+
+	status, _ = ta.get("/static/planner.js")
+	if status != http.StatusOK {
+		t.Fatalf("planner.js returned %d", status)
+	}
+}
+
+// A one-pixel PNG, which is enough for the sniffing the upload does.
+var tinyPNG = []byte{
+	0x89, 'P', 'N', 'G', 0x0d, 0x0a, 0x1a, 0x0a,
+	0x00, 0x00, 0x00, 0x0d, 'I', 'H', 'D', 'R',
+	0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
+	0x08, 0x06, 0x00, 0x00, 0x00, 0x1f, 0x15, 0xc4, 0x89,
+	0x00, 0x00, 0x00, 0x0a, 'I', 'D', 'A', 'T',
+	0x78, 0x9c, 0x63, 0x00, 0x01, 0x00, 0x00, 0x05, 0x00, 0x01,
+	0x0d, 0x0a, 0x2d, 0xb4,
+	0x00, 0x00, 0x00, 0x00, 'I', 'E', 'N', 'D', 0xae, 0x42, 0x60, 0x82,
+}
+
+func TestKidPhotoUploadServeAndRemove(t *testing.T) {
+	ta := newTestApp(t)
+	kid := ta.addKid("Mia")
+
+	status, _ := ta.postFile("/settings/kids/"+itoa64(kid)+"/avatar", "file", "mia.png", tinyPNG)
+	if status != http.StatusOK {
+		t.Fatalf("uploading a photo returned %d", status)
+	}
+
+	saved, err := ta.store.Kid(kid)
+	if err != nil {
+		t.Fatalf("reading kid: %v", err)
+	}
+	if !saved.HasPhoto() {
+		t.Fatal("expected the child to have a photo")
+	}
+	if _, ok := ta.resolveUpload(saved.AvatarPath); !ok {
+		t.Fatalf("stored photo path %q escapes the upload folder", saved.AvatarPath)
+	}
+
+	status, body := ta.get("/avatars/kids/" + itoa64(kid))
+	if status != http.StatusOK {
+		t.Fatalf("serving the photo returned %d", status)
+	}
+	if body != string(tinyPNG) {
+		t.Error("served photo does not match what was uploaded")
+	}
+
+	// The photo should now stand in for the colour dot wherever the child is
+	// named.
+	_, home := ta.get("/")
+	mustContain(t, home, "/avatars/kids/"+itoa64(kid), "home")
+
+	stored, _ := ta.resolveUpload(saved.AvatarPath)
+	status, _ = ta.post("/settings/kids/"+itoa64(kid)+"/avatar/delete", url.Values{})
+	if status != http.StatusOK {
+		t.Fatalf("removing the photo returned %d", status)
+	}
+	after, err := ta.store.Kid(kid)
+	if err != nil {
+		t.Fatalf("reading kid: %v", err)
+	}
+	if after.HasPhoto() {
+		t.Error("expected the photo to be cleared")
+	}
+	if _, err := os.Stat(stored); !os.IsNotExist(err) {
+		t.Error("expected the photo file to be deleted from disk")
+	}
+
+	status, _ = ta.get("/avatars/kids/" + itoa64(kid))
+	if status != http.StatusNotFound {
+		t.Errorf("expected 404 for a child with no photo, got %d", status)
+	}
+}
+
+// Replacing a photo should not leave the old file behind.
+func TestReplacingAPhotoDeletesTheOldOne(t *testing.T) {
+	ta := newTestApp(t)
+	kid := ta.addKid("Mia")
+
+	ta.postFile("/settings/kids/"+itoa64(kid)+"/avatar", "file", "first.png", tinyPNG)
+	first, _ := ta.store.Kid(kid)
+	firstPath, _ := ta.resolveUpload(first.AvatarPath)
+
+	ta.postFile("/settings/kids/"+itoa64(kid)+"/avatar", "file", "second.png", tinyPNG)
+	second, _ := ta.store.Kid(kid)
+
+	if second.AvatarPath == first.AvatarPath {
+		t.Fatal("expected the replacement to be stored under a new name")
+	}
+	if _, err := os.Stat(firstPath); !os.IsNotExist(err) {
+		t.Error("expected the replaced photo to be deleted from disk")
+	}
+}
+
+// The upload sniffs the file rather than trusting its name, so a renamed
+// document cannot become a child's photo.
+func TestNonImagePhotoIsRejected(t *testing.T) {
+	ta := newTestApp(t)
+	kid := ta.addKid("Mia")
+
+	status, _ := ta.postFile("/settings/kids/"+itoa64(kid)+"/avatar", "file", "notes.png",
+		[]byte("this is plain text pretending to be a png"))
+	if status != http.StatusBadRequest {
+		t.Fatalf("expected the upload to be refused, got %d", status)
+	}
+	saved, _ := ta.store.Kid(kid)
+	if saved.HasPhoto() {
+		t.Error("expected no photo to be recorded")
+	}
+}
+
+func TestRemovingAChildDeletesTheirPhoto(t *testing.T) {
+	ta := newTestApp(t)
+	kid := ta.addKid("Mia")
+
+	ta.postFile("/settings/kids/"+itoa64(kid)+"/avatar", "file", "mia.png", tinyPNG)
+	saved, _ := ta.store.Kid(kid)
+	stored, _ := ta.resolveUpload(saved.AvatarPath)
+
+	status, _ := ta.post("/settings/kids/"+itoa64(kid)+"/delete", url.Values{})
+	if status != http.StatusOK {
+		t.Fatalf("removing the child returned %d", status)
+	}
+	if _, err := os.Stat(stored); !os.IsNotExist(err) {
+		t.Error("expected the photo file to be deleted along with the child")
+	}
+}
+
+// Making room for adults meant rebuilding the lessons and notes tables, and a
+// rebuild done carelessly takes the rows that pointed at them along with it.
+// This walks a database from the version before adults existed to the current
+// one and checks that nothing was lost on the way.
+func TestUpgradingToAdultsKeepsExistingRecords(t *testing.T) {
+	dir := t.TempDir()
+	store, err := OpenStore(filepath.Join(dir, dbFileName))
+	if err != nil {
+		t.Fatalf("opening store: %v", err)
+	}
+	t.Cleanup(func() { store.Close() })
+
+	if _, err := store.db().Exec(`CREATE TABLE schema_migrations (
+		version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL)`); err != nil {
+		t.Fatalf("creating migration table: %v", err)
+	}
+	for _, name := range []string{
+		"0001_init.sql", "0002_attendance.sql", "0003_curriculum.sql",
+		"0004_lesson_series.sql", "0005_plan_assignments.sql", "0006_avatars.sql",
+	} {
+		body, err := migrationFS.ReadFile("migrations/" + name)
+		if err != nil {
+			t.Fatalf("reading %s: %v", name, err)
+		}
+		version, _ := migrationVersion(name)
+		if err := store.applyMigration(name, version, string(body)); err != nil {
+			t.Fatalf("applying %s: %v", name, err)
+		}
+	}
+
+	// Records of the kind that hang off a lesson, which is what a bad rebuild
+	// would silently cascade away.
+	kid, err := store.CreateKid("Mia", "3rd", "#5b8def")
+	if err != nil {
+		t.Fatalf("creating kid: %v", err)
+	}
+	var subject int64
+	if err := store.db().QueryRow(`SELECT id FROM subjects WHERE slug = 'math'`).Scan(&subject); err != nil {
+		t.Fatalf("finding subject: %v", err)
+	}
+	res, err := store.db().Exec(`INSERT INTO lessons
+		(kid_id, subject_id, scheduled_on, status, title, minutes, notes, created_at)
+		VALUES (?, ?, ?, 'planned', 'Long division', 30, '', ?)`,
+		kid, subject, today(), today())
+	if err != nil {
+		t.Fatalf("inserting lesson: %v", err)
+	}
+	lesson, _ := res.LastInsertId()
+
+	if _, err := store.db().Exec(`INSERT INTO assessments
+		(kid_id, subject_id, lesson_id, given_on, name, created_at)
+		VALUES (?, ?, ?, ?, 'Chapter 3 test', ?)`,
+		kid, subject, lesson, today(), today()); err != nil {
+		t.Fatalf("inserting assessment: %v", err)
+	}
+	if _, err := store.db().Exec(`INSERT INTO attachments
+		(owner_type, lesson_id, original_name, stored_path, size_bytes, created_at)
+		VALUES ('lesson', ?, 'worksheet.pdf', '2026/01/abc-worksheet.pdf', 12, ?)`,
+		lesson, today()); err != nil {
+		t.Fatalf("inserting attachment: %v", err)
+	}
+	if _, err := store.db().Exec(`INSERT INTO notes (kid_id, noted_on, body, created_at)
+		VALUES (?, ?, 'Struggled with remainders', ?)`, kid, today(), today()); err != nil {
+		t.Fatalf("inserting note: %v", err)
+	}
+
+	if err := store.Migrate(); err != nil {
+		t.Fatalf("upgrading: %v", err)
+	}
+
+	counts := map[string]int{}
+	for _, table := range []string{"lessons", "assessments", "attachments", "notes"} {
+		var n int
+		if err := store.db().QueryRow(`SELECT COUNT(*) FROM ` + table).Scan(&n); err != nil {
+			t.Fatalf("counting %s: %v", table, err)
+		}
+		counts[table] = n
+	}
+	for table, n := range counts {
+		if n != 1 {
+			t.Errorf("expected 1 row in %s after the upgrade, got %d", table, n)
+		}
+	}
+
+	// The assessment must still point at the lesson it was recorded against.
+	var linked int64
+	if err := store.db().QueryRow(`SELECT COALESCE(lesson_id, 0) FROM assessments`).Scan(&linked); err != nil {
+		t.Fatalf("reading assessment: %v", err)
+	}
+	if linked != lesson {
+		t.Errorf("assessment lost its lesson: got %d, want %d", linked, lesson)
+	}
+
+	rows, err := store.db().Query(`PRAGMA foreign_key_check`)
+	if err != nil {
+		t.Fatalf("checking foreign keys: %v", err)
+	}
+	defer rows.Close()
+	if rows.Next() {
+		t.Error("the upgraded database has rows pointing at things that are not there")
+	}
+}
+
+// The family always has one grown-up to work with, without anyone having to
+// set her up first.
+func (ta *testApp) mom() Adult {
+	ta.t.Helper()
+	adults, err := ta.store.Adults(false)
+	if err != nil {
+		ta.t.Fatalf("listing adults: %v", err)
+	}
+	if len(adults) != 1 {
+		ta.t.Fatalf("expected exactly one adult, got %d", len(adults))
+	}
+	return adults[0]
+}
+
+func TestDefaultAdultIsReadyToUse(t *testing.T) {
+	ta := newTestApp(t)
+	mom := ta.mom()
+	if mom.Name != "Mom" {
+		t.Errorf("expected the default adult to be called Mom, got %q", mom.Name)
+	}
+
+	status, body := ta.get("/adults/" + itoa64(mom.ID))
+	if status != http.StatusOK {
+		t.Fatalf("her profile returned %d", status)
+	}
+	mustContain(t, body, "Pinboard", "adult profile")
+	mustContain(t, body, "This week", "adult profile")
+
+	// She is reachable from anywhere, next to the children.
+	_, home := ta.get("/")
+	mustContain(t, home, `href="/adults/`+itoa64(mom.ID)+`"`, "nav")
+}
+
+// Her dentist appointment is not a lesson for the kids, so it must not show up
+// in any view built for them.
+func TestAdultScheduleStaysOutOfKidViews(t *testing.T) {
+	ta := newTestApp(t)
+	mom := ta.mom()
+	kid := ta.addKid("Mia")
+	subject := ta.mathSubjectID()
+	date := today()
+
+	ta.insertUnassignedLesson(kid, subject, date, "Long division", "")
+	status, _ := ta.post("/adults/"+itoa64(mom.ID)+"/schedule", url.Values{
+		"subject_id":   {itoa64(subject)},
+		"scheduled_on": {date},
+		"title":        {"Dentist appointment"},
+	})
+	if status != http.StatusOK {
+		t.Fatalf("booking her appointment returned %d", status)
+	}
+
+	for _, path := range []string{"/", "/planner", "/kids/" + itoa64(kid), "/archive"} {
+		_, body := ta.get(path)
+		mustNotContain(t, body, "Dentist appointment", path)
+	}
+
+	// Nor in the numbers the kid views are built from.
+	week, err := ta.store.LessonsBetween(date, date, 0)
+	if err != nil {
+		t.Fatalf("listing the week: %v", err)
+	}
+	if len(week) != 1 || week[0].Title != "Long division" {
+		t.Fatalf("expected only the child's lesson, got %d", len(week))
+	}
+	progress, err := ta.store.ProgressBetween(date, date, 0, 0)
+	if err != nil {
+		t.Fatalf("reading progress: %v", err)
+	}
+	if progress.Total() != 1 {
+		t.Errorf("expected the family week to count 1 lesson, got %d", progress.Total())
+	}
+	overdue, err := ta.store.LessonsOverdue(addDays(date, 30), 25)
+	if err != nil {
+		t.Fatalf("listing overdue: %v", err)
+	}
+	for _, l := range overdue {
+		if l.ForAdult() {
+			t.Error("an adult item turned up in the overdue list")
+		}
+	}
+
+	// The curriculum backfill runs on every start and reads lessons that
+	// belong to no plan, which is every adult item she has ever booked.
+	if err := ta.store.Migrate(); err != nil {
+		t.Fatalf("restarting: %v", err)
+	}
+	hers, err := ta.store.AdultLessonsBetween(date, date, mom.ID)
+	if err != nil {
+		t.Fatalf("listing her day: %v", err)
+	}
+	if len(hers) != 1 {
+		t.Fatalf("expected her appointment to survive a restart, got %d", len(hers))
+	}
+	if hers[0].AssignmentID != 0 {
+		t.Error("her appointment was swept into a curriculum plan")
+	}
+
+	// It is on her own week, though.
+	_, page := ta.get("/adults/" + itoa64(mom.ID) + "/schedule")
+	mustContain(t, page, "Dentist appointment", "her schedule")
+}
+
+func TestAdultNotesAreSeparateFromKidNotes(t *testing.T) {
+	ta := newTestApp(t)
+	mom := ta.mom()
+	kid := ta.addKid("Mia")
+
+	ta.post("/notes", url.Values{
+		"adult_id": {itoa64(mom.ID)},
+		"noted_on": {today()},
+		"body":     {"Order more printer paper"},
+		"back":     {"/adults/" + itoa64(mom.ID)},
+	})
+	ta.post("/notes", url.Values{
+		"kid_id":   {itoa64(kid)},
+		"noted_on": {today()},
+		"body":     {"Struggled with remainders"},
+		"back":     {"/kids/" + itoa64(kid)},
+	})
+
+	hers, err := ta.store.AdultNotes(mom.ID, 20)
+	if err != nil {
+		t.Fatalf("listing her notes: %v", err)
+	}
+	if len(hers) != 1 || hers[0].Body != "Order more printer paper" {
+		t.Fatalf("expected exactly her own note, got %d", len(hers))
+	}
+	theirs, err := ta.store.Notes(kid, 0, 20)
+	if err != nil {
+		t.Fatalf("listing the child's notes: %v", err)
+	}
+	if len(theirs) != 1 || theirs[0].Body != "Struggled with remainders" {
+		t.Fatalf("expected exactly the child's note, got %d", len(theirs))
+	}
+
+	_, page := ta.get("/kids/" + itoa64(kid))
+	mustNotContain(t, page, "printer paper", "kid page")
+}
+
+// A note or lesson has to belong to someone, and to exactly one someone.
+func TestALessonCannotBelongToBothAKidAndAnAdult(t *testing.T) {
+	ta := newTestApp(t)
+	mom := ta.mom()
+	kid := ta.addKid("Mia")
+
+	_, err := ta.store.db().Exec(`INSERT INTO lessons
+		(kid_id, adult_id, subject_id, scheduled_on, status, title, minutes, notes, created_at)
+		VALUES (?, ?, ?, ?, 'planned', 'Both at once', 0, '', ?)`,
+		kid, mom.ID, ta.mathSubjectID(), today(), today())
+	if err == nil {
+		t.Error("expected the database to refuse a lesson belonging to two people")
+	}
+
+	_, err = ta.store.db().Exec(`INSERT INTO lessons
+		(subject_id, scheduled_on, status, title, minutes, notes, created_at)
+		VALUES (?, ?, 'planned', 'Nobody', 0, '', ?)`,
+		ta.mathSubjectID(), today(), today())
+	if err == nil {
+		t.Error("expected the database to refuse a lesson belonging to nobody")
+	}
+}
+
+func TestPinboardCardsRoundTrip(t *testing.T) {
+	ta := newTestApp(t)
+	mom := ta.mom()
+	base := "/adults/" + itoa64(mom.ID)
+
+	for _, title := range []string{"Curriculum wish list", "Field trip ideas"} {
+		status, _ := ta.post(base+"/cards", url.Values{"title": {title}})
+		if status != http.StatusOK {
+			t.Fatalf("adding %q returned %d", title, status)
+		}
+	}
+
+	cards, err := ta.store.AdultCards(mom.ID)
+	if err != nil || len(cards) != 2 {
+		t.Fatalf("expected 2 cards, got %d (err %v)", len(cards), err)
+	}
+	if cards[0].Title != "Curriculum wish list" {
+		t.Errorf("expected the first card added to come first, got %q", cards[0].Title)
+	}
+
+	// Moving the second up should put it first.
+	if status, _ := ta.post(base+"/cards/"+itoa64(cards[1].ID)+"/move",
+		url.Values{"direction": {"up"}}); status != http.StatusOK {
+		t.Fatalf("moving a card returned %d", status)
+	}
+	cards, _ = ta.store.AdultCards(mom.ID)
+	if cards[0].Title != "Field trip ideas" {
+		t.Errorf("expected the moved card first, got %q", cards[0].Title)
+	}
+
+	// Pinning lifts a card above the unpinned ones regardless of order.
+	last := cards[len(cards)-1]
+	ta.post(base+"/cards/"+itoa64(last.ID), url.Values{
+		"title":  {last.Title},
+		"body":   {"Ask the co-op about the science kit"},
+		"pinned": {"on"},
+	})
+	cards, _ = ta.store.AdultCards(mom.ID)
+	if !cards[0].Pinned || cards[0].ID != last.ID {
+		t.Error("expected the pinned card to come first")
+	}
+
+	_, page := ta.get(base)
+	mustContain(t, page, "Ask the co-op about the science kit", "pinboard")
+
+	if status, _ := ta.post(base+"/cards/"+itoa64(last.ID)+"/delete", url.Values{}); status != http.StatusOK {
+		t.Fatalf("deleting a card returned %d", status)
+	}
+	cards, _ = ta.store.AdultCards(mom.ID)
+	if len(cards) != 1 {
+		t.Errorf("expected 1 card left, got %d", len(cards))
+	}
+}
+
+func TestAdultPhotoAndSettings(t *testing.T) {
+	ta := newTestApp(t)
+	mom := ta.mom()
+
+	status, _ := ta.post("/settings/adults", url.Values{
+		"id":    {itoa64(mom.ID)},
+		"name":  {"Sarah"},
+		"role":  {"Mom"},
+		"color": {"#3fae7f"},
+	})
+	if status != http.StatusOK {
+		t.Fatalf("saving her details returned %d", status)
+	}
+	updated, _ := ta.store.Adult(mom.ID)
+	if updated.Name != "Sarah" {
+		t.Errorf("expected her name to be saved, got %q", updated.Name)
+	}
+
+	if status, _ := ta.postFile("/settings/adults/"+itoa64(mom.ID)+"/avatar",
+		"file", "sarah.png", tinyPNG); status != http.StatusOK {
+		t.Fatalf("uploading her photo returned %d", status)
+	}
+	withPhoto, _ := ta.store.Adult(mom.ID)
+	if !withPhoto.HasPhoto() {
+		t.Fatal("expected her photo to be recorded")
+	}
+	if status, _ := ta.get("/avatars/adults/" + itoa64(mom.ID)); status != http.StatusOK {
+		t.Errorf("serving her photo returned %d", status)
+	}
+	_, nav := ta.get("/")
+	mustContain(t, nav, "/avatars/adults/"+itoa64(mom.ID), "nav")
+}
+
+// Removing a grown-up should take her schedule, notes, and pinboard with her.
+func TestDeletingAnAdultClearsHerRecords(t *testing.T) {
+	ta := newTestApp(t)
+	mom := ta.mom()
+	base := "/adults/" + itoa64(mom.ID)
+
+	ta.post(base+"/schedule", url.Values{
+		"subject_id":   {itoa64(ta.mathSubjectID())},
+		"scheduled_on": {today()},
+		"title":        {"Dentist appointment"},
+	})
+	ta.post("/notes", url.Values{
+		"adult_id": {itoa64(mom.ID)},
+		"noted_on": {today()},
+		"body":     {"Order more printer paper"},
+	})
+	ta.post(base+"/cards", url.Values{"title": {"Curriculum wish list"}})
+
+	if _, err := ta.store.db().Exec(`DELETE FROM adults WHERE id = ?`, mom.ID); err != nil {
+		t.Fatalf("deleting her: %v", err)
+	}
+	for _, q := range []string{
+		`SELECT COUNT(*) FROM lessons WHERE adult_id IS NOT NULL`,
+		`SELECT COUNT(*) FROM notes WHERE adult_id IS NOT NULL`,
+		`SELECT COUNT(*) FROM adult_cards`,
+	} {
+		var n int
+		if err := ta.store.db().QueryRow(q).Scan(&n); err != nil {
+			t.Fatalf("counting: %v", err)
+		}
+		if n != 0 {
+			t.Errorf("expected nothing left for %q, got %d rows", q, n)
+		}
+	}
+}
+
 func TestFileRoundTrip(t *testing.T) {
 	ta := newTestApp(t)
 	kid := ta.addKid("Mia")

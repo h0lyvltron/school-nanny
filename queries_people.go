@@ -7,8 +7,10 @@ import (
 	"strings"
 )
 
+const kidSelect = `SELECT id, name, grade, color, avatar_path, sort_order, archived FROM kids`
+
 func (s *Store) Kids(includeArchived bool) ([]Kid, error) {
-	q := `SELECT id, name, grade, color, sort_order, archived FROM kids`
+	q := kidSelect
 	if !includeArchived {
 		q += ` WHERE archived = 0`
 	}
@@ -23,7 +25,7 @@ func (s *Store) Kids(includeArchived bool) ([]Kid, error) {
 	var kids []Kid
 	for rows.Next() {
 		var k Kid
-		if err := rows.Scan(&k.ID, &k.Name, &k.Grade, &k.Color, &k.SortOrder, &k.Archived); err != nil {
+		if err := rows.Scan(&k.ID, &k.Name, &k.Grade, &k.Color, &k.AvatarPath, &k.SortOrder, &k.Archived); err != nil {
 			return nil, err
 		}
 		kids = append(kids, k)
@@ -33,9 +35,23 @@ func (s *Store) Kids(includeArchived bool) ([]Kid, error) {
 
 func (s *Store) Kid(id int64) (Kid, error) {
 	var k Kid
-	err := s.db().QueryRow(`SELECT id, name, grade, color, sort_order, archived FROM kids WHERE id = ?`, id).
-		Scan(&k.ID, &k.Name, &k.Grade, &k.Color, &k.SortOrder, &k.Archived)
+	err := s.db().QueryRow(kidSelect+` WHERE id = ?`, id).
+		Scan(&k.ID, &k.Name, &k.Grade, &k.Color, &k.AvatarPath, &k.SortOrder, &k.Archived)
 	return k, err
+}
+
+// SetKidAvatar records (or clears) a child's photo and returns the path of the
+// photo it replaced, so the caller can delete the file it no longer needs.
+func (s *Store) SetKidAvatar(id int64, storedPath string) (string, error) {
+	var previous string
+	err := s.db().QueryRow(`SELECT avatar_path FROM kids WHERE id = ?`, id).Scan(&previous)
+	if err != nil {
+		return "", err
+	}
+	if _, err := s.db().Exec(`UPDATE kids SET avatar_path = ? WHERE id = ?`, storedPath, id); err != nil {
+		return "", err
+	}
+	return previous, nil
 }
 
 func (s *Store) CreateKid(name, grade, color string) (int64, error) {

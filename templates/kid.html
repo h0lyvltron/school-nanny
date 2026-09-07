@@ -1,7 +1,7 @@
 {{define "content"}}
 <div class="page-head">
     <div>
-        <h1><span class="dot big" style="background:{{color .Kid.Color}}"></span>{{.Kid.Name}}</h1>
+        <h1>{{template "avatar" (dict "Person" .Kid "Size" "hero")}}{{.Kid.Name}}</h1>
         <p class="muted">{{if .Kid.Grade}}{{.Kid.Grade}} &middot; {{end}}{{.YearName}}</p>
     </div>
     <div class="week-summary">

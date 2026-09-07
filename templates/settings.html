@@ -14,6 +14,12 @@
             Backup saved.
         {{else if eq .Saved "backup-removed"}}
             Backup deleted.
+        {{else if eq .Saved "photo"}}
+            Photo saved.
+        {{else if eq .Saved "photo-removed"}}
+            Photo removed.
+        {{else if eq .Saved "adult"}}
+            Saved.
         {{else}}
             Saved.
         {{end}}
@@ -24,14 +30,30 @@
     <h2>Kids</h2>
     <div class="settings-rows">
         {{range .Kids}}
-            <form method="post" action="/settings/kids" class="settings-row">
-                <input type="hidden" name="id" value="{{.ID}}">
-                <input type="text" name="name" value="{{.Name}}" required aria-label="Name">
-                <input type="text" name="grade" value="{{.Grade}}" placeholder="Grade" aria-label="Grade">
-                <input type="color" name="color" value="{{.Color}}" aria-label="Colour">
-                <label class="check"><input type="checkbox" name="archived" {{if .Archived}}checked{{end}}> Hide</label>
-                <button type="submit" class="secondary">Save</button>
-            </form>
+            <div class="settings-kid">
+                <form method="post" action="/settings/kids" class="settings-row">
+                    <input type="hidden" name="id" value="{{.ID}}">
+                    {{template "avatar" (dict "Person" . "Size" "card")}}
+                    <input type="text" name="name" value="{{.Name}}" required aria-label="Name">
+                    <input type="text" name="grade" value="{{.Grade}}" placeholder="Grade" aria-label="Grade">
+                    <input type="color" name="color" value="{{.Color}}" aria-label="Colour">
+                    <label class="check"><input type="checkbox" name="archived" {{if .Archived}}checked{{end}}> Hide</label>
+                    <button type="submit" class="secondary">Save</button>
+                </form>
+                <div class="settings-photo">
+                    <form method="post" action="/settings/kids/{{.ID}}/avatar"
+                          enctype="multipart/form-data" class="inline-form photo-form">
+                        <input type="file" name="file" accept="image/jpeg,image/png,image/gif,image/webp"
+                               required aria-label="Photo for {{.Name}}">
+                        <button type="submit" class="link-button">{{if .HasPhoto}}Change photo{{else}}Add photo{{end}}</button>
+                    </form>
+                    {{if .HasPhoto}}
+                        <form method="post" action="/settings/kids/{{.ID}}/avatar/delete" class="inline-form">
+                            <button type="submit" class="link-button danger">Remove photo</button>
+                        </form>
+                    {{end}}
+                </div>
+            </div>
         {{end}}
     </div>
 
@@ -57,6 +79,39 @@
             </div>
         </details>
     {{end}}
+</section>
+
+<section class="panel">
+    <h2>Grown-ups</h2>
+    <p class="muted small">Her schedule, notes, and pinboard live on her own page, away from the kids' week.</p>
+    <div class="settings-rows">
+        {{range .Adults}}
+            <div class="settings-kid">
+                <form method="post" action="/settings/adults" class="settings-row">
+                    <input type="hidden" name="id" value="{{.ID}}">
+                    {{template "avatar" (dict "Person" . "Size" "card")}}
+                    <input type="text" name="name" value="{{.Name}}" required aria-label="Name">
+                    <input type="text" name="role" value="{{.Role}}" placeholder="Role" aria-label="Role">
+                    <input type="color" name="color" value="{{.Color}}" aria-label="Colour">
+                    <label class="check"><input type="checkbox" name="archived" {{if .Archived}}checked{{end}}> Hide</label>
+                    <button type="submit" class="secondary">Save</button>
+                </form>
+                <div class="settings-photo">
+                    <form method="post" action="/settings/adults/{{.ID}}/avatar"
+                          enctype="multipart/form-data" class="inline-form photo-form">
+                        <input type="file" name="file" accept="image/jpeg,image/png,image/gif,image/webp"
+                               required aria-label="Photo for {{.Name}}">
+                        <button type="submit" class="link-button">{{if .HasPhoto}}Change photo{{else}}Add photo{{end}}</button>
+                    </form>
+                    {{if .HasPhoto}}
+                        <form method="post" action="/settings/adults/{{.ID}}/avatar/delete" class="inline-form">
+                            <button type="submit" class="link-button danger">Remove photo</button>
+                        </form>
+                    {{end}}
+                </div>
+            </div>
+        {{end}}
+    </div>
 </section>
 
 <section class="panel">

@@ -24,7 +24,7 @@
         {{range .NavKids}}
             <a href="/planner?week={{$week}}&kid={{.ID}}"
                class="filter-chip{{if eq $filter .ID}} current{{end}}">
-                <span class="dot" style="background:{{color .Color}}"></span>{{.Name}}
+                {{template "avatar" (dict "Person" . "Size" "chip")}}{{.Name}}
             </a>
         {{end}}
     </div>

@@ -1,8 +1,9 @@
 {{define "lesson_row"}}
-<article class="lesson status-{{.Lesson.Status}}{{if .Lesson.Overdue}} is-overdue{{end}}" id="lesson-{{.Lesson.ID}}">
+<article class="lesson status-{{.Lesson.Status}}{{if .Lesson.Overdue}} is-overdue{{end}}" id="lesson-{{.Lesson.ID}}"
+         {{if .Draggable}}draggable="true" data-lesson-id="{{.Lesson.ID}}" data-kid-id="{{.Lesson.KidID}}" data-date="{{.Lesson.ScheduledOn}}"{{end}}>
     <div class="lesson-body">
         <div class="lesson-title-line">
-            {{if .ShowKid}}<span class="chip" style="background:{{color .Lesson.KidColor}}">{{.Lesson.KidName}}</span>{{end}}
+            {{if .ShowKid}}<span class="chip" style="background:{{color .Lesson.PersonColor}}">{{if .Lesson.PersonHasPhoto}}<img class="avatar avatar-chip" src="{{.Lesson.PersonAvatarURL}}" alt="" loading="lazy">{{end}}{{.Lesson.PersonName}}</span>{{end}}
             <a class="lesson-title" href="/lessons/{{.Lesson.ID}}">{{.Lesson.Title}}</a>
         </div>
         <p class="lesson-meta">
@@ -45,7 +46,8 @@
 
 
 {{define "planner_day"}}
-<section class="day{{if isToday .Day.Date}} is-today{{end}}" id="day-{{.Day.Date}}">
+<section class="day{{if isToday .Day.Date}} is-today{{end}}" id="day-{{.Day.Date}}"
+         {{if .OOB}}hx-swap-oob="true" {{end}}data-date="{{.Day.Date}}" data-kid-filter="{{.KidFilter}}">
     <header class="day-head">
         <h3>{{dayName .Day.Date}}</h3>
         <span class="day-date">{{monthDay .Day.Date}}</span>
@@ -53,11 +55,24 @@
 
     <div class="day-lessons">
         {{range .Day.Lessons}}
-            {{template "lesson_row" (dict "Lesson" . "ShowKid" true "ShowSubject" true "Back" "/planner")}}
+            {{template "lesson_row" (dict "Lesson" . "ShowKid" true "ShowSubject" true "Back" "/planner" "Draggable" true)}}
         {{else}}
             <p class="muted small">Nothing planned.</p>
         {{end}}
     </div>
+
+    {{if .Kids}}
+    <div class="drop-kids">
+        <span class="drop-kids-label">Drop here to copy for</span>
+        {{range .Kids}}
+            {{if or (not $.KidFilter) (eq $.KidFilter .ID)}}
+                <span class="kid-target" data-kid-id="{{.ID}}" data-date="{{$.Day.Date}}">
+                    {{template "avatar" (dict "Person" . "Size" "chip")}}{{.Name}}
+                </span>
+            {{end}}
+        {{end}}
+    </div>
+    {{end}}
 
     {{if .Kids}}
     <details class="add-box">
@@ -98,6 +113,92 @@
     </details>
     {{end}}
 </section>
+{{end}}
+
+
+{{/* avatar renders a person — child or adult — wherever their identity needs a
+     visual anchor: a photo when there is one, otherwise their colour. Size is
+     one of chip, nav, card, or hero. */}}
+{{define "avatar"}}{{if .Person.HasPhoto}}<img class="avatar avatar-{{.Size}}" src="{{.Person.AvatarURL}}" alt="{{.Person.Name}}" loading="lazy">{{else}}<span class="avatar avatar-{{.Size}}" style="background:{{color .Person.Color}}" aria-hidden="true"></span>{{end}}{{end}}
+
+
+{{/* adult_day mirrors planner_day for a grown-up's own week: same grid, but
+     nothing about children, subjects as categories, and no kid picker. */}}
+{{define "adult_day"}}
+<section class="day{{if isToday .Day.Date}} is-today{{end}}" id="day-{{.Day.Date}}"
+         {{if .OOB}}hx-swap-oob="true" {{end}}data-date="{{.Day.Date}}">
+    <header class="day-head">
+        <h3>{{dayName .Day.Date}}</h3>
+        <span class="day-date">{{monthDay .Day.Date}}</span>
+    </header>
+
+    <div class="day-lessons">
+        {{$back := printf "/adults/%d/schedule" .Adult.ID}}
+        {{range .Day.Lessons}}
+            {{template "lesson_row" (dict "Lesson" . "ShowKid" false "ShowSubject" true "Back" $back)}}
+        {{else}}
+            <p class="muted small">Nothing on this day.</p>
+        {{end}}
+    </div>
+
+    <details class="add-box">
+        <summary>Add to this day</summary>
+        <form hx-post="/adults/{{.Adult.ID}}/schedule" hx-target="#day-{{.Day.Date}}" hx-swap="outerHTML">
+            <input type="hidden" name="view" value="adult">
+            <input type="hidden" name="scheduled_on" value="{{.Day.Date}}">
+            <select name="subject_id" required aria-label="Category">
+                {{range .Subjects}}<option value="{{.ID}}">{{.Name}}</option>{{end}}
+            </select>
+            <input type="text" name="title" placeholder="What is it?" required>
+            <div class="add-row">
+                <input type="number" name="minutes" min="0" step="5" placeholder="min" aria-label="Minutes">
+                <label class="check">
+                    <input type="checkbox" name="status" value="done"> Already done
+                </label>
+            </div>
+            <button type="submit">Add</button>
+        </form>
+    </details>
+</section>
+{{end}}
+
+
+{{/* adult_card is one note on the pinboard. It carries its own edit, reorder,
+     and delete controls, which is what makes the box worth drawing. */}}
+{{define "adult_card"}}
+<article class="pin-card{{if .Card.Pinned}} is-pinned{{end}}" id="card-{{.Card.ID}}">
+    <h3>{{.Card.Title}}</h3>
+    {{if .Card.Body}}<p class="pin-body">{{.Card.Body}}</p>{{end}}
+    <div class="pin-actions">
+        <form method="post" action="/adults/{{.Card.AdultID}}/cards/{{.Card.ID}}/move" class="inline-form">
+            <input type="hidden" name="back" value="{{.Back}}">
+            <input type="hidden" name="direction" value="up">
+            <button class="link-button" type="submit" aria-label="Move up">&uarr;</button>
+        </form>
+        <form method="post" action="/adults/{{.Card.AdultID}}/cards/{{.Card.ID}}/move" class="inline-form">
+            <input type="hidden" name="back" value="{{.Back}}">
+            <input type="hidden" name="direction" value="down">
+            <button class="link-button" type="submit" aria-label="Move down">&darr;</button>
+        </form>
+        <details class="add-box">
+            <summary>Edit</summary>
+            <form method="post" action="/adults/{{.Card.AdultID}}/cards/{{.Card.ID}}">
+                <input type="hidden" name="back" value="{{.Back}}">
+                <input type="text" name="title" value="{{.Card.Title}}" required aria-label="Title">
+                <textarea name="body" rows="3" aria-label="Body">{{.Card.Body}}</textarea>
+                <label class="check">
+                    <input type="checkbox" name="pinned" {{if .Card.Pinned}}checked{{end}}> Keep at the top
+                </label>
+                <button type="submit">Save card</button>
+            </form>
+            <form method="post" action="/adults/{{.Card.AdultID}}/cards/{{.Card.ID}}/delete" class="inline-form">
+                <input type="hidden" name="back" value="{{.Back}}">
+                <button class="link-button danger" type="submit"
+                        onclick="return confirm('Delete this card?')">Delete card</button>
+            </form>
+        </details>
+    </div>
+</article>
 {{end}}
 
 
@@ -165,7 +266,8 @@
 
 {{define "note_form"}}
 <form method="post" action="/notes" class="note-form">
-    <input type="hidden" name="kid_id" value="{{.KidID}}">
+    {{if .KidID}}<input type="hidden" name="kid_id" value="{{.KidID}}">{{end}}
+    {{if .AdultID}}<input type="hidden" name="adult_id" value="{{.AdultID}}">{{end}}
     {{if .SubjectID}}<input type="hidden" name="subject_id" value="{{.SubjectID}}">{{end}}
     <input type="hidden" name="noted_on" value="{{.Today}}">
     <input type="hidden" name="back" value="{{.Back}}">
@@ -255,7 +357,7 @@
             {{range .NavKids}}
                 <a href="/attendance?month={{$month}}&kid={{.ID}}"
                    class="filter-chip{{if eq $filter .ID}} current{{end}}">
-                    <span class="dot" style="background:{{color .Color}}"></span>{{.Name}}
+                    {{template "avatar" (dict "Person" . "Size" "chip")}}{{.Name}}
                 </a>
             {{end}}
         </div>

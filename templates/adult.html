@@ -1,0 +1,57 @@
+{{define "content"}}
+{{$back := printf "/adults/%d" .Adult.ID}}
+<div class="page-head">
+    <div>
+        <h1>{{template "avatar" (dict "Person" .Adult "Size" "hero")}}{{.Adult.Name}}</h1>
+        <p class="muted">{{.Adult.Role}}</p>
+    </div>
+    <div class="week-summary">
+        <a href="/adults/{{.Adult.ID}}/schedule" role="button" class="secondary">Full schedule</a>
+    </div>
+</div>
+
+<section class="panel">
+    <h2>Pinboard</h2>
+    <div class="pin-grid">
+        {{range .Cards}}
+            {{template "adult_card" (dict "Card" . "Back" $back)}}
+        {{else}}
+            <p class="muted small">Nothing pinned yet.</p>
+        {{end}}
+    </div>
+
+    <details class="add-box">
+        <summary>Add a card</summary>
+        <form method="post" action="/adults/{{.Adult.ID}}/cards">
+            <input type="hidden" name="back" value="{{$back}}">
+            <input type="text" name="title" placeholder="What is this about?" required aria-label="Title">
+            <textarea name="body" rows="3" placeholder="Anything worth keeping in view" aria-label="Body"></textarea>
+            <label class="check">
+                <input type="checkbox" name="pinned"> Keep at the top
+            </label>
+            <button type="submit">Add card</button>
+        </form>
+    </details>
+</section>
+
+<div class="two-col">
+    <section class="panel">
+        <h2>This week</h2>
+        <p class="muted small">{{monthDay .WeekStart}} &ndash; {{monthDay .WeekEnd}}</p>
+        <div class="stack">
+            {{range .Week}}
+                {{template "lesson_row" (dict "Lesson" . "ShowKid" false "ShowSubject" true "Back" $back)}}
+            {{else}}
+                <p class="muted small">Nothing on the calendar this week.
+                    <a href="/adults/{{.Adult.ID}}/schedule">Add something</a>.</p>
+            {{end}}
+        </div>
+    </section>
+
+    <section class="panel">
+        <h2>Notes</h2>
+        {{template "note_form" (dict "AdultID" .Adult.ID "Today" .Today "Back" $back)}}
+        {{template "note_list" (dict "Notes" .Notes "ShowSubject" false "Back" $back)}}
+    </section>
+</div>
+{{end}}

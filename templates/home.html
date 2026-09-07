@@ -25,7 +25,7 @@
             <section class="kid-card" style="--kid:{{color .Kid.Color}}">
                 <header class="kid-card-head">
                     <a href="/kids/{{.Kid.ID}}" class="kid-name">
-                        <span class="dot" style="background:{{color .Kid.Color}}"></span>{{.Kid.Name}}
+                        {{template "avatar" (dict "Person" .Kid "Size" "card")}}{{.Kid.Name}}
                     </a>
                     {{if .Kid.Grade}}<span class="muted small">{{.Kid.Grade}}</span>{{end}}
                 </header>

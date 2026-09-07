@@ -3,8 +3,12 @@
 <div class="page-head">
     <div>
         <p class="crumbs">
-            <a href="/kids/{{.Lesson.KidID}}">{{.Lesson.KidName}}</a> &middot;
-            <a href="/kids/{{.Lesson.KidID}}/subjects/{{.Lesson.SubjectID}}">{{.Lesson.SubjectName}}</a>
+            <a href="{{.Lesson.PersonURL}}">{{.Lesson.PersonName}}</a> &middot;
+            {{if .Lesson.ForAdult}}
+                {{.Lesson.SubjectName}}
+            {{else}}
+                <a href="/kids/{{.Lesson.KidID}}/subjects/{{.Lesson.SubjectID}}">{{.Lesson.SubjectName}}</a>
+            {{end}}
         </p>
         <h1>{{.Lesson.Title}}</h1>
         <p class="muted">
@@ -35,14 +39,18 @@
                 <input type="text" name="title" value="{{.Lesson.Title}}" required>
             </label>
             <div class="field-row">
-                <label>Child
-                    <select name="kid_id">
-                        {{$kidID := .Lesson.KidID}}
-                        {{range .Kids}}
-                            <option value="{{.ID}}" {{if eq $kidID .ID}}selected{{end}}>{{.Name}}</option>
-                        {{end}}
-                    </select>
-                </label>
+                {{if .Lesson.ForAdult}}
+                    <input type="hidden" name="adult_id" value="{{.Lesson.AdultID}}">
+                {{else}}
+                    <label>Child
+                        <select name="kid_id">
+                            {{$kidID := .Lesson.KidID}}
+                            {{range .Kids}}
+                                <option value="{{.ID}}" {{if eq $kidID .ID}}selected{{end}}>{{.Name}}</option>
+                            {{end}}
+                        </select>
+                    </label>
+                {{end}}
                 <label>Subject
                     <select name="subject_id">
                         {{$subjectID := .Lesson.SubjectID}}
@@ -74,7 +82,7 @@
         </form>
 
         <form method="post" action="/lessons/{{.Lesson.ID}}/delete" class="danger-zone">
-            <input type="hidden" name="back" value="/kids/{{.Lesson.KidID}}/subjects/{{.Lesson.SubjectID}}">
+            <input type="hidden" name="back" value="{{if .Lesson.ForAdult}}{{.Lesson.PersonURL}}/schedule{{else}}/kids/{{.Lesson.KidID}}/subjects/{{.Lesson.SubjectID}}{{end}}">
             <button type="submit" class="link-button danger"
                     onclick="return confirm('Delete this lesson and its files?')">Delete this lesson</button>
         </form>
@@ -137,6 +145,7 @@
             {{template "file_list" (dict "Files" .Lesson.Attachments "Back" $back)}}
         </section>
 
+        {{if not .Lesson.ForAdult}}
         <section class="panel">
             <h2>Was this a test?</h2>
             <form method="post" action="/assessments">
@@ -158,6 +167,7 @@
                 {{end}}
             </div>
         </section>
+        {{end}}
     </div>
 </div>
 {{end}}

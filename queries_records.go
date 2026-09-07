@@ -123,12 +123,28 @@ func (s *Store) AssessmentsBetween(from, to string, kidID, subjectID int64, limi
 	return scanAssessments(rows)
 }
 
+const noteSelect = `SELECT n.id, COALESCE(n.kid_id, 0), COALESCE(n.adult_id, 0),
+		COALESCE(n.subject_id, 0), n.noted_on, n.body, n.created_at,
+		COALESCE(s.name, '')
+	FROM notes n
+	LEFT JOIN subjects s ON s.id = n.subject_id`
+
+func scanNotes(rows *sql.Rows) ([]Note, error) {
+	defer rows.Close()
+	var out []Note
+	for rows.Next() {
+		var n Note
+		if err := rows.Scan(&n.ID, &n.KidID, &n.AdultID, &n.SubjectID,
+			&n.NotedOn, &n.Body, &n.CreatedAt, &n.SubjectName); err != nil {
+			return nil, err
+		}
+		out = append(out, n)
+	}
+	return out, rows.Err()
+}
+
 func (s *Store) NotesBetween(from, to string, kidID, subjectID int64, limit int) ([]Note, error) {
-	q := `SELECT n.id, n.kid_id, COALESCE(n.subject_id, 0), n.noted_on, n.body, n.created_at,
-			COALESCE(s.name, '')
-		FROM notes n
-		LEFT JOIN subjects s ON s.id = n.subject_id
-		WHERE n.kid_id = ? AND n.noted_on BETWEEN ? AND ?`
+	q := noteSelect + ` WHERE n.kid_id = ? AND n.noted_on BETWEEN ? AND ?`
 	args := []any{kidID, from, to}
 	if subjectID > 0 {
 		q += ` AND n.subject_id = ?`
@@ -141,25 +157,11 @@ func (s *Store) NotesBetween(from, to string, kidID, subjectID int64, limit int)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-
-	var out []Note
-	for rows.Next() {
-		var n Note
-		if err := rows.Scan(&n.ID, &n.KidID, &n.SubjectID, &n.NotedOn, &n.Body, &n.CreatedAt, &n.SubjectName); err != nil {
-			return nil, err
-		}
-		out = append(out, n)
-	}
-	return out, rows.Err()
+	return scanNotes(rows)
 }
 
 func (s *Store) Notes(kidID, subjectID int64, limit int) ([]Note, error) {
-	q := `SELECT n.id, n.kid_id, COALESCE(n.subject_id, 0), n.noted_on, n.body, n.created_at,
-			COALESCE(s.name, '')
-		FROM notes n
-		LEFT JOIN subjects s ON s.id = n.subject_id
-		WHERE n.kid_id = ?`
+	q := noteSelect + ` WHERE n.kid_id = ?`
 	args := []any{kidID}
 	if subjectID > 0 {
 		q += ` AND n.subject_id = ?`
@@ -172,27 +174,45 @@ func (s *Store) Notes(kidID, subjectID int64, limit int) ([]Note, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	return scanNotes(rows)
+}
 
-	var out []Note
-	for rows.Next() {
-		var n Note
-		if err := rows.Scan(&n.ID, &n.KidID, &n.SubjectID, &n.NotedOn, &n.Body, &n.CreatedAt, &n.SubjectName); err != nil {
-			return nil, err
-		}
-		out = append(out, n)
+// AdultNotes lists one adult's own notes, newest first.
+func (s *Store) AdultNotes(adultID int64, limit int) ([]Note, error) {
+	rows, err := s.db().Query(noteSelect+` WHERE n.adult_id = ?
+		ORDER BY n.noted_on DESC, n.id DESC LIMIT ?`, adultID, limit)
+	if err != nil {
+		return nil, err
 	}
-	return out, rows.Err()
+	return scanNotes(rows)
 }
 
 func (s *Store) CreateNote(n Note) (int64, error) {
-	res, err := s.db().Exec(`INSERT INTO notes (kid_id, subject_id, noted_on, body, created_at)
-		VALUES (?, ?, ?, ?, ?)`,
-		n.KidID, nullableID(n.SubjectID), n.NotedOn, n.Body, time.Now().Format(time.RFC3339))
+	res, err := s.db().Exec(`INSERT INTO notes (kid_id, adult_id, subject_id, noted_on, body, created_at)
+		VALUES (?, ?, ?, ?, ?, ?)`,
+		nullableID(n.KidID), nullableID(n.AdultID), nullableID(n.SubjectID),
+		n.NotedOn, n.Body, time.Now().Format(time.RFC3339))
 	if err != nil {
 		return 0, err
 	}
 	return res.LastInsertId()
+}
+
+// Note returns one note, which the delete path needs so it can send the reader
+// back where they were.
+func (s *Store) Note(id int64) (Note, error) {
+	rows, err := s.db().Query(noteSelect+` WHERE n.id = ?`, id)
+	if err != nil {
+		return Note{}, err
+	}
+	notes, err := scanNotes(rows)
+	if err != nil {
+		return Note{}, err
+	}
+	if len(notes) == 0 {
+		return Note{}, sql.ErrNoRows
+	}
+	return notes[0], nil
 }
 
 func (s *Store) DeleteNote(id int64) error {

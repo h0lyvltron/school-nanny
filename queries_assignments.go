@@ -225,7 +225,7 @@ func (s *Store) BackfillPlanAssignments() error {
 			l.scheduled_on, l.title, l.notes, l.created_at, s.name
 		FROM lessons l
 		JOIN subjects s ON s.id = l.subject_id
-		WHERE l.assignment_id IS NULL AND l.series_id IS NULL
+		WHERE l.assignment_id IS NULL AND l.series_id IS NULL AND l.kid_id IS NOT NULL
 		ORDER BY l.kid_id, l.subject_id, l.created_at, l.scheduled_on, l.id`)
 	if err != nil {
 		return err

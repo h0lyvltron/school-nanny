@@ -47,6 +47,7 @@ type App struct {
 var pageNames = []string{
 	"home", "planner", "kid", "subject", "lesson", "tests", "settings", "login",
 	"attendance", "curriculum", "curriculum_plan", "curriculum_apply", "archive", "series", "assignment",
+	"adult", "adult_schedule",
 }
 
 func NewApp(store *Store, dataDir string) (*App, error) {
@@ -127,6 +128,7 @@ func (a *App) Routes() http.Handler {
 	mux.HandleFunc("POST /lessons/{id}", a.handleUpdateLesson)
 	mux.HandleFunc("POST /lessons/{id}/status", a.handleLessonStatus)
 	mux.HandleFunc("POST /lessons/{id}/reschedule", a.handleRescheduleLesson)
+	mux.HandleFunc("POST /lessons/{id}/clone", a.handleCloneLesson)
 	mux.HandleFunc("POST /lessons/{id}/delete", a.handleDeleteLesson)
 	mux.HandleFunc("POST /lessons/{id}/delete-future", a.handleDeleteSeriesFuture)
 
@@ -140,6 +142,14 @@ func (a *App) Routes() http.Handler {
 	mux.HandleFunc("POST /assignments/{id}/pause", a.handlePauseAssignment)
 	mux.HandleFunc("POST /lessons/{id}/push", a.handlePushLesson)
 
+	mux.HandleFunc("GET /adults/{id}", a.handleAdult)
+	mux.HandleFunc("GET /adults/{id}/schedule", a.handleAdultSchedule)
+	mux.HandleFunc("POST /adults/{id}/schedule", a.handleCreateAdultLesson)
+	mux.HandleFunc("POST /adults/{id}/cards", a.handleCreateAdultCard)
+	mux.HandleFunc("POST /adults/{id}/cards/{cardID}", a.handleUpdateAdultCard)
+	mux.HandleFunc("POST /adults/{id}/cards/{cardID}/move", a.handleMoveAdultCard)
+	mux.HandleFunc("POST /adults/{id}/cards/{cardID}/delete", a.handleDeleteAdultCard)
+
 	mux.HandleFunc("GET /kids/{id}", a.handleKid)
 	mux.HandleFunc("GET /kids/{id}/subjects/{subjectID}", a.handleSubject)
 	mux.HandleFunc("GET /kids/{id}/tests", a.handleTests)
@@ -150,6 +160,9 @@ func (a *App) Routes() http.Handler {
 	mux.HandleFunc("POST /notes", a.handleCreateNote)
 	mux.HandleFunc("POST /notes/{id}/delete", a.handleDeleteNote)
 
+	mux.HandleFunc("GET /avatars/kids/{id}", a.handleKidAvatarImage)
+	mux.HandleFunc("GET /avatars/adults/{id}", a.handleAdultAvatarImage)
+
 	mux.HandleFunc("POST /files", a.handleUpload)
 	mux.HandleFunc("GET /files/{id}", a.handleDownload)
 	mux.HandleFunc("POST /files/{id}/delete", a.handleDeleteFile)
@@ -157,6 +170,11 @@ func (a *App) Routes() http.Handler {
 	mux.HandleFunc("GET /settings", a.handleSettings)
 	mux.HandleFunc("POST /settings/kids", a.handleSaveKid)
 	mux.HandleFunc("POST /settings/kids/{id}/delete", a.handleDeleteKid)
+	mux.HandleFunc("POST /settings/kids/{id}/avatar", a.handleKidAvatarUpload)
+	mux.HandleFunc("POST /settings/kids/{id}/avatar/delete", a.handleKidAvatarDelete)
+	mux.HandleFunc("POST /settings/adults", a.handleSaveAdult)
+	mux.HandleFunc("POST /settings/adults/{id}/avatar", a.handleAdultAvatarUpload)
+	mux.HandleFunc("POST /settings/adults/{id}/avatar/delete", a.handleAdultAvatarDelete)
 	mux.HandleFunc("POST /settings/subjects", a.handleSaveSubject)
 	mux.HandleFunc("POST /settings/subjects/{id}/delete", a.handleDeleteSubject)
 	mux.HandleFunc("POST /settings/years", a.handleSaveSchoolYear)
@@ -235,6 +253,10 @@ func (a *App) pageData(active string) (map[string]any, error) {
 	if err != nil {
 		return nil, err
 	}
+	adults, err := a.store.Adults(false)
+	if err != nil {
+		return nil, err
+	}
 	hasPassword, err := a.store.Setting(settingPassword)
 	if err != nil {
 		return nil, err
@@ -242,6 +264,7 @@ func (a *App) pageData(active string) (map[string]any, error) {
 	return map[string]any{
 		"Active":      active,
 		"NavKids":     kids,
+		"NavAdults":   adults,
 		"Today":       today(),
 		"HasPassword": hasPassword != "",
 	}, nil

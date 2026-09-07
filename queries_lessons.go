@@ -6,25 +6,34 @@ import (
 	"time"
 )
 
-const lessonSelect = `SELECT l.id, l.kid_id, l.subject_id, COALESCE(l.school_year_id, 0),
+// A lesson hangs off a child or an adult, never both, so the person columns
+// are joined in from whichever side is filled and read as one.
+const lessonSelect = `SELECT l.id, COALESCE(l.kid_id, 0), COALESCE(l.adult_id, 0),
+		l.subject_id, COALESCE(l.school_year_id, 0),
 		COALESCE(l.series_id, 0), COALESCE(l.assignment_id, 0), COALESCE(l.sequence, 0),
 		l.scheduled_on, l.status, l.title, l.minutes, l.notes,
 		COALESCE(l.completed_at, ''), l.created_at,
-		k.name, k.color, s.name
+		COALESCE(k.name, ad.name, ''), COALESCE(k.color, ad.color, ''),
+		COALESCE(k.avatar_path, ad.avatar_path, ''), s.name
 	FROM lessons l
-	JOIN kids k ON k.id = l.kid_id
+	LEFT JOIN kids k ON k.id = l.kid_id
+	LEFT JOIN adults ad ON ad.id = l.adult_id
 	JOIN subjects s ON s.id = l.subject_id`
+
+// onlyKids keeps an adult's own schedule out of every view built for the
+// children. Kid-facing queries that do not name a single child append it.
+const onlyKids = ` AND l.kid_id IS NOT NULL`
 
 func scanLessons(rows *sql.Rows) ([]Lesson, error) {
 	defer rows.Close()
 	var lessons []Lesson
 	for rows.Next() {
 		var l Lesson
-		if err := rows.Scan(&l.ID, &l.KidID, &l.SubjectID, &l.SchoolYearID, &l.SeriesID,
+		if err := rows.Scan(&l.ID, &l.KidID, &l.AdultID, &l.SubjectID, &l.SchoolYearID, &l.SeriesID,
 			&l.AssignmentID, &l.Sequence,
 			&l.ScheduledOn, &l.Status, &l.Title, &l.Minutes, &l.Notes,
 			&l.CompletedAt, &l.CreatedAt,
-			&l.KidName, &l.KidColor, &l.SubjectName); err != nil {
+			&l.PersonName, &l.PersonColor, &l.PersonAvatar, &l.SubjectName); err != nil {
 			return nil, err
 		}
 		lessons = append(lessons, l)
@@ -47,10 +56,10 @@ func (s *Store) Lesson(id int64) (Lesson, error) {
 	return lessons[0], nil
 }
 
-// LessonsBetween returns everything scheduled in a date range, optionally for
-// one child. kidID of 0 means every child.
+// LessonsBetween returns the children's work in a date range, optionally for
+// one child. kidID of 0 means every child, and never an adult.
 func (s *Store) LessonsBetween(from, to string, kidID int64) ([]Lesson, error) {
-	q := lessonSelect + ` WHERE l.scheduled_on BETWEEN ? AND ?`
+	q := lessonSelect + ` WHERE l.scheduled_on BETWEEN ? AND ?` + onlyKids
 	args := []any{from, to}
 	if kidID > 0 {
 		q += ` AND l.kid_id = ?`
@@ -65,9 +74,19 @@ func (s *Store) LessonsBetween(from, to string, kidID int64) ([]Lesson, error) {
 	return scanLessons(rows)
 }
 
+// AdultLessonsBetween is the same window over one adult's own schedule.
+func (s *Store) AdultLessonsBetween(from, to string, adultID int64) ([]Lesson, error) {
+	rows, err := s.db().Query(lessonSelect+` WHERE l.scheduled_on BETWEEN ? AND ? AND l.adult_id = ?
+		ORDER BY l.scheduled_on, s.sort_order, l.id`, from, to, adultID)
+	if err != nil {
+		return nil, err
+	}
+	return scanLessons(rows)
+}
+
 // LessonsOverdue lists planned lessons whose day has passed, oldest first.
 func (s *Store) LessonsOverdue(before string, limit int) ([]Lesson, error) {
-	rows, err := s.db().Query(lessonSelect+` WHERE l.status = ? AND l.scheduled_on < ?
+	rows, err := s.db().Query(lessonSelect+` WHERE l.status = ? AND l.scheduled_on < ?`+onlyKids+`
 		ORDER BY l.scheduled_on, k.sort_order LIMIT ?`, StatusPlanned, before, limit)
 	if err != nil {
 		return nil, err
@@ -95,10 +114,11 @@ func (s *Store) CreateLesson(l Lesson) (int64, error) {
 		completedAt = time.Now().Format(time.RFC3339)
 	}
 	res, err := s.db().Exec(`INSERT INTO lessons
-		(kid_id, subject_id, school_year_id, series_id, assignment_id, sequence,
+		(kid_id, adult_id, subject_id, school_year_id, series_id, assignment_id, sequence,
 		 scheduled_on, status, title, minutes, notes, completed_at, created_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		l.KidID, l.SubjectID, nullableID(yearID), nullableID(l.SeriesID), nullableID(l.AssignmentID), l.Sequence,
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		nullableID(l.KidID), nullableID(l.AdultID),
+		l.SubjectID, nullableID(yearID), nullableID(l.SeriesID), nullableID(l.AssignmentID), l.Sequence,
 		l.ScheduledOn, l.Status, l.Title, l.Minutes, l.Notes,
 		completedAt, time.Now().Format(time.RFC3339))
 	if err != nil {
@@ -109,9 +129,10 @@ func (s *Store) CreateLesson(l Lesson) (int64, error) {
 
 func (s *Store) UpdateLesson(id int64, l Lesson) error {
 	_, err := s.db().Exec(`UPDATE lessons
-		SET kid_id = ?, subject_id = ?, scheduled_on = ?, title = ?, minutes = ?, notes = ?
+		SET kid_id = ?, adult_id = ?, subject_id = ?, scheduled_on = ?, title = ?, minutes = ?, notes = ?
 		WHERE id = ?`,
-		l.KidID, l.SubjectID, l.ScheduledOn, l.Title, l.Minutes, l.Notes, id)
+		nullableID(l.KidID), nullableID(l.AdultID),
+		l.SubjectID, l.ScheduledOn, l.Title, l.Minutes, l.Notes, id)
 	return err
 }
 
@@ -145,7 +166,7 @@ func (s *Store) ProgressBetween(from, to string, kidID, subjectID int64) (Progre
 			COALESCE(SUM(status = 'done'), 0),
 			COALESCE(SUM(status = 'skipped'), 0),
 			COALESCE(SUM(CASE WHEN status = 'done' THEN minutes ELSE 0 END), 0)
-		FROM lessons WHERE scheduled_on BETWEEN ? AND ?`
+		FROM lessons WHERE scheduled_on BETWEEN ? AND ? AND kid_id IS NOT NULL`
 	args := []any{from, to}
 	if kidID > 0 {
 		q += ` AND kid_id = ?`
@@ -211,10 +232,10 @@ func (s *Store) LessonsForKidSubjectSplit(kidID, subjectID int64, limit int) (up
 	return upcoming, past, nil
 }
 
-// LessonsInRange lists work in a date range, optionally for one child and one
-// subject. A zero id means every child or every subject.
+// LessonsInRange lists the children's work in a date range, optionally for one
+// child and one subject. A zero id means every child or every subject.
 func (s *Store) LessonsInRange(from, to string, kidID, subjectID int64) ([]Lesson, error) {
-	q := lessonSelect + ` WHERE l.scheduled_on BETWEEN ? AND ?`
+	q := lessonSelect + ` WHERE l.scheduled_on BETWEEN ? AND ?` + onlyKids
 	args := []any{from, to}
 	if kidID > 0 {
 		q += ` AND l.kid_id = ?`

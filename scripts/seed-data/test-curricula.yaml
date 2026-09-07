@@ -1,0 +1,163 @@
+# Age-appropriate sample curricula for the demo seed.
+# Subject values are names or slugs from the seeded subject list.
+plans:
+  - name: Lux Math
+    subject: math
+    notes: Rough grade-2 / age-7 sequence for Lux.
+    items:
+      - week: 1
+        title: Place value to 100
+        minutes: 30
+      - week: 1
+        title: Adding two-digit numbers
+        minutes: 30
+      - week: 2
+        title: Subtracting two-digit numbers
+        minutes: 30
+      - week: 2
+        title: Word problems
+        minutes: 25
+      - week: 3
+        title: Multiplication as groups
+        minutes: 30
+      - week: 3
+        title: Telling time to the half hour
+        minutes: 20
+      - week: 4
+        title: "Money: coins and dollars"
+        minutes: 25
+      - week: 4
+        title: Measurement with a ruler
+        minutes: 25
+
+  - name: Lux Language Arts
+    subject: language-arts
+    notes: Reading and writing for Lux.
+    items:
+      - week: 1
+        title: Chapter book reading
+        minutes: 30
+      - week: 1
+        title: Spelling list
+        minutes: 15
+      - week: 2
+        title: Paragraph writing
+        minutes: 30
+      - week: 2
+        title: "Grammar: nouns and verbs"
+        minutes: 20
+      - week: 3
+        title: Reading aloud
+        minutes: 20
+      - week: 3
+        title: Book report draft
+        minutes: 30
+
+  - name: Lux Japanese
+    subject: japanese
+    notes: Hiragana and simple phrases.
+    items:
+      - week: 1
+        title: Hiragana あ行
+        minutes: 20
+      - week: 1
+        title: Greetings
+        minutes: 15
+      - week: 2
+        title: Hiragana か行
+        minutes: 20
+      - week: 2
+        title: Numbers 1–10
+        minutes: 15
+      - week: 3
+        title: Family words
+        minutes: 20
+
+  - name: Emi Math
+    subject: math
+    notes: Kindergarten / age-5 number sense.
+    items:
+      - week: 1
+        title: Counting to 20
+        minutes: 15
+      - week: 1
+        title: Number writing 1–10
+        minutes: 15
+      - week: 2
+        title: Comparing more and less
+        minutes: 15
+      - week: 2
+        title: "Shapes: circle, square, triangle"
+        minutes: 20
+      - week: 3
+        title: Adding within 5
+        minutes: 15
+      - week: 3
+        title: Patterns
+        minutes: 15
+
+  - name: Emi Language Arts
+    subject: language-arts
+    notes: Letters and early reading for Emi.
+    items:
+      - week: 1
+        title: "Letter sounds: m, s, a, t"
+        minutes: 15
+      - week: 1
+        title: "Sight words: I, a, the"
+        minutes: 10
+      - week: 2
+        title: "Letter sounds: p, n, i, d"
+        minutes: 15
+      - week: 2
+        title: "Read-aloud: picture book"
+        minutes: 20
+      - week: 3
+        title: Writing own name
+        minutes: 10
+      - week: 3
+        title: Rhyming words
+        minutes: 15
+
+  - name: Max Preschool
+    subject: other-elective
+    notes: Play-based preschool rhythm for Max (age 3).
+    items:
+      - week: 1
+        title: Counting to 10 with toys
+        minutes: 10
+      - week: 1
+        title: Color sorting
+        minutes: 15
+      - week: 2
+        title: Letter hunt around the house
+        minutes: 15
+      - week: 2
+        title: Finger painting
+        minutes: 20
+      - week: 3
+        title: Story time
+        minutes: 15
+      - week: 3
+        title: Outdoor nature walk
+        minutes: 20
+
+  - name: Mei Play Day
+    subject: other-elective
+    notes: Toddler-friendly day bits for Mei (age 1).
+    items:
+      - week: 1
+        title: Tummy-time songs
+        minutes: 10
+      - week: 1
+        title: Stacking cups
+        minutes: 10
+      - week: 2
+        title: Board-book snuggle
+        minutes: 10
+      - week: 2
+        title: Water play
+        minutes: 15
+      - week: 3
+        title: Ball roll
+        minutes: 10

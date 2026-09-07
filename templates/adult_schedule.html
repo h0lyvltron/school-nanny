@@ -1,0 +1,25 @@
+{{define "content"}}
+<div class="page-head">
+    <div>
+        <p class="crumbs"><a href="/adults/{{.Adult.ID}}">{{.Adult.Name}}</a></p>
+        <h1>Her week</h1>
+        <p class="muted">{{monthDay .WeekStart}} &ndash; {{monthDay .WeekEnd}}</p>
+    </div>
+</div>
+
+<div class="planner-controls">
+    <div class="week-nav">
+        <a role="button" class="secondary" href="/adults/{{.Adult.ID}}/schedule?week={{.PrevWeek}}">&larr; Previous</a>
+        <a role="button" class="secondary" href="/adults/{{.Adult.ID}}/schedule?week={{.ThisWeek}}">This week</a>
+        <a role="button" class="secondary" href="/adults/{{.Adult.ID}}/schedule?week={{.NextWeek}}">Next &rarr;</a>
+    </div>
+</div>
+
+<div class="week-grid">
+    {{$adult := .Adult}}
+    {{$subjects := .Subjects}}
+    {{range .Days}}
+        {{template "adult_day" (dict "Day" . "Adult" $adult "Subjects" $subjects)}}
+    {{end}}
+</div>
+{{end}}

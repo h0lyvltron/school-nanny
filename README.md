@@ -12,6 +12,11 @@ connection needed once it is built.
 - **Today** — every child's work for the day, one tap to mark it done, plus a
   box to log something you did that was never planned.
 - **Week planner** — one row per day, add lessons to any day for any child.
+  Drag a lesson onto another day to move it. Hold Ctrl (or Cmd) while you drop
+  to leave the original where it is and put a copy on the new day, or drop onto
+  one of the child chips that appear mid-drag to copy the work for that child.
+  A copy is always a standalone lesson, so copying something from a repeating
+  plan never disturbs the plan itself.
 - **Child page** — a card per subject with progress for the week and the school
   year, the next thing coming up, and the most recent test.
 - **Subject page** — upcoming and finished lessons, reusable files for that
@@ -19,8 +24,16 @@ connection needed once it is built.
 - **Lesson page** — edit the details, attach files, or turn it into a test with
   a score.
 - **Tests** — scores per child and subject, with the graded page attached.
-- **Settings** — the kids, the subjects, the school year, and an optional
-  password.
+- **Mom's page** — a grown-up gets a page of her own: a pinboard of cards for
+  things worth keeping in view, her own week, and her own notes. Her schedule
+  is deliberately kept off the family week and out of the children's progress,
+  so a dentist appointment never counts as schoolwork.
+- **Settings** — the kids, the grown-ups, the subjects, the school year, and an
+  optional password.
+
+Everyone can have a photo. Add one under Settings and it replaces their colour
+dot in the top bar, on their cards, and on every lesson chip; leave it off and
+the dot stays.
 
 The button at the right of the top bar switches between light and dark. It
 starts on **Auto**, which follows whatever the computer is set to, and clicking
@@ -140,6 +153,12 @@ and writing after the database is swapped underneath it, that a file which is
 not a backup is refused, and that an older data folder is adopted exactly once
 and left in place.
 
+Two more are worth naming. One walks a database from the version before adults
+existed up to the current one and checks that no lesson, test, file, or note was
+lost when the tables were rebuilt. The other books something on a grown-up's
+calendar and then looks for it everywhere the children's work is shown, because
+the whole point of giving her a schedule is that it stays out of theirs.
+
 ## How it is put together
 
 One Go binary. The HTML, the stylesheet, HTMX, and the database schema are all
@@ -152,6 +171,11 @@ compiled into it, so the program plus its `data` folder is the whole app.
 | Pages | Server-rendered HTML with HTMX for in-place updates |
 | Styling | Pico CSS plus `static/app.css` |
 | Schema changes | Numbered `.sql` files in `migrations/`, applied at startup |
+
+Each migration runs in its own transaction with foreign keys switched off, then
+has to pass `PRAGMA foreign_key_check` before it commits. SQLite cannot relax a
+column in place, so a migration that needs to rebuild a table drops the old copy
+and would otherwise take everything referring to it along.
 
 Building needs Go 1.25 or newer. Running needs nothing at all.
 

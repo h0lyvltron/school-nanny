@@ -1,6 +1,8 @@
 package main
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"time"
 )
@@ -33,12 +35,56 @@ const (
 )
 
 type Kid struct {
+	ID         int64
+	Name       string
+	Grade      string
+	Color      string
+	AvatarPath string
+	SortOrder  int
+	Archived   bool
+}
+
+// HasPhoto reports whether this child has a photo to show instead of the
+// fallback colour dot.
+func (k Kid) HasPhoto() bool { return k.AvatarPath != "" }
+
+// AvatarURL is where the photo is served from, cache-busted by the stored
+// path so replacing a photo shows up straight away.
+func (k Kid) AvatarURL() string {
+	return "/avatars/kids/" + fmt.Sprint(k.ID) + "?v=" + shortHash(k.AvatarPath)
+}
+
+// Adult is a grown-up in the family: a schedule, notes, and a pinboard, but no
+// grades, attendance, or curriculum. V1 expects exactly one.
+type Adult struct {
+	ID         int64
+	Name       string
+	Role       string
+	Color      string
+	AvatarPath string
+	SortOrder  int
+	Archived   bool
+}
+
+func (a Adult) HasPhoto() bool { return a.AvatarPath != "" }
+
+func (a Adult) URL() string { return "/adults/" + fmt.Sprint(a.ID) }
+
+func (a Adult) AvatarURL() string {
+	return "/avatars/adults/" + fmt.Sprint(a.ID) + "?v=" + shortHash(a.AvatarPath)
+}
+
+// AdultCard is one note on the pinboard: something worth keeping in view that
+// is not pinned to a particular day.
+type AdultCard struct {
 	ID        int64
-	Name      string
-	Grade     string
-	Color     string
+	AdultID   int64
+	Title     string
+	Body      string
+	Pinned    bool
 	SortOrder int
-	Archived  bool
+	CreatedAt string
+	UpdatedAt string
 }
 
 type Subject struct {
@@ -60,6 +106,7 @@ type SchoolYear struct {
 type Lesson struct {
 	ID           int64
 	KidID        int64
+	AdultID      int64
 	SubjectID    int64
 	SchoolYearID int64
 	SeriesID     int64
@@ -73,12 +120,33 @@ type Lesson struct {
 	CompletedAt  string
 	CreatedAt    string
 
-	KidName     string
-	KidColor    string
-	SubjectName string
+	// A lesson belongs to exactly one person: a child, or an adult with a
+	// schedule of her own. These carry whichever it is.
+	PersonName   string
+	PersonColor  string
+	PersonAvatar string
+	SubjectName  string
 
 	Attachments []Attachment
 	Assessments []Assessment
+}
+
+func (l Lesson) ForAdult() bool { return l.AdultID != 0 }
+
+func (l Lesson) PersonHasPhoto() bool { return l.PersonAvatar != "" }
+
+func (l Lesson) PersonURL() string {
+	if l.ForAdult() {
+		return "/adults/" + fmt.Sprint(l.AdultID)
+	}
+	return "/kids/" + fmt.Sprint(l.KidID)
+}
+
+func (l Lesson) PersonAvatarURL() string {
+	if l.ForAdult() {
+		return "/avatars/adults/" + fmt.Sprint(l.AdultID) + "?v=" + shortHash(l.PersonAvatar)
+	}
+	return "/avatars/kids/" + fmt.Sprint(l.KidID) + "?v=" + shortHash(l.PersonAvatar)
 }
 
 func (l Lesson) IsDone() bool        { return l.Status == StatusDone }
@@ -144,6 +212,7 @@ func (a Assessment) ScoreLabel() string {
 type Note struct {
 	ID        int64
 	KidID     int64
+	AdultID   int64
 	SubjectID int64
 	NotedOn   string
 	Body      string
@@ -322,6 +391,13 @@ type LessonSeries struct {
 
 func today() string {
 	return time.Now().Format(dateLayout)
+}
+
+// shortHash turns a stored path into a stable cache-busting token, so a
+// replaced photo is not hidden behind the browser's copy of the old one.
+func shortHash(value string) string {
+	sum := sha256.Sum256([]byte(value))
+	return hex.EncodeToString(sum[:4])
 }
 
 func trimFloat(f float64) string {

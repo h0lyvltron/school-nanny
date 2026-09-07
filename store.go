@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"embed"
 	"errors"
@@ -257,24 +258,75 @@ func (s *Store) Migrate() error {
 		if err != nil {
 			return err
 		}
-		tx, err := s.db().Begin()
-		if err != nil {
+		if err := s.applyMigration(name, version, string(body)); err != nil {
 			return err
 		}
-		if _, err := tx.Exec(string(body)); err != nil {
-			tx.Rollback()
-			return fmt.Errorf("migration %s: %w", name, err)
-		}
-		if _, err := tx.Exec(`INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)`,
-			version, time.Now().UTC().Format(time.RFC3339)); err != nil {
-			tx.Rollback()
-			return fmt.Errorf("migration %s: %w", name, err)
-		}
-		if err := tx.Commit(); err != nil {
-			return fmt.Errorf("migration %s: %w", name, err)
-		}
+	}
+	if err := s.EnsureDefaultAdult(); err != nil {
+		return err
 	}
 	return s.BackfillPlanAssignments()
+}
+
+// applyMigration runs one migration file and records it, all or nothing.
+//
+// Foreign keys are switched off for the duration. SQLite cannot relax a column
+// in place, so a migration that does it has to rebuild the table, and dropping
+// the old copy with enforcement on would follow its foreign keys and quietly
+// delete the records that pointed at it. Nothing is committed until
+// foreign_key_check confirms the result still hangs together.
+//
+// The pragma is ignored inside a transaction and applies per connection, which
+// is why this takes a connection of its own and turns enforcement back on
+// before handing it back to the pool.
+func (s *Store) applyMigration(name string, version int, body string) error {
+	ctx := context.Background()
+	conn, err := s.db().Conn(ctx)
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+
+	if _, err := conn.ExecContext(ctx, `PRAGMA foreign_keys = OFF`); err != nil {
+		return fmt.Errorf("migration %s: %w", name, err)
+	}
+	defer conn.ExecContext(ctx, `PRAGMA foreign_keys = ON`)
+
+	tx, err := conn.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("migration %s: %w", name, err)
+	}
+	defer tx.Rollback()
+
+	if _, err := tx.ExecContext(ctx, body); err != nil {
+		return fmt.Errorf("migration %s: %w", name, err)
+	}
+	if _, err := tx.ExecContext(ctx, `INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)`,
+		version, time.Now().UTC().Format(time.RFC3339)); err != nil {
+		return fmt.Errorf("migration %s: %w", name, err)
+	}
+	if err := checkForeignKeys(ctx, tx); err != nil {
+		return fmt.Errorf("migration %s: %w", name, err)
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("migration %s: %w", name, err)
+	}
+	return nil
+}
+
+// checkForeignKeys reports whether any row now points at something that is not
+// there. foreign_key_check returns one row per violation and nothing at all
+// when the schema is sound.
+func checkForeignKeys(ctx context.Context, tx *sql.Tx) error {
+	rows, err := tx.QueryContext(ctx, `PRAGMA foreign_key_check`)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	if rows.Next() {
+		return errors.New("left records pointing at rows that are no longer there")
+	}
+	return rows.Err()
 }
 
 func migrationVersion(name string) (int, error) {

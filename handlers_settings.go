@@ -1,6 +1,7 @@
 package main
 
 import (
+	"database/sql"
 	"errors"
 	"net/http"
 	"strings"
@@ -30,6 +31,12 @@ func (a *App) handleSettings(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	adults, err := a.store.Adults(true)
+	if err != nil {
+		a.serverError(w, err)
+		return
+	}
+
 	backups, err := a.Backups()
 	if err != nil {
 		a.serverError(w, err)
@@ -37,6 +44,7 @@ func (a *App) handleSettings(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data["Kids"] = kids
+	data["Adults"] = adults
 	data["Subjects"] = subjects
 	data["Years"] = years
 	data["SuggestedYear"] = suggestedSchoolYear()
@@ -85,10 +93,19 @@ func (a *App) handleSaveKid(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) handleDeleteKid(w http.ResponseWriter, r *http.Request) {
-	if err := a.store.DeleteKid(pathID(r, "id")); err != nil {
+	id := pathID(r, "id")
+	// The database cascade takes the records; the photo is a file on disk and
+	// has to be cleaned up here.
+	kid, err := a.store.Kid(id)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		a.serverError(w, err)
 		return
 	}
+	if err := a.store.DeleteKid(id); err != nil {
+		a.serverError(w, err)
+		return
+	}
+	a.removeUpload(kid.AvatarPath)
 	a.redirect(w, r, "/settings?saved=kid-removed")
 }
 

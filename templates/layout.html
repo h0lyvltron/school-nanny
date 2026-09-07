@@ -25,6 +25,7 @@
     <script src="/static/htmx.min.js" defer></script>
     <script src="/static/theme.js" defer></script>
     <script src="/static/ui.js" defer></script>
+    <script src="/static/planner.js" defer></script>
 </head>
 <body>
 <header class="app-bar">
@@ -38,7 +39,12 @@
             <a href="/archive" class="{{if eq .Active "archive"}}current{{end}}">Archive</a>
             {{range .NavKids}}
                 <a href="/kids/{{.ID}}" class="nav-kid">
-                    <span class="dot" style="background:{{color .Color}}"></span>{{.Name}}
+                    {{template "avatar" (dict "Person" . "Size" "nav")}}{{.Name}}
+                </a>
+            {{end}}
+            {{range .NavAdults}}
+                <a href="/adults/{{.ID}}" class="nav-kid">
+                    {{template "avatar" (dict "Person" . "Size" "nav")}}{{.Name}}
                 </a>
             {{end}}
             <a href="/settings" class="{{if eq .Active "settings"}}current{{end}}">Settings</a>

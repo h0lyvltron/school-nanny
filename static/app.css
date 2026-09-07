@@ -257,6 +257,35 @@ h3 { font-size: 1rem; }
 
 .dot.big { width: 0.95rem; height: 0.95rem; margin-right: 0.5rem; }
 
+/* Avatars ------------------------------------------------------------- */
+
+/* One shape in three sizes, whether it holds a photo or the fallback colour
+   dot, so a child looks the same in the nav, on a card, and on a chip. */
+.avatar {
+    display: inline-block;
+    border-radius: 50%;
+    flex: none;
+    object-fit: cover;
+    vertical-align: middle;
+    background-color: var(--line);
+}
+
+.avatar-chip { width: 0.7rem; height: 0.7rem; }
+.avatar-nav { width: 0.95rem; height: 0.95rem; }
+.avatar-card { width: 2.4rem; height: 2.4rem; }
+.avatar-hero { width: 4.5rem; height: 4.5rem; }
+
+/* A photo earns a little more room than a dot at the same call site. */
+img.avatar-chip { width: 1.15rem; height: 1.15rem; }
+img.avatar-nav { width: 1.4rem; height: 1.4rem; }
+
+.avatar-preview {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+}
+
 .page {
     max-width: 1180px;
     margin: 0 auto;
@@ -275,6 +304,13 @@ h3 { font-size: 1rem; }
 }
 
 .page-head p { margin: 0.2rem 0 0; }
+
+/* A child's page leads with their face, so the heading has to make room. */
+.page-head h1 {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
 
 .crumbs { font-size: 0.9rem; margin: 0 0 0.2rem; }
 .crumbs a { color: var(--ink-soft); }
@@ -429,7 +465,12 @@ h3 { font-size: 1rem; }
     padding: 0.1rem 0.5rem;
     border-radius: 999px;
     white-space: nowrap;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
 }
+
+.chip .avatar { box-shadow: 0 0 0 1px var(--chip-ink); }
 
 .lesson-actions { display: flex; gap: 0.35rem; flex: none; flex-wrap: wrap; }
 .lesson-actions form { display: contents; }
@@ -501,7 +542,8 @@ h3 { font-size: 1rem; }
     display: flex;
     flex-direction: column;
     gap: 0.1rem;
-    grid-row: span 2;
+    grid-column: 1;
+    grid-row: span 3;
     padding-top: 0.15rem;
 }
 
@@ -510,11 +552,57 @@ h3 { font-size: 1rem; }
 
 .day-lessons {
     display: grid;
+    grid-column: 2;
     grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
     gap: 0.5rem;
 }
 
 .day .add-box { grid-column: 2; }
+
+/* Dragging a lesson ---------------------------------------------------- */
+
+.lesson[draggable="true"] { cursor: grab; }
+.lesson.is-dragging { opacity: 0.45; cursor: grabbing; }
+
+.day.is-drop-target {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+}
+
+/* The copy-to-a-child chips are only meaningful mid-drag, so they stay out of
+   the way until one starts. */
+.drop-kids {
+    grid-column: 2;
+    display: none;
+    align-items: center;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+    font-size: 0.8rem;
+}
+
+body.is-dragging-lesson .drop-kids { display: flex; }
+
+.drop-kids-label { color: var(--ink-soft); }
+
+.kid-target {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.2rem 0.6rem;
+    border: 1px dashed var(--line);
+    border-radius: 999px;
+    background: var(--card);
+}
+
+.kid-target.is-drop-target {
+    border-style: solid;
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+/* Chips and their contents must not swallow the drop event themselves. */
+.kid-target * { pointer-events: none; }
+.lesson.is-dragging * { pointer-events: none; }
 
 /* Inside a day cell the card is narrow, so the buttons drop below the title
    instead of squeezing it into a column. */
@@ -695,6 +783,53 @@ h3 { font-size: 1rem; }
 .settings-row input, .settings-row select { margin: 0; width: auto; flex: 1 1 7rem; }
 .settings-row input[type="color"] { flex: none; width: 3rem; padding: 0.15rem; }
 .settings-row button { margin: 0; width: auto; }
+
+.report-table h3 { display: flex; align-items: center; gap: 0.5rem; }
+
+/* Pinboard ------------------------------------------------------------ */
+
+.pin-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 0.75rem;
+    margin-bottom: 0.75rem;
+}
+
+.pin-card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--line);
+    border-radius: 0.55rem;
+    padding: 0.7rem 0.85rem;
+    margin: 0;
+}
+
+.pin-card.is-pinned { border-left-color: var(--accent); }
+.pin-card h3 { margin: 0; font-size: 1rem; }
+.pin-body { margin: 0.35rem 0 0; white-space: pre-wrap; font-size: 0.9rem; }
+
+.pin-actions {
+    display: flex;
+    align-items: baseline;
+    gap: 0.6rem;
+    margin-top: 0.5rem;
+}
+
+.pin-actions .add-box { margin-left: auto; }
+
+.settings-kid { border-bottom: 1px dashed var(--line); }
+.settings-kid .settings-row { border-bottom: none; padding-bottom: 0.1rem; }
+
+.settings-photo {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    padding-bottom: 0.5rem;
+}
+
+.settings-photo input[type="file"] { margin: 0; width: auto; max-width: 14rem; font-size: 0.8rem; }
+.photo-form { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
 
 .inline-form { display: inline; margin: 0; }
 

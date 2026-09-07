@@ -68,14 +68,19 @@ func (a *App) handleUpdateLesson(w http.ResponseWriter, r *http.Request) {
 
 	lesson := Lesson{
 		KidID:       formID(r, "kid_id"),
+		AdultID:     formID(r, "adult_id"),
 		SubjectID:   formID(r, "subject_id"),
 		ScheduledOn: formDate(r, "scheduled_on"),
 		Title:       strings.TrimSpace(r.FormValue("title")),
 		Minutes:     formInt(r, "minutes"),
 		Notes:       strings.TrimSpace(r.FormValue("notes")),
 	}
-	if lesson.KidID == 0 || lesson.SubjectID == 0 || lesson.Title == "" {
-		http.Error(w, "A lesson needs a child, a subject, and a title.", http.StatusBadRequest)
+	// A lesson belongs to a child or to an adult, never both.
+	if lesson.AdultID != 0 {
+		lesson.KidID = 0
+	}
+	if (lesson.KidID == 0 && lesson.AdultID == 0) || lesson.SubjectID == 0 || lesson.Title == "" {
+		http.Error(w, "A lesson needs a person, a subject, and a title.", http.StatusBadRequest)
 		return
 	}
 	if err := a.store.UpdateLesson(id, lesson); err != nil {
@@ -126,8 +131,69 @@ func (a *App) handleRescheduleLesson(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Could not read that form.", http.StatusBadRequest)
 		return
 	}
-	if err := a.store.RescheduleLesson(id, formDate(r, "scheduled_on")); err != nil {
+	before, err := a.store.Lesson(id)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			a.notFound(w)
+			return
+		}
 		a.serverError(w, err)
+		return
+	}
+	date := formDate(r, "scheduled_on")
+	if err := a.store.RescheduleLesson(id, date); err != nil {
+		a.serverError(w, err)
+		return
+	}
+
+	// Dragging a lesson changes two days at once: the one it landed on and the
+	// one it left.
+	if r.Header.Get("HX-Request") == "true" && r.FormValue("view") == "planner" {
+		a.renderPlannerDays(w, formID(r, "kid_filter"), date, before.ScheduledOn)
+		return
+	}
+	a.redirect(w, r, safeRedirect(r.FormValue("back"), "/planner"))
+}
+
+// handleCloneLesson copies one lesson onto another day, optionally for another
+// child. A clone is deliberately standalone: it keeps the wording and length
+// but drops the series and curriculum links, so repeating plans stay intact.
+func (a *App) handleCloneLesson(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "Could not read that form.", http.StatusBadRequest)
+		return
+	}
+	source, err := a.store.Lesson(pathID(r, "id"))
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			a.notFound(w)
+			return
+		}
+		a.serverError(w, err)
+		return
+	}
+
+	clone := Lesson{
+		KidID:       source.KidID,
+		AdultID:     source.AdultID,
+		SubjectID:   source.SubjectID,
+		ScheduledOn: formDate(r, "scheduled_on"),
+		Title:       source.Title,
+		Minutes:     source.Minutes,
+		Notes:       source.Notes,
+		Status:      StatusPlanned,
+	}
+	if kidID := formID(r, "kid_id"); kidID != 0 {
+		clone.KidID = kidID
+		clone.AdultID = 0
+	}
+	if _, err := a.store.CreateLesson(clone); err != nil {
+		a.serverError(w, err)
+		return
+	}
+
+	if r.Header.Get("HX-Request") == "true" && r.FormValue("view") == "planner" {
+		a.renderPlannerDays(w, formID(r, "kid_filter"), clone.ScheduledOn)
 		return
 	}
 	a.redirect(w, r, safeRedirect(r.FormValue("back"), "/planner"))
@@ -158,11 +224,13 @@ func (a *App) handleDeleteLesson(w http.ResponseWriter, r *http.Request) {
 
 // renderPlannerDay re-renders one day of the week grid after it changed.
 func (a *App) renderPlannerDay(w http.ResponseWriter, date string, kidFilter int64) {
-	lessons, err := a.store.LessonsBetween(date, date, kidFilter)
-	if err != nil {
-		a.serverError(w, err)
-		return
-	}
+	a.renderPlannerDays(w, kidFilter, date)
+}
+
+// renderPlannerDays re-renders one or more days of the week grid. The first
+// day goes into whatever the request targeted; the rest ride along as
+// out-of-band swaps, which is how a dragged lesson updates both ends at once.
+func (a *App) renderPlannerDays(w http.ResponseWriter, kidFilter int64, dates ...string) {
 	kids, err := a.store.Kids(false)
 	if err != nil {
 		a.serverError(w, err)
@@ -173,13 +241,28 @@ func (a *App) renderPlannerDay(w http.ResponseWriter, date string, kidFilter int
 		a.serverError(w, err)
 		return
 	}
-	a.renderPartial(w, "planner_day", map[string]any{
-		"Day":       PlannerDay{Date: date, Lessons: lessons},
-		"Kids":      kids,
-		"Subjects":  subjects,
-		"KidFilter": kidFilter,
-		"Today":     today(),
-	})
+
+	seen := map[string]bool{}
+	for i, date := range dates {
+		if date == "" || seen[date] {
+			continue
+		}
+		seen[date] = true
+
+		lessons, err := a.store.LessonsBetween(date, date, kidFilter)
+		if err != nil {
+			a.serverError(w, err)
+			return
+		}
+		a.renderPartial(w, "planner_day", map[string]any{
+			"Day":       PlannerDay{Date: date, Lessons: lessons},
+			"Kids":      kids,
+			"Subjects":  subjects,
+			"KidFilter": kidFilter,
+			"Today":     today(),
+			"OOB":       i > 0,
+		})
+	}
 }
 
 func (a *App) handleCreateAssessment(w http.ResponseWriter, r *http.Request) {
@@ -228,14 +311,19 @@ func (a *App) handleCreateNote(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Could not read that form.", http.StatusBadRequest)
 		return
 	}
+	// A note belongs to a child or to an adult, never both.
 	note := Note{
 		KidID:     formID(r, "kid_id"),
+		AdultID:   formID(r, "adult_id"),
 		SubjectID: formID(r, "subject_id"),
 		NotedOn:   formDate(r, "noted_on"),
 		Body:      strings.TrimSpace(r.FormValue("body")),
 	}
-	if note.KidID == 0 || note.Body == "" {
-		http.Error(w, "A note needs a child and something to say.", http.StatusBadRequest)
+	if note.AdultID != 0 {
+		note.KidID = 0
+	}
+	if (note.KidID == 0 && note.AdultID == 0) || note.Body == "" {
+		http.Error(w, "A note needs a person and something to say.", http.StatusBadRequest)
 		return
 	}
 	if _, err := a.store.CreateNote(note); err != nil {
