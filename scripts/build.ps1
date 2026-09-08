@@ -105,8 +105,8 @@ To start it:
 To use it from a tablet or phone on the same Wi-Fi:
     1. In the app, open Settings and set a family password.
     2. Once, double-click "Allow tablet access.bat" and accept the UAC prompt.
-       That opens TCP 8080 on Private and Public firewall profiles (home Wi-Fi
-       is often still marked Public).
+       That opens TCP 8080 and clears "block all incoming" if it is on (home
+       Wi-Fi is often still marked Public, and that mode ignores allow rules).
     3. Close the normal starter if it is running.
     4. Double-click "Start on Home Network.bat".
     5. On the tablet, open the address printed in the black window.
