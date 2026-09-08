@@ -126,6 +126,16 @@ func (a *App) handleStopAssignment(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) handlePushLesson(w http.ResponseWriter, r *http.Request) {
+	a.shiftAssignmentLesson(w, r, a.store.PushAssignmentLesson)
+}
+
+func (a *App) handlePullLesson(w http.ResponseWriter, r *http.Request) {
+	a.shiftAssignmentLesson(w, r, a.store.PullAssignmentLesson)
+}
+
+// shiftAssignmentLesson runs whichever way the plan is being moved and lands
+// back on the week the lesson started in, so the parent keeps her place.
+func (a *App) shiftAssignmentLesson(w http.ResponseWriter, r *http.Request, shift func(Lesson) error) {
 	lesson, err := a.store.Lesson(pathID(r, "id"))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -135,7 +145,7 @@ func (a *App) handlePushLesson(w http.ResponseWriter, r *http.Request) {
 		a.serverError(w, err)
 		return
 	}
-	if err := a.store.PushAssignmentLesson(lesson); err != nil {
+	if err := shift(lesson); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}

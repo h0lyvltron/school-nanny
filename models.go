@@ -91,6 +91,7 @@ type Subject struct {
 	ID        int64
 	Name      string
 	Slug      string
+	Color     string
 	SortOrder int
 	Archived  bool
 }
@@ -126,6 +127,7 @@ type Lesson struct {
 	PersonColor  string
 	PersonAvatar string
 	SubjectName  string
+	SubjectColor string
 
 	Attachments []Attachment
 	Assessments []Assessment
@@ -159,6 +161,10 @@ func (l Lesson) HasSeries() bool     { return l.SeriesID != 0 }
 func (l Lesson) Overdue() bool {
 	return l.Status == StatusPlanned && l.ScheduledOn < today()
 }
+
+// Ahead reports a lesson sitting on a later day, which is the only kind there
+// is anything to gain by pulling forward.
+func (l Lesson) Ahead() bool { return l.ScheduledOn > today() }
 
 type Assessment struct {
 	ID           int64

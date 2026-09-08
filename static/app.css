@@ -439,13 +439,21 @@ img.avatar-nav { width: 1.4rem; height: 1.4rem; }
     flex-wrap: wrap;
 }
 
+/* A lesson title is written in its subject's colour, which is what tells one
+   apart from the next in a list. Subjects that have no colour fall back to
+   ordinary ink, and the dark theme lifts the stored colour towards the page's
+   own ink so a deep blue or green is not left sitting in the dark. */
 .lesson-title {
+    --subject: var(--ink);
     font-weight: 600;
-    color: var(--ink);
+    color: var(--subject);
     text-decoration: none;
 }
 
-.lesson-title:hover { color: var(--accent); }
+[data-theme="dark"] .lesson-title { color: color-mix(in srgb, var(--subject) 68%, var(--ink)); }
+
+.lesson-title:hover,
+[data-theme="dark"] .lesson-title:hover { color: var(--accent); }
 .lesson.status-done .lesson-title { text-decoration: line-through; text-decoration-color: var(--ink-soft); }
 
 .lesson-meta { margin: 0.15rem 0 0; font-size: 0.82rem; color: var(--ink-soft); }
@@ -486,6 +494,11 @@ img.avatar-nav { width: 1.4rem; height: 1.4rem; }
     margin: 0;
     cursor: pointer;
 }
+
+/* Pico stretches a submit button across its row, which the pills that post a
+   form (Push, Pull) would otherwise inherit: two full-width bars in a planner
+   card where the rest of the row is small round buttons. */
+button.pill[type="submit"] { width: auto; }
 
 .pill:hover { border-color: var(--accent); color: var(--accent); background: var(--card); }
 .pill.done { background: var(--good); border-color: var(--good); color: var(--on-good); }

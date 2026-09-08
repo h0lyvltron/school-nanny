@@ -141,6 +141,7 @@ func (a *App) Routes() http.Handler {
 	mux.HandleFunc("POST /assignments/{id}/stop", a.handleStopAssignment)
 	mux.HandleFunc("POST /assignments/{id}/pause", a.handlePauseAssignment)
 	mux.HandleFunc("POST /lessons/{id}/push", a.handlePushLesson)
+	mux.HandleFunc("POST /lessons/{id}/pull", a.handlePullLesson)
 
 	mux.HandleFunc("GET /adults/{id}", a.handleAdult)
 	mux.HandleFunc("GET /adults/{id}/schedule", a.handleAdultSchedule)

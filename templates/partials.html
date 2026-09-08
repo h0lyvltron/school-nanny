@@ -4,7 +4,8 @@
     <div class="lesson-body">
         <div class="lesson-title-line">
             {{if .ShowKid}}<span class="chip" style="background:{{color .Lesson.PersonColor}}">{{if .Lesson.PersonHasPhoto}}<img class="avatar avatar-chip" src="{{.Lesson.PersonAvatarURL}}" alt="" loading="lazy">{{end}}{{.Lesson.PersonName}}</span>{{end}}
-            <a class="lesson-title" href="/lessons/{{.Lesson.ID}}">{{.Lesson.Title}}</a>
+            <a class="lesson-title" href="/lessons/{{.Lesson.ID}}"
+               {{if .Lesson.SubjectColor}}style="--subject:{{color .Lesson.SubjectColor}}"{{end}}>{{.Lesson.Title}}</a>
         </div>
         <p class="lesson-meta">
             {{if .ShowSubject}}{{.Lesson.SubjectName}} &middot; {{end}}{{prettyDate .Lesson.ScheduledOn}}
@@ -33,6 +34,13 @@
                         <button class="pill ghost" type="submit"
                                 onclick="return confirm('Move this lesson and every later planned lesson in this plan to the next school days?')">Push</button>
                     </form>
+                    {{if .Lesson.Ahead}}
+                        <form method="post" action="/lessons/{{.Lesson.ID}}/pull" class="inline-form">
+                            <input type="hidden" name="back" value="{{.Back}}">
+                            <button class="pill ghost" type="submit"
+                                    onclick="return confirm('Move this lesson and every later planned lesson in this plan onto today and the school days after it?')">Pull</button>
+                        </form>
+                    {{end}}
                 {{end}}
                 <button class="pill ghost"
                         hx-post="/lessons/{{.Lesson.ID}}/status"

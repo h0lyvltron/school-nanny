@@ -80,8 +80,10 @@ func (s *Store) DeleteKid(id int64) error {
 	return err
 }
 
+const subjectSelect = `SELECT id, name, slug, color, sort_order, archived FROM subjects`
+
 func (s *Store) Subjects(includeArchived bool) ([]Subject, error) {
-	q := `SELECT id, name, slug, sort_order, archived FROM subjects`
+	q := subjectSelect
 	if !includeArchived {
 		q += ` WHERE archived = 0`
 	}
@@ -91,42 +93,74 @@ func (s *Store) Subjects(includeArchived bool) ([]Subject, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-
-	var subjects []Subject
-	for rows.Next() {
-		var sub Subject
-		if err := rows.Scan(&sub.ID, &sub.Name, &sub.Slug, &sub.SortOrder, &sub.Archived); err != nil {
-			return nil, err
-		}
-		subjects = append(subjects, sub)
-	}
-	return subjects, rows.Err()
+	return scanSubjects(rows)
 }
 
 func (s *Store) Subject(id int64) (Subject, error) {
 	var sub Subject
-	err := s.db().QueryRow(`SELECT id, name, slug, sort_order, archived FROM subjects WHERE id = ?`, id).
-		Scan(&sub.ID, &sub.Name, &sub.Slug, &sub.SortOrder, &sub.Archived)
+	err := s.db().QueryRow(subjectSelect+` WHERE id = ?`, id).
+		Scan(&sub.ID, &sub.Name, &sub.Slug, &sub.Color, &sub.SortOrder, &sub.Archived)
 	return sub, err
 }
 
-func (s *Store) CreateSubject(name string) (int64, error) {
+func (s *Store) CreateSubject(name, color string) (int64, error) {
 	var next int
 	if err := s.db().QueryRow(`SELECT COALESCE(MAX(sort_order), 0) + 1 FROM subjects`).Scan(&next); err != nil {
 		return 0, err
 	}
 	slug := uniqueSlug(s, slugify(name))
-	res, err := s.db().Exec(`INSERT INTO subjects (name, slug, sort_order) VALUES (?, ?, ?)`, name, slug, next)
+	res, err := s.db().Exec(`INSERT INTO subjects (name, slug, color, sort_order) VALUES (?, ?, ?, ?)`,
+		name, slug, color, next)
 	if err != nil {
 		return 0, err
 	}
 	return res.LastInsertId()
 }
 
-func (s *Store) UpdateSubject(id int64, name string, archived bool) error {
-	_, err := s.db().Exec(`UPDATE subjects SET name = ?, archived = ? WHERE id = ?`, name, archived, id)
+func (s *Store) UpdateSubject(id int64, name, color string, archived bool) error {
+	_, err := s.db().Exec(`UPDATE subjects SET name = ?, color = ?, archived = ? WHERE id = ?`,
+		name, color, archived, id)
 	return err
+}
+
+// BackfillSubjectColors gives a colour to every subject that does not have one
+// yet: the ones that existed before subjects were coloured, and any that were
+// somehow saved blank. Walking the whole list rather than only the blank ones
+// keeps the colours spread across the palette instead of piling onto its first
+// entries.
+func (s *Store) BackfillSubjectColors() error {
+	rows, err := s.db().Query(subjectSelect + ` ORDER BY sort_order, id`)
+	if err != nil {
+		return err
+	}
+	subjects, err := scanSubjects(rows)
+	if err != nil {
+		return err
+	}
+
+	for i, sub := range subjects {
+		if sub.Color != "" {
+			continue
+		}
+		color := subjectPalette[i%len(subjectPalette)]
+		if _, err := s.db().Exec(`UPDATE subjects SET color = ? WHERE id = ?`, color, sub.ID); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func scanSubjects(rows *sql.Rows) ([]Subject, error) {
+	defer rows.Close()
+	var subjects []Subject
+	for rows.Next() {
+		var sub Subject
+		if err := rows.Scan(&sub.ID, &sub.Name, &sub.Slug, &sub.Color, &sub.SortOrder, &sub.Archived); err != nil {
+			return nil, err
+		}
+		subjects = append(subjects, sub)
+	}
+	return subjects, rows.Err()
 }
 
 func (s *Store) DeleteSubject(id int64) error {

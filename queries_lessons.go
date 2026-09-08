@@ -14,7 +14,7 @@ const lessonSelect = `SELECT l.id, COALESCE(l.kid_id, 0), COALESCE(l.adult_id, 0
 		l.scheduled_on, l.status, l.title, l.minutes, l.notes,
 		COALESCE(l.completed_at, ''), l.created_at,
 		COALESCE(k.name, ad.name, ''), COALESCE(k.color, ad.color, ''),
-		COALESCE(k.avatar_path, ad.avatar_path, ''), s.name
+		COALESCE(k.avatar_path, ad.avatar_path, ''), s.name, s.color
 	FROM lessons l
 	LEFT JOIN kids k ON k.id = l.kid_id
 	LEFT JOIN adults ad ON ad.id = l.adult_id
@@ -33,7 +33,8 @@ func scanLessons(rows *sql.Rows) ([]Lesson, error) {
 			&l.AssignmentID, &l.Sequence,
 			&l.ScheduledOn, &l.Status, &l.Title, &l.Minutes, &l.Notes,
 			&l.CompletedAt, &l.CreatedAt,
-			&l.PersonName, &l.PersonColor, &l.PersonAvatar, &l.SubjectName); err != nil {
+			&l.PersonName, &l.PersonColor, &l.PersonAvatar,
+			&l.SubjectName, &l.SubjectColor); err != nil {
 			return nil, err
 		}
 		lessons = append(lessons, l)
@@ -287,6 +288,16 @@ func nullableID(id int64) any {
 
 // weekStart snaps a date to the Monday of its week, which is how the planner
 // grid is laid out.
+// weekDates lists the seven days of the week a date falls in, Monday first.
+func weekDates(date string) []string {
+	start := weekStart(parseDate(date)).Format(dateLayout)
+	days := make([]string, 0, 7)
+	for i := 0; i < 7; i++ {
+		days = append(days, addDays(start, i))
+	}
+	return days
+}
+
 func weekStart(t time.Time) time.Time {
 	offset := (int(t.Weekday()) + 6) % 7
 	return time.Date(t.Year(), t.Month(), t.Day()-offset, 0, 0, 0, 0, t.Location())

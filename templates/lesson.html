@@ -105,6 +105,13 @@
                         <button type="submit" class="link-button"
                                 onclick="return confirm('Move this lesson and every later planned lesson in this plan to the next school days?')">Push this and later</button>
                     </form>
+                    {{if .Lesson.Ahead}}
+                        <form method="post" action="/lessons/{{.Lesson.ID}}/pull" class="inline-form">
+                            <input type="hidden" name="back" value="{{$back}}">
+                            <button type="submit" class="link-button"
+                                    onclick="return confirm('Move this lesson and every later planned lesson in this plan onto today and the school days after it?')">Pull this and later</button>
+                        </form>
+                    {{end}}
                 {{end}}
                 <form method="post" action="/assignments/{{.Assignment.ID}}/stop" class="inline-form">
                     <input type="hidden" name="back" value="{{$back}}">

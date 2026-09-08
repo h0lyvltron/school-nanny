@@ -141,15 +141,21 @@ func (a *App) handleRescheduleLesson(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	date := formDate(r, "scheduled_on")
-	if err := a.store.RescheduleLesson(id, date); err != nil {
+	cascaded, err := a.store.RescheduleAssignmentLesson(before, date)
+	if err != nil {
 		a.serverError(w, err)
 		return
 	}
 
 	// Dragging a lesson changes two days at once: the one it landed on and the
-	// one it left.
+	// one it left. Dragging one that belongs to a plan takes the rest of the
+	// plan with it, so the whole week has to be redrawn instead.
 	if r.Header.Get("HX-Request") == "true" && r.FormValue("view") == "planner" {
-		a.renderPlannerDays(w, formID(r, "kid_filter"), date, before.ScheduledOn)
+		days := []string{date, before.ScheduledOn}
+		if cascaded {
+			days = append(days, weekDates(date)...)
+		}
+		a.renderPlannerDays(w, formID(r, "kid_filter"), days...)
 		return
 	}
 	a.redirect(w, r, safeRedirect(r.FormValue("back"), "/planner"))

@@ -1784,8 +1784,57 @@ func TestArchiveExportsDoneLessonsAsFromYearPlan(t *testing.T) {
 	mustContain(t, page, "Saved from a year", "curriculum index")
 }
 
+// A subject's colour is what stops a day of lessons reading as one block of
+// black text, so it has to survive the settings form and reach the title.
+func TestSubjectColourReachesTheLessonTitle(t *testing.T) {
+	ta := newTestApp(t)
+	kid := ta.addKid("Mia")
+	subject := ta.mathSubjectID()
+
+	subjects, err := ta.store.Subjects(true)
+	if err != nil {
+		t.Fatalf("listing subjects: %v", err)
+	}
+	seen := map[string]bool{}
+	for _, sub := range subjects {
+		if sub.Color == "" {
+			t.Fatalf("subject %q was left without a colour", sub.Name)
+		}
+		if seen[sub.Color] {
+			t.Errorf("subject %q repeats the colour %s", sub.Name, sub.Color)
+		}
+		seen[sub.Color] = true
+	}
+
+	status, _ := ta.post("/settings/subjects", url.Values{
+		"id":    {itoa64(subject)},
+		"name":  {"Math"},
+		"color": {"#b8437a"},
+	})
+	if status != http.StatusOK {
+		t.Fatalf("saving the subject returned %d", status)
+	}
+	saved, err := ta.store.Subject(subject)
+	if err != nil {
+		t.Fatalf("reloading the subject: %v", err)
+	}
+	if saved.Color != "#b8437a" || saved.Name != "Math" {
+		t.Fatalf("expected the colour to be saved, got %+v", saved)
+	}
+
+	ta.insertUnassignedLesson(kid, subject, today(), "Place value", today())
+	_, home := ta.get("/")
+	mustContain(t, home, "--subject:#b8437a", "today's lesson title")
+
+	_, settings := ta.get("/settings")
+	mustContain(t, settings, `value="#b8437a"`, "subject colour picker")
+}
+
+// schoolWeekdays is Monday to Friday, the mask every plan in these tests runs on.
+const schoolWeekdays = "1,2,3,4,5"
+
 func TestPushResumeOnUsesNextSchoolDay(t *testing.T) {
-	weekdays := "1,2,3,4,5"
+	weekdays := schoolWeekdays
 	got := pushResumeOn("2026-08-26", "2026-08-26", weekdays)
 	if got != "2026-08-27" {
 		t.Errorf("pushing Wednesday's lesson on Wednesday: got %s, want Thursday", got)
@@ -1869,6 +1918,188 @@ func TestPushMovesThisAndLaterPlanned(t *testing.T) {
 	}
 	_ = kid
 	_ = subject
+}
+
+// The kids want to keep going, so tomorrow's lesson is done today and the rest
+// of the plan closes up behind it.
+func TestPullMovesThisAndLaterPlannedOntoToday(t *testing.T) {
+	ta := newTestApp(t)
+	start := nextMatchingWeekdayOnOrAfter(addDays(today(), 14), parseWeekdays(schoolWeekdays))
+	_, _, lessons := ta.applyThreeMathLessonsFrom(start)
+
+	if err := ta.store.SetLessonStatus(lessons[0].ID, StatusDone); err != nil {
+		t.Fatalf("marking first done: %v", err)
+	}
+
+	status, _ := ta.post("/lessons/"+itoa64(lessons[1].ID)+"/pull", url.Values{"back": {"/"}})
+	if status != http.StatusOK {
+		t.Fatalf("pull returned %d", status)
+	}
+
+	first, err := ta.store.Lesson(lessons[0].ID)
+	if err != nil {
+		t.Fatalf("reloading first: %v", err)
+	}
+	if first.ScheduledOn != lessons[0].ScheduledOn || first.Status != StatusDone {
+		t.Errorf("done lesson should stay put: %+v", first)
+	}
+
+	want, err := occurrenceDates(nextMatchingWeekdayOnOrAfter(today(), parseWeekdays(schoolWeekdays)),
+		"", 2, parseWeekdays(schoolWeekdays))
+	if err != nil {
+		t.Fatalf("expected dates: %v", err)
+	}
+
+	second, _ := ta.store.Lesson(lessons[1].ID)
+	third, _ := ta.store.Lesson(lessons[2].ID)
+	if second.ScheduledOn != want[0] || third.ScheduledOn != want[1] {
+		t.Errorf("pulled dates %s, %s; want %s, %s",
+			second.ScheduledOn, third.ScheduledOn, want[0], want[1])
+	}
+	if second.Title != "Addition" || third.Title != "Subtraction" {
+		t.Errorf("titles should stay with the lessons: %q, %q", second.Title, third.Title)
+	}
+}
+
+// Pull is only offered on work that is still ahead: there is nothing to bring
+// forward on a lesson already sitting on today.
+func TestPullIsOfferedOnlyOnLaterLessons(t *testing.T) {
+	if nextMatchingWeekdayOnOrAfter(today(), parseWeekdays(schoolWeekdays)) != today() {
+		t.Skip("run on a weekend, where a pulled lesson still lands ahead of today")
+	}
+	ta := newTestApp(t)
+	start := nextMatchingWeekdayOnOrAfter(addDays(today(), 14), parseWeekdays(schoolWeekdays))
+	_, _, lessons := ta.applyThreeMathLessonsFrom(start)
+
+	_, page := ta.get("/lessons/" + itoa64(lessons[0].ID))
+	mustContain(t, page, "/lessons/"+itoa64(lessons[0].ID)+"/pull", "pull form on a later lesson")
+
+	status, _ := ta.post("/lessons/"+itoa64(lessons[0].ID)+"/pull", url.Values{"back": {"/"}})
+	if status != http.StatusOK {
+		t.Fatalf("pull returned %d", status)
+	}
+
+	_, page = ta.get("/lessons/" + itoa64(lessons[0].ID))
+	mustNotContain(t, page, "/lessons/"+itoa64(lessons[0].ID)+"/pull", "pull form once the lesson is today")
+	mustContain(t, page, "/lessons/"+itoa64(lessons[0].ID)+"/push", "push form on today's lesson")
+}
+
+func TestPullNeedsAScheduledPlan(t *testing.T) {
+	ta := newTestApp(t)
+	kid := ta.addKid("Ada")
+	subject := ta.mathSubjectID()
+	id := ta.insertUnassignedLesson(kid, subject, addDays(today(), 3), "Fractions", today())
+
+	status, _ := ta.post("/lessons/"+itoa64(id)+"/pull", url.Values{"back": {"/"}})
+	if status != http.StatusBadRequest {
+		t.Fatalf("pulling a lesson with no plan returned %d, want 400", status)
+	}
+}
+
+// Dragging a lesson that belongs to a plan is Push and Pull by hand: the rest
+// of the plan follows it, in whichever direction it went. Dropping onto a
+// Saturday keeps it there, because that is the day the parent pointed at, but
+// the lessons behind it still land on school days.
+func TestDraggingAPlanLessonEarlierBringsTheRestWithIt(t *testing.T) {
+	ta := newTestApp(t)
+	start := mondayWeeksOut(3)
+	_, _, lessons := ta.applyThreeMathLessonsFrom(start)
+	saturday := addDays(start, -2)
+
+	status, _ := ta.postHTMX("/lessons/"+itoa64(lessons[0].ID)+"/reschedule", url.Values{
+		"view":         {"planner"},
+		"scheduled_on": {saturday},
+		"kid_filter":   {"0"},
+	})
+	if status != http.StatusOK {
+		t.Fatalf("reschedule returned %d", status)
+	}
+
+	first, _ := ta.store.Lesson(lessons[0].ID)
+	second, _ := ta.store.Lesson(lessons[1].ID)
+	third, _ := ta.store.Lesson(lessons[2].ID)
+	if first.ScheduledOn != saturday {
+		t.Errorf("dropped lesson should stay on %s, got %s", saturday, first.ScheduledOn)
+	}
+	if second.ScheduledOn != start || third.ScheduledOn != addDays(start, 1) {
+		t.Errorf("later lessons should follow onto %s and %s, got %s and %s",
+			start, addDays(start, 1), second.ScheduledOn, third.ScheduledOn)
+	}
+}
+
+func TestDraggingAPlanLessonLaterPushesTheRestBack(t *testing.T) {
+	ta := newTestApp(t)
+	start := mondayWeeksOut(3)
+	_, _, lessons := ta.applyThreeMathLessonsFrom(start)
+	thursday := addDays(start, 3)
+
+	status, fragment := ta.postHTMX("/lessons/"+itoa64(lessons[0].ID)+"/reschedule", url.Values{
+		"view":         {"planner"},
+		"scheduled_on": {thursday},
+		"kid_filter":   {"0"},
+	})
+	if status != http.StatusOK {
+		t.Fatalf("reschedule returned %d", status)
+	}
+
+	first, _ := ta.store.Lesson(lessons[0].ID)
+	second, _ := ta.store.Lesson(lessons[1].ID)
+	third, _ := ta.store.Lesson(lessons[2].ID)
+	if first.ScheduledOn != thursday {
+		t.Errorf("dropped lesson should be on %s, got %s", thursday, first.ScheduledOn)
+	}
+	if second.ScheduledOn != addDays(start, 4) || third.ScheduledOn != addDays(start, 7) {
+		t.Errorf("later lessons should fall on %s and %s, got %s and %s",
+			addDays(start, 4), addDays(start, 7), second.ScheduledOn, third.ScheduledOn)
+	}
+
+	// A cascade moves lessons the drop day and the day left behind know nothing
+	// about, so the whole week has to come back.
+	if got := strings.Count(fragment, `id="day-`); got != 7 {
+		t.Errorf("expected the week's 7 days in the response, got %d", got)
+	}
+	mustContain(t, fragment, `id="day-`+thursday+`"`, "drop day")
+	mustContain(t, fragment, `id="day-`+addDays(start, 4)+`"`, "day a later lesson moved onto")
+}
+
+// A lesson already marked done is a record of what happened, so dragging it to
+// tidy the week must not rewrite what is still planned.
+func TestDraggingADoneLessonLeavesThePlanAlone(t *testing.T) {
+	ta := newTestApp(t)
+	start := mondayWeeksOut(3)
+	_, _, lessons := ta.applyThreeMathLessonsFrom(start)
+	if err := ta.store.SetLessonStatus(lessons[0].ID, StatusDone); err != nil {
+		t.Fatalf("marking first done: %v", err)
+	}
+
+	status, fragment := ta.postHTMX("/lessons/"+itoa64(lessons[0].ID)+"/reschedule", url.Values{
+		"view":         {"planner"},
+		"scheduled_on": {addDays(start, 3)},
+		"kid_filter":   {"0"},
+	})
+	if status != http.StatusOK {
+		t.Fatalf("reschedule returned %d", status)
+	}
+
+	first, _ := ta.store.Lesson(lessons[0].ID)
+	second, _ := ta.store.Lesson(lessons[1].ID)
+	third, _ := ta.store.Lesson(lessons[2].ID)
+	if first.ScheduledOn != addDays(start, 3) {
+		t.Errorf("the done lesson should still move where it was dropped, got %s", first.ScheduledOn)
+	}
+	if second.ScheduledOn != lessons[1].ScheduledOn || third.ScheduledOn != lessons[2].ScheduledOn {
+		t.Errorf("planned lessons should stay put, got %s and %s",
+			second.ScheduledOn, third.ScheduledOn)
+	}
+	if got := strings.Count(fragment, `id="day-`); got != 2 {
+		t.Errorf("expected only the two days of the move, got %d", got)
+	}
+}
+
+// mondayWeeksOut is the Monday of a week far enough ahead that a plan starting
+// there is still entirely in the future whenever these tests are run.
+func mondayWeeksOut(weeks int) string {
+	return weekStart(parseDate(addDays(today(), 7*weeks))).Format(dateLayout)
 }
 
 // Pushing from a filtered week must send her back to that child, not the
@@ -2063,6 +2294,14 @@ func TestBackfillMatchesPlanPrefixWhenLessonsWereRemoved(t *testing.T) {
 
 func (ta *testApp) applyThreeMathLessons() (kid, subject int64, lessons []Lesson) {
 	ta.t.Helper()
+	return ta.applyThreeMathLessonsFrom("2026-08-26")
+}
+
+// applyThreeMathLessonsFrom takes the start date because pulling a plan
+// forward only means anything when the work is still ahead of today, which a
+// fixed date in the calendar stops being.
+func (ta *testApp) applyThreeMathLessonsFrom(start string) (kid, subject int64, lessons []Lesson) {
+	ta.t.Helper()
 	kid = ta.addKid("Mia")
 	subject = ta.mathSubjectID()
 
@@ -2083,13 +2322,17 @@ func (ta *testApp) applyThreeMathLessons() (kid, subject int64, lessons []Lesson
 	}
 	status, _ = ta.post("/curriculum/"+itoa64(planID)+"/apply", url.Values{
 		"kid_id":  {itoa64(kid)},
-		"start":   {"2026-08-26"},
+		"start":   {start},
 		"weekday": {"1", "2", "3", "4", "5"},
 	})
 	if status != http.StatusOK {
 		ta.t.Fatalf("applying plan returned %d", status)
 	}
-	lessons, err = ta.store.LessonsInRange("2026-08-26", "2026-08-28", kid, subject)
+	dates, err := occurrenceDates(start, "", 3, parseWeekdays(schoolWeekdays))
+	if err != nil {
+		ta.t.Fatalf("expected dates: %v", err)
+	}
+	lessons, err = ta.store.LessonsInRange(dates[0], dates[2], kid, subject)
 	if err != nil {
 		ta.t.Fatalf("listing applied lessons: %v", err)
 	}

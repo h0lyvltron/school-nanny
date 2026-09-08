@@ -50,6 +50,7 @@ func (a *App) handleSettings(w http.ResponseWriter, r *http.Request) {
 	data["SuggestedYear"] = suggestedSchoolYear()
 	data["Palette"] = kidPalette
 	data["NextColor"] = kidPalette[len(kids)%len(kidPalette)]
+	data["NextSubjectColor"] = subjectPalette[len(subjects)%len(subjectPalette)]
 	data["Saved"] = r.URL.Query().Get("saved")
 	data["Backups"] = backups
 	data["DataDir"] = a.dataDir
@@ -60,6 +61,13 @@ func (a *App) handleSettings(w http.ResponseWriter, r *http.Request) {
 // parent to think about hex codes.
 var kidPalette = []string{
 	"#5b8def", "#e0709a", "#3fae7f", "#e0913f", "#8d78e0", "#3fa8b8", "#c2544d", "#6f8f3f",
+}
+
+// subjectPalette colours the lesson titles. These are read as text rather than
+// filled behind it, so they are deeper than the kid colours: they have to hold
+// up against paper in the light theme and still lift off the dark one.
+var subjectPalette = []string{
+	"#2f6ecb", "#b8437a", "#1f8a63", "#b56a12", "#6f5bc9", "#12808f", "#b03a33", "#5a7226",
 }
 
 func (a *App) handleSaveKid(w http.ResponseWriter, r *http.Request) {
@@ -119,12 +127,16 @@ func (a *App) handleSaveSubject(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "A subject needs a name.", http.StatusBadRequest)
 		return
 	}
+	color := strings.TrimSpace(r.FormValue("color"))
+	if color == "" {
+		color = subjectPalette[0]
+	}
 
 	var err error
 	if id := formID(r, "id"); id > 0 {
-		err = a.store.UpdateSubject(id, name, r.FormValue("archived") == "on")
+		err = a.store.UpdateSubject(id, name, color, r.FormValue("archived") == "on")
 	} else {
-		_, err = a.store.CreateSubject(name)
+		_, err = a.store.CreateSubject(name, color)
 	}
 	if err != nil {
 		a.serverError(w, err)

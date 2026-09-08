@@ -210,6 +210,53 @@ func (s *Store) PushAssignmentLesson(lesson Lesson) error {
 	return s.RelayoutPlannedFrom(asg, resume, lesson.Sequence)
 }
 
+// PullAssignmentLesson is Push read backwards: the children want to carry on,
+// so tomorrow's lesson is brought onto today and the rest of the plan closes
+// up behind it. Unlike Push there is no floor beyond today, because moving
+// work earlier is the whole point.
+func (s *Store) PullAssignmentLesson(lesson Lesson) error {
+	if lesson.AssignmentID == 0 {
+		return fmt.Errorf("that lesson is not part of a scheduled plan")
+	}
+	if lesson.Status != StatusPlanned {
+		return fmt.Errorf("only a planned lesson can be pulled forward")
+	}
+	asg, err := s.Assignment(lesson.AssignmentID)
+	if err != nil {
+		return err
+	}
+	return s.RelayoutPlannedFrom(asg, today(), lesson.Sequence)
+}
+
+// RescheduleAssignmentLesson moves one lesson onto the day it was dropped on
+// and brings the rest of its plan with it, in whichever direction it went. The
+// dragged lesson lands exactly where it was let go, weekend or not, because
+// that is what the parent just pointed at; the lessons behind it fall onto the
+// school days that follow. It reports whether anything besides the dragged
+// lesson moved, which is what tells the planner how much of the week to redraw.
+func (s *Store) RescheduleAssignmentLesson(lesson Lesson, date string) (bool, error) {
+	if err := s.RescheduleLesson(lesson.ID, date); err != nil {
+		return false, err
+	}
+	if !lesson.HasAssignment() || lesson.Status != StatusPlanned ||
+		lesson.Sequence == 0 || date == lesson.ScheduledOn {
+		return false, nil
+	}
+
+	later, err := s.PlannedAssignmentIDsFrom(lesson.AssignmentID, lesson.Sequence+1)
+	if err != nil || len(later) == 0 {
+		return false, err
+	}
+	asg, err := s.Assignment(lesson.AssignmentID)
+	if err != nil {
+		return false, err
+	}
+	if err := s.RelayoutPlannedFrom(asg, addDays(date, 1), lesson.Sequence+1); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
 func (s *Store) PauseAssignmentUntil(assignmentID int64, resumeOn string) error {
 	asg, err := s.Assignment(assignmentID)
 	if err != nil {

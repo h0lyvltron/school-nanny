@@ -265,6 +265,9 @@ func (s *Store) Migrate() error {
 	if err := s.EnsureDefaultAdult(); err != nil {
 		return err
 	}
+	if err := s.BackfillSubjectColors(); err != nil {
+		return err
+	}
 	return s.BackfillPlanAssignments()
 }
 
