@@ -1,8 +1,9 @@
 {{define "content"}}
-{{$back := printf "/lessons/%d" .Lesson.ID}}
+{{$back := .Return.Stay}}
 <div class="page-head">
     <div>
         <p class="crumbs">
+            {{if .Return.Origin}}<a href="{{.Return.Origin}}">&larr; {{.Return.Label}}</a> &middot; {{end}}
             <a href="{{.Lesson.PersonURL}}">{{.Lesson.PersonName}}</a> &middot;
             {{if .Lesson.ForAdult}}
                 {{.Lesson.SubjectName}}
@@ -34,7 +35,7 @@
     <section class="panel">
         <h2>Details</h2>
         <form method="post" action="/lessons/{{.Lesson.ID}}">
-            <input type="hidden" name="back" value="{{$back}}">
+            <input type="hidden" name="back" value="{{.Return.Save}}">
             <label>Title
                 <input type="text" name="title" value="{{.Lesson.Title}}" required>
             </label>
@@ -82,7 +83,7 @@
         </form>
 
         <form method="post" action="/lessons/{{.Lesson.ID}}/delete" class="danger-zone">
-            <input type="hidden" name="back" value="{{if .Lesson.ForAdult}}{{.Lesson.PersonURL}}/schedule{{else}}/kids/{{.Lesson.KidID}}/subjects/{{.Lesson.SubjectID}}{{end}}">
+            <input type="hidden" name="back" value="{{.Return.Delete}}">
             <button type="submit" class="link-button danger"
                     onclick="return confirm('Delete this lesson and its files?')">Delete this lesson</button>
         </form>
@@ -119,7 +120,7 @@
                             onclick="return confirm('Remove remaining planned lessons?')">Stop remaining</button>
                 </form>
                 <form method="post" action="/lessons/{{.Lesson.ID}}/delete-future" class="inline-form">
-                    <input type="hidden" name="back" value="/planner">
+                    <input type="hidden" name="back" value="{{.Return.Delete}}">
                     <button type="submit" class="link-button danger"
                             onclick="return confirm('Delete this planned lesson and every planned lesson after it in this plan?')">Delete this and future planned</button>
                 </form>
@@ -137,7 +138,7 @@
                             onclick="return confirm('Remove remaining planned copies?')">Stop series</button>
                 </form>
                 <form method="post" action="/lessons/{{.Lesson.ID}}/delete-future" class="inline-form">
-                    <input type="hidden" name="back" value="/planner">
+                    <input type="hidden" name="back" value="{{.Return.Delete}}">
                     <button type="submit" class="link-button danger"
                             onclick="return confirm('Delete this planned copy and every planned copy after it?')">Delete this and future planned</button>
                 </form>

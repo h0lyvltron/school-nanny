@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"testing"
@@ -129,6 +130,31 @@ func (ta *testApp) postHTMX(path string, form url.Values) (int, string) {
 	defer resp.Body.Close()
 	body, _ := io.ReadAll(resp.Body)
 	return resp.StatusCode, string(body)
+}
+
+// redirectAfterPost stops at the redirect instead of following it, which is
+// how a test can tell where a form sends the parent afterwards.
+func (ta *testApp) redirectAfterPost(path string, form url.Values) string {
+	ta.t.Helper()
+	req, err := http.NewRequest(http.MethodPost, ta.server.URL+path, strings.NewReader(form.Encode()))
+	if err != nil {
+		ta.t.Fatalf("building request: %v", err)
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	client := &http.Client{
+		Jar:           ta.client.Jar,
+		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		ta.t.Fatalf("POST %s: %v", path, err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusSeeOther {
+		ta.t.Fatalf("POST %s returned %d, want 303", path, resp.StatusCode)
+	}
+	return resp.Header.Get("Location")
 }
 
 func (ta *testApp) addKid(name string) int64 {
@@ -2160,6 +2186,111 @@ func TestPushFromFilteredPlannerKeepsTheKid(t *testing.T) {
 		!strings.Contains(body, `&kid=`+itoa64(kid)+`"`) {
 		t.Errorf("expected the kid=%d filter to remain on the page", kid)
 	}
+}
+
+// A parent who opens a lesson from the week is still planning her week, so the
+// page has to remember where she came from and take her back there.
+func TestPlannerLessonLinkCarriesTheWeekBack(t *testing.T) {
+	ta := newTestApp(t)
+	kid := ta.addKid("Mia")
+	lesson := ta.insertUnassignedLesson(kid, ta.mathSubjectID(), today(), "Long division", "")
+	week := weekStart(parseDate(today())).Format(dateLayout)
+	back := plannerURL(week, kid)
+
+	status, body := ta.get("/planner?week=" + week + "&kid=" + itoa64(kid))
+	if status != http.StatusOK {
+		t.Fatalf("planner returned %d", status)
+	}
+	if got := lessonLinkBack(t, body, lesson); got != back {
+		t.Errorf("lesson link returns to %q, want %q", got, back)
+	}
+
+	status, body = ta.get("/lessons/" + itoa64(lesson) + "?back=" + url.QueryEscape(back))
+	if status != http.StatusOK {
+		t.Fatalf("lesson returned %d", status)
+	}
+	mustContain(t, body, `name="back" value="`+html.EscapeString(back)+`"`, "lesson forms")
+	mustContain(t, body, `href="`+html.EscapeString(back)+`"`, "back crumb")
+	mustContain(t, body, "Back to the week", "back crumb")
+}
+
+func TestSaveAndDeleteReturnToTheWeek(t *testing.T) {
+	ta := newTestApp(t)
+	kid := ta.addKid("Mia")
+	subject := ta.mathSubjectID()
+	lesson := ta.insertUnassignedLesson(kid, subject, today(), "Long division", "")
+	back := plannerURL(weekStart(parseDate(today())).Format(dateLayout), kid)
+
+	saved := ta.redirectAfterPost("/lessons/"+itoa64(lesson), url.Values{
+		"back":         {back},
+		"title":        {"Long division"},
+		"kid_id":       {itoa64(kid)},
+		"subject_id":   {itoa64(subject)},
+		"scheduled_on": {today()},
+		"status":       {"planned"},
+	})
+	if saved != back {
+		t.Errorf("saving redirected to %q, want %q", saved, back)
+	}
+
+	deleted := ta.redirectAfterPost("/lessons/"+itoa64(lesson)+"/delete", url.Values{"back": {back}})
+	if deleted != back {
+		t.Errorf("deleting redirected to %q, want %q", deleted, back)
+	}
+}
+
+// Opened cold - from a bookmark or a shared link - there is no week to return
+// to, so deleting falls back to the week the lesson sat in rather than a
+// subject page she was not looking at.
+func TestDeletingALessonWithoutABackLandsOnItsWeek(t *testing.T) {
+	ta := newTestApp(t)
+	kid := ta.addKid("Mia")
+	date := "2026-09-16"
+	lesson := ta.insertUnassignedLesson(kid, ta.mathSubjectID(), date, "Long division", "")
+	week := plannerURL(weekStart(parseDate(date)).Format(dateLayout), kid)
+
+	status, body := ta.get("/lessons/" + itoa64(lesson))
+	if status != http.StatusOK {
+		t.Fatalf("lesson returned %d", status)
+	}
+	mustContain(t, body, `name="back" value="`+html.EscapeString(week)+`"`, "delete fallback")
+	if strings.Contains(body, `name="back" value="/kids/`) {
+		t.Error("delete still points at the subject page")
+	}
+
+	if got := ta.redirectAfterPost("/lessons/"+itoa64(lesson)+"/delete", url.Values{"back": {week}}); got != week {
+		t.Errorf("deleting redirected to %q, want %q", got, week)
+	}
+}
+
+func TestLessonBackIgnoresOffsiteReturns(t *testing.T) {
+	ta := newTestApp(t)
+	kid := ta.addKid("Mia")
+	lesson := ta.insertUnassignedLesson(kid, ta.mathSubjectID(), today(), "Long division", "")
+
+	status, body := ta.get("/lessons/" + itoa64(lesson) + "?back=" + url.QueryEscape("//evil.example/steal"))
+	if status != http.StatusOK {
+		t.Fatalf("lesson returned %d", status)
+	}
+	if strings.Contains(body, "evil.example") {
+		t.Error("an offsite back reached the page")
+	}
+	mustContain(t, body, `name="back" value="/lessons/`+itoa64(lesson)+`"`, "save fallback")
+}
+
+// lessonLinkBack reads the return path a lesson card's title link hands to the
+// lesson page, undoing the escaping the template applied on the way out.
+func lessonLinkBack(t *testing.T, body string, lesson int64) string {
+	t.Helper()
+	match := regexp.MustCompile(`href="/lessons/` + itoa64(lesson) + `\?back=([^"]*)"`).FindStringSubmatch(body)
+	if match == nil {
+		t.Fatalf("no lesson %d link with a back in the page", lesson)
+	}
+	back, err := url.QueryUnescape(html.UnescapeString(match[1]))
+	if err != nil {
+		t.Fatalf("unescaping back %q: %v", match[1], err)
+	}
+	return back
 }
 
 func TestPauseUntilRelayoutsRemaining(t *testing.T) {

@@ -3,7 +3,10 @@ package main
 import (
 	"database/sql"
 	"errors"
+	"fmt"
 	"net/http"
+	"net/url"
+	"strings"
 	"time"
 )
 
@@ -387,9 +390,57 @@ func (a *App) handleLesson(w http.ResponseWriter, r *http.Request) {
 	data["Lesson"] = lesson
 	data["Series"] = series
 	data["Assignment"] = assignment
+	data["Return"] = lessonReturn(lesson, r.URL.Query().Get("back"))
 	data["Subjects"] = subjects
 	data["Kids"] = data["NavKids"]
 	a.render(w, "lesson", data)
+}
+
+// LessonReturn is where the lesson page sends the parent when she is finished
+// with it. She nearly always opens a lesson from the week or from today, so
+// those pages hand the page a ?back= to aim at rather than dropping her on the
+// child's subject list afterwards.
+type LessonReturn struct {
+	Origin string // where she came from, empty when she opened the lesson cold
+	Label  string // what to call that place in the crumbs
+	Stay   string // this page again, still carrying the origin
+	Save   string
+	Delete string
+}
+
+func lessonReturn(lesson Lesson, back string) LessonReturn {
+	self := fmt.Sprintf("/lessons/%d", lesson.ID)
+	origin := safeRedirect(back, "")
+	if origin != "" {
+		return LessonReturn{
+			Origin: origin,
+			Label:  originLabel(origin),
+			Stay:   self + "?back=" + url.QueryEscape(origin),
+			Save:   origin,
+			Delete: origin,
+		}
+	}
+
+	// Without an origin, saving stays put as it always has, but the lesson is
+	// gone after a delete: send her to the week it sat in rather than a page
+	// about the subject she was not looking at.
+	ret := LessonReturn{Stay: self, Save: self}
+	if lesson.ForAdult() {
+		ret.Delete = lesson.PersonURL() + "/schedule"
+	} else {
+		ret.Delete = plannerURL(weekStart(parseDate(lesson.ScheduledOn)).Format(dateLayout), lesson.KidID)
+	}
+	return ret
+}
+
+func originLabel(origin string) string {
+	switch {
+	case origin == "/":
+		return "Back to today"
+	case strings.HasPrefix(origin, "/planner"):
+		return "Back to the week"
+	}
+	return "Back"
 }
 
 func (a *App) handleTests(w http.ResponseWriter, r *http.Request) {
