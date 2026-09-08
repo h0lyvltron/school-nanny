@@ -77,6 +77,26 @@ func (a *App) handleAdult(w http.ResponseWriter, r *http.Request) {
 
 // Calendar ---------------------------------------------------------------
 
+// handleAdultCalendar redraws the calendar on its own. Choosing a day used to
+// mean reloading her whole profile, which threw the page back to the top and
+// left her scrolling down to the month again after every click.
+func (a *App) handleAdultCalendar(w http.ResponseWriter, r *http.Request) {
+	adult, ok := a.lookupAdult(w, r)
+	if !ok {
+		return
+	}
+	a.renderAdultCalendar(w, adult, r.URL.Query())
+}
+
+func (a *App) renderAdultCalendar(w http.ResponseWriter, adult Adult, query url.Values) {
+	data := map[string]any{"Adult": adult}
+	if err := a.populateAdultCalendar(data, adult, query); err != nil {
+		a.serverError(w, err)
+		return
+	}
+	a.renderPartial(w, "adult_calendar", data)
+}
+
 // AdultCalendarDay is one cell of her month: the holidays that always fall
 // there, and whatever she has written on it herself.
 type AdultCalendarDay struct {
@@ -261,6 +281,10 @@ func (a *App) handleCreateAdultEvent(w http.ResponseWriter, r *http.Request) {
 		a.serverError(w, err)
 		return
 	}
+	if a.wantsCalendar(r) {
+		a.renderAdultCalendar(w, adult, r.Form)
+		return
+	}
 	a.redirect(w, r, a.backToAdult(r, adult))
 }
 
@@ -269,11 +293,25 @@ func (a *App) handleDeleteAdultEvent(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "Could not read that form.", http.StatusBadRequest)
+		return
+	}
 	if err := a.store.DeleteAdultEvent(adult.ID, pathID(r, "eventID")); err != nil {
 		a.serverError(w, err)
 		return
 	}
+	if a.wantsCalendar(r) {
+		a.renderAdultCalendar(w, adult, r.Form)
+		return
+	}
 	a.redirect(w, r, a.backToAdult(r, adult))
+}
+
+// wantsCalendar reports a request made by the calendar itself, which wants the
+// month back rather than a fresh page.
+func (a *App) wantsCalendar(r *http.Request) bool {
+	return r.Header.Get("HX-Request") == "true" && r.FormValue("view") == "calendar"
 }
 
 // handleAdultSchedule is her own week grid. It reuses the planner's day

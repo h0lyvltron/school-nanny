@@ -1,6 +1,6 @@
 {{define "adult_calendar"}}
 {{$back := printf "%s?month=%s&from=%s&to=%s" .Adult.URL .Month .SelectedFrom .SelectedTo}}
-<section class="panel">
+<section class="panel" id="adult-calendar" hx-target="#adult-calendar" hx-swap="outerHTML">
     <h2>Calendar</h2>
     <div class="planner-controls">
         <div class="week-nav">
@@ -52,8 +52,13 @@
                         <p class="muted small">{{.DateLabel}}</p>
                         {{if .Body}}<p class="note-body">{{.Body}}</p>{{end}}
                     </div>
-                    <form method="post" action="/adults/{{.AdultID}}/events/{{.ID}}/delete" class="inline-form">
+                    <form method="post" action="/adults/{{.AdultID}}/events/{{.ID}}/delete" class="inline-form"
+                          hx-post="/adults/{{.AdultID}}/events/{{.ID}}/delete">
                         <input type="hidden" name="back" value="{{$back}}">
+                        <input type="hidden" name="view" value="calendar">
+                        <input type="hidden" name="month" value="{{$.Month}}">
+                        <input type="hidden" name="from" value="{{$.SelectedFrom}}">
+                        <input type="hidden" name="to" value="{{$.SelectedTo}}">
                         <button type="submit" class="link-button danger"
                                 onclick="return confirm('Remove this event?')">Remove</button>
                     </form>
@@ -65,8 +70,13 @@
 
         <details class="add-box">
             <summary>Add an event</summary>
-            <form method="post" action="/adults/{{.Adult.ID}}/events">
+            <form method="post" action="/adults/{{.Adult.ID}}/events"
+                  hx-post="/adults/{{.Adult.ID}}/events">
                 <input type="hidden" name="back" value="{{$back}}">
+                <input type="hidden" name="view" value="calendar">
+                <input type="hidden" name="month" value="{{.Month}}">
+                <input type="hidden" name="from" value="{{.SelectedFrom}}">
+                <input type="hidden" name="to" value="{{.SelectedTo}}">
                 <input type="text" name="title" placeholder="What is happening?" required aria-label="Title">
                 <div class="field-row">
                     <label>From

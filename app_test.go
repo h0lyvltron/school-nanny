@@ -1261,6 +1261,68 @@ func TestAMultiDayEventMarksEveryDayItCovers(t *testing.T) {
 	mustNotContain(t, after, "Grandma visits", "her calendar")
 }
 
+// Picking a day must not reload her profile: she is scrolled down to the month
+// when she clicks, and a fresh page would throw her back to the top.
+func TestChoosingADayRedrawsOnlyTheCalendar(t *testing.T) {
+	ta := newTestApp(t)
+	mom := ta.mom()
+
+	status, body := ta.get("/adults/" + itoa64(mom.ID) + "/calendar?month=2026-07&from=2026-07-13&to=2026-07-17")
+	if status != http.StatusOK {
+		t.Fatalf("redrawing her calendar returned %d", status)
+	}
+	mustContain(t, body, `id="adult-calendar"`, "calendar fragment")
+	mustContain(t, body, `name="starts_on" value="2026-07-13"`, "calendar fragment")
+	if class := calendarCellClass(t, body, "2026-07-15"); !strings.Contains(class, "is-selected") {
+		t.Errorf("2026-07-15 is %q, expected it inside the selection", class)
+	}
+	// A fragment, not the whole page around it.
+	for _, chrome := range []string{"<html", "Pinboard", "This week"} {
+		mustNotContain(t, body, chrome, "calendar fragment")
+	}
+}
+
+// Adding and removing an event answer the same way, so the month updates
+// underneath her instead of the page jumping.
+func TestWritingOnHerCalendarRedrawsItInPlace(t *testing.T) {
+	ta := newTestApp(t)
+	mom := ta.mom()
+	base := "/adults/" + itoa64(mom.ID)
+
+	status, body := ta.postHTMX(base+"/events", url.Values{
+		"view":      {"calendar"},
+		"month":     {"2026-07"},
+		"from":      {"2026-07-13"},
+		"to":        {"2026-07-14"},
+		"title":     {"Grandma visits"},
+		"starts_on": {"2026-07-13"},
+		"ends_on":   {"2026-07-14"},
+	})
+	if status != http.StatusOK {
+		t.Fatalf("adding her event returned %d", status)
+	}
+	mustContain(t, body, `id="adult-calendar"`, "calendar fragment")
+	mustContain(t, body, "Grandma visits", "calendar fragment")
+	mustNotContain(t, body, "<html", "calendar fragment")
+
+	events, err := ta.store.AdultEventsOverlapping(mom.ID, "2026-07-13", "2026-07-14")
+	if err != nil || len(events) != 1 {
+		t.Fatalf("expected 1 event, got %d (err %v)", len(events), err)
+	}
+
+	status, body = ta.postHTMX(base+"/events/"+itoa64(events[0].ID)+"/delete", url.Values{
+		"view":  {"calendar"},
+		"month": {"2026-07"},
+		"from":  {"2026-07-13"},
+		"to":    {"2026-07-14"},
+	})
+	if status != http.StatusOK {
+		t.Fatalf("removing it returned %d", status)
+	}
+	mustContain(t, body, `id="adult-calendar"`, "calendar fragment")
+	mustNotContain(t, body, "Grandma visits", "calendar fragment")
+}
+
 func TestAnEventCannotEndBeforeItStarts(t *testing.T) {
 	ta := newTestApp(t)
 	mom := ta.mom()

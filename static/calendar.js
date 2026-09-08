@@ -53,16 +53,43 @@
         }
     }
 
+    // Redraw the month in place. Reloading the whole profile would throw the
+    // page back to the top, and she is usually scrolled down to the calendar
+    // when she picks a day, so the address is updated by hand instead.
+    function show(href) {
+        var url = new URL(href, window.location.href);
+        if (!window.htmx) {
+            window.location.href = url.href;
+            return;
+        }
+        var settled = window.htmx.ajax("GET", url.pathname + "/calendar" + url.search, {
+            target: "#adult-calendar",
+            swap: "outerHTML"
+        });
+        var remember = function () {
+            // Replaced rather than pushed: Back should leave the calendar, not
+            // walk through every day she looked at.
+            try {
+                window.history.replaceState({}, "", url.pathname + url.search);
+            } catch (e) { /* ignore */ }
+        };
+        if (settled && settled.then) {
+            settled.then(remember);
+        } else {
+            remember();
+        }
+    }
+
     function commit(grid, from, to) {
         if (to < from) {
             var swap = from;
             from = to;
             to = swap;
         }
-        window.location.href = grid.getAttribute("data-url") +
+        show(grid.getAttribute("data-url") +
             "?month=" + encodeURIComponent(grid.getAttribute("data-month")) +
             "&from=" + encodeURIComponent(from) +
-            "&to=" + encodeURIComponent(to);
+            "&to=" + encodeURIComponent(to));
     }
 
     function clearPress() {
@@ -199,25 +226,34 @@
 
     // A click anywhere in a cell selects that day, not only the date itself.
     document.addEventListener("click", function (event) {
+        // Opening a day in its own tab is still the browser's business.
+        if (event.button > 0 || event.metaKey || event.ctrlKey || event.shiftKey) {
+            return;
+        }
+
         var cell = closest(event.target, ".cal-cell[data-date]");
-        if (!cell) {
-            return;
-        }
-        var grid = closest(cell, "[data-calendar]");
-        if (!grid) {
-            return;
-        }
-        if (swallowClick) {
-            // The drag already decided where to go.
-            swallowClick = false;
+        var grid = cell ? closest(cell, "[data-calendar]") : null;
+        if (grid) {
+            if (swallowClick) {
+                // The drag already decided which days these are.
+                swallowClick = false;
+                event.preventDefault();
+                return;
+            }
+            if (closest(event.target, "button, input, select, textarea")) {
+                return;
+            }
             event.preventDefault();
+            var date = cell.getAttribute("data-date");
+            commit(grid, date, date);
             return;
         }
-        if (closest(event.target, "a, button, input, select, textarea, form")) {
-            return;
+
+        // Paging to another month redraws in place for the same reason.
+        var nav = closest(event.target, "#adult-calendar .week-nav a[href]");
+        if (nav) {
+            event.preventDefault();
+            show(nav.getAttribute("href"));
         }
-        event.preventDefault();
-        var date = cell.getAttribute("data-date");
-        commit(grid, date, date);
     });
 })();
