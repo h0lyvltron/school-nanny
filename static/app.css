@@ -1075,6 +1075,49 @@ body.is-dragging-lesson .drop-kids { display: flex; }
 .cal-mark.status-absent { border-color: var(--danger); color: var(--danger); background: var(--danger-bg); }
 .cal-mark.status-excused { border-color: var(--warn); color: var(--warn); }
 
+/* A grown-up's own month: holidays she never had to type, whatever she has
+   written on a day, and the run of days she is currently pointing at. */
+.month-cal .cal-cell { cursor: pointer; }
+.month-cal .cal-cell.is-selected {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+}
+/* Dragging out a stretch should not drag a selection of the page with it. */
+.month-cal.is-selecting { user-select: none; -webkit-user-select: none; }
+
+a.cal-num { color: var(--ink-soft); text-decoration: none; }
+a.cal-num:hover { color: var(--accent); }
+
+.cal-holiday, .cal-event {
+    display: block;
+    padding: 0.1rem 0.35rem;
+    font-size: 0.72rem;
+    line-height: 1.25;
+    border-radius: 0.35rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.cal-holiday { color: var(--ink-soft); background: var(--muted-surface); }
+.cal-event { color: var(--accent); background: var(--accent-soft); border: 1px solid var(--accent); }
+/* A run of days is drawn flat across its cells so it reads as one thing. */
+.cal-event.is-span { border-radius: 0.15rem; }
+
+.cal-detail { border-top: 1px dashed var(--line); padding-top: 0.75rem; }
+.cal-detail h3 { margin: 0 0 0.35rem; font-size: 1.05rem; }
+
+.cal-entry {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin: 0;
+    padding: 0.5rem 0;
+    border-bottom: 1px dashed var(--line);
+}
+.cal-entry p { margin: 0.15rem 0 0; }
+
 .report-table table { width: 100%; font-size: 0.9rem; }
 .report-table th, .report-table td { text-align: left; padding: 0.35rem 0.5rem; }
 .report-table h3 {

@@ -137,6 +137,63 @@ func (s *Store) DeleteAdultCard(id int64) error {
 	return err
 }
 
+// Calendar events --------------------------------------------------------
+
+const adultEventSelect = `SELECT id, adult_id, starts_on, ends_on, title, body, created_at
+	FROM adult_events`
+
+func scanAdultEvents(rows *sql.Rows) ([]AdultEvent, error) {
+	defer rows.Close()
+	var events []AdultEvent
+	for rows.Next() {
+		var e AdultEvent
+		if err := rows.Scan(&e.ID, &e.AdultID, &e.StartsOn, &e.EndsOn,
+			&e.Title, &e.Body, &e.CreatedAt); err != nil {
+			return nil, err
+		}
+		events = append(events, e)
+	}
+	return events, rows.Err()
+}
+
+// AdultEventsOverlapping returns every event touching the range, not only the
+// ones starting inside it: a trip that began last month is still happening
+// during the days this month shows.
+func (s *Store) AdultEventsOverlapping(adultID int64, from, to string) ([]AdultEvent, error) {
+	rows, err := s.db().Query(adultEventSelect+` WHERE adult_id = ?
+		AND starts_on <= ? AND ends_on >= ?
+		ORDER BY starts_on, ends_on, id`, adultID, to, from)
+	if err != nil {
+		return nil, err
+	}
+	return scanAdultEvents(rows)
+}
+
+func (s *Store) AdultEvent(id int64) (AdultEvent, error) {
+	var e AdultEvent
+	err := s.db().QueryRow(adultEventSelect+` WHERE id = ?`, id).
+		Scan(&e.ID, &e.AdultID, &e.StartsOn, &e.EndsOn, &e.Title, &e.Body, &e.CreatedAt)
+	return e, err
+}
+
+func (s *Store) CreateAdultEvent(e AdultEvent) (int64, error) {
+	res, err := s.db().Exec(`INSERT INTO adult_events
+		(adult_id, starts_on, ends_on, title, body, created_at)
+		VALUES (?, ?, ?, ?, ?, ?)`,
+		e.AdultID, e.StartsOn, e.EndsOn, e.Title, e.Body, time.Now().Format(time.RFC3339))
+	if err != nil {
+		return 0, err
+	}
+	return res.LastInsertId()
+}
+
+// DeleteAdultEvent names the adult as well as the event so one profile can
+// never delete something off another's calendar.
+func (s *Store) DeleteAdultEvent(adultID, id int64) error {
+	_, err := s.db().Exec(`DELETE FROM adult_events WHERE id = ? AND adult_id = ?`, id, adultID)
+	return err
+}
+
 // MoveAdultCard swaps a card with its neighbour, which is all the ordering a
 // short pinboard needs.
 func (s *Store) MoveAdultCard(id int64, up bool) error {

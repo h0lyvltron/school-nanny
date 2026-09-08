@@ -1,3 +1,89 @@
+{{define "adult_calendar"}}
+{{$back := printf "%s?month=%s&from=%s&to=%s" .Adult.URL .Month .SelectedFrom .SelectedTo}}
+<section class="panel">
+    <h2>Calendar</h2>
+    <div class="planner-controls">
+        <div class="week-nav">
+            <a role="button" class="secondary" href="{{.Adult.URL}}?month={{.PrevMonth}}">&larr; Previous</a>
+            <a role="button" class="secondary" href="{{.Adult.URL}}">This month</a>
+            <a role="button" class="secondary" href="{{.Adult.URL}}?month={{.NextMonth}}">Next &rarr;</a>
+        </div>
+        <p class="muted small">{{.MonthLabel}} &middot; drag across days for something that lasts more than one</p>
+    </div>
+
+    <div class="cal-grid month-cal" data-calendar data-url="{{.Adult.URL}}" data-month="{{.Month}}">
+        <div class="cal-dow">Mon</div>
+        <div class="cal-dow">Tue</div>
+        <div class="cal-dow">Wed</div>
+        <div class="cal-dow">Thu</div>
+        <div class="cal-dow">Fri</div>
+        <div class="cal-dow">Sat</div>
+        <div class="cal-dow">Sun</div>
+        {{$url := .Adult.URL}}
+        {{$month := .Month}}
+        {{range .Weeks}}
+            {{range .}}
+                <div class="cal-cell{{if not .InMonth}} out-month{{end}}{{if isToday .Date}} is-today{{end}}{{if .Selected}} is-selected{{end}}"
+                     data-date="{{.Date}}">
+                    <a class="cal-num" href="{{$url}}?month={{$month}}&from={{.Date}}&to={{.Date}}">{{dayNum .Date}}</a>
+                    <div class="cal-marks">
+                        {{range .Holidays}}
+                            <span class="cal-holiday" title="{{.Name}}">{{.Name}}</span>
+                        {{end}}
+                        {{range .Events}}
+                            <span class="cal-event{{if .Spans}} is-span{{end}}" title="{{.Title}}">{{.Title}}</span>
+                        {{end}}
+                    </div>
+                </div>
+            {{end}}
+        {{end}}
+    </div>
+
+    <div class="cal-detail">
+        <h3>{{.SelectionLabel}}</h3>
+        {{range .DayHolidays}}
+            <p class="muted small">{{.Name}}</p>
+        {{end}}
+        <div class="stack">
+            {{range .DayEvents}}
+                <article class="cal-entry">
+                    <div>
+                        <strong>{{.Title}}</strong>
+                        <p class="muted small">{{.DateLabel}}</p>
+                        {{if .Body}}<p class="note-body">{{.Body}}</p>{{end}}
+                    </div>
+                    <form method="post" action="/adults/{{.AdultID}}/events/{{.ID}}/delete" class="inline-form">
+                        <input type="hidden" name="back" value="{{$back}}">
+                        <button type="submit" class="link-button danger"
+                                onclick="return confirm('Remove this event?')">Remove</button>
+                    </form>
+                </article>
+            {{else}}
+                <p class="muted small">Nothing written down here yet.</p>
+            {{end}}
+        </div>
+
+        <details class="add-box">
+            <summary>Add an event</summary>
+            <form method="post" action="/adults/{{.Adult.ID}}/events">
+                <input type="hidden" name="back" value="{{$back}}">
+                <input type="text" name="title" placeholder="What is happening?" required aria-label="Title">
+                <div class="field-row">
+                    <label>From
+                        <input type="date" name="starts_on" value="{{.SelectedFrom}}" required>
+                    </label>
+                    <label>To
+                        <input type="date" name="ends_on" value="{{.SelectedTo}}" required>
+                    </label>
+                </div>
+                <textarea name="body" rows="2" placeholder="Anything worth remembering" aria-label="Notes"></textarea>
+                <button type="submit">Add event</button>
+            </form>
+        </details>
+    </div>
+</section>
+{{end}}
+
 {{define "lesson_row"}}
 <article class="lesson status-{{.Lesson.Status}}{{if .Lesson.Overdue}} is-overdue{{end}}" id="lesson-{{.Lesson.ID}}"
          {{if .Lesson.SubjectColor}}style="--subject:{{color .Lesson.SubjectColor}}"{{end}}

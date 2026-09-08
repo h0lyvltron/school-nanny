@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"errors"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 )
@@ -23,8 +24,8 @@ func (a *App) lookupAdult(w http.ResponseWriter, r *http.Request) (Adult, bool) 
 	return adult, true
 }
 
-// handleAdult is her profile: who she is, what she has pinned, this week, and
-// what she has written down lately.
+// handleAdult is her profile: who she is, what she has pinned, the month at a
+// glance, this week, and what she has written down lately.
 func (a *App) handleAdult(w http.ResponseWriter, r *http.Request) {
 	adult, ok := a.lookupAdult(w, r)
 	if !ok {
@@ -59,6 +60,10 @@ func (a *App) handleAdult(w http.ResponseWriter, r *http.Request) {
 		a.serverError(w, err)
 		return
 	}
+	if err := a.populateAdultCalendar(data, adult, r.URL.Query()); err != nil {
+		a.serverError(w, err)
+		return
+	}
 
 	data["Adult"] = adult
 	data["Cards"] = cards
@@ -68,6 +73,207 @@ func (a *App) handleAdult(w http.ResponseWriter, r *http.Request) {
 	data["WeekStart"] = start
 	data["WeekEnd"] = end
 	a.render(w, "adult", data)
+}
+
+// Calendar ---------------------------------------------------------------
+
+// AdultCalendarDay is one cell of her month: the holidays that always fall
+// there, and whatever she has written on it herself.
+type AdultCalendarDay struct {
+	Date     string
+	InMonth  bool
+	Selected bool
+	Holidays []Holiday
+	Events   []AdultEvent
+}
+
+// populateAdultCalendar builds the month grid and whatever the selected run of
+// days holds. Selection is a pair of inclusive dates because a stretch she
+// dragged across the grid - a trip, a week of appointments - is one event, not
+// several, and a single day is simply both ends landing together.
+func (a *App) populateAdultCalendar(data map[string]any, adult Adult, query url.Values) error {
+	month := parseMonthQuery(query.Get("month"))
+
+	// The grid pads out to whole weeks, so it reaches a little into the months
+	// on either side. Everything below works in those outer dates.
+	gridFrom := weekStart(parseDate(monthFirst(month))).Format(dateLayout)
+	gridTo := addDays(gridFrom, len(monthGridDates(month))-1)
+
+	from, to := selectedRange(query.Get("from"), query.Get("to"), month, gridFrom, gridTo)
+
+	events, err := a.store.AdultEventsOverlapping(adult.ID, gridFrom, gridTo)
+	if err != nil {
+		return err
+	}
+	holidays := holidaysBetween(gridFrom, gridTo)
+
+	var weeks [][]AdultCalendarDay
+	var week []AdultCalendarDay
+	for _, date := range monthGridDates(month) {
+		day := AdultCalendarDay{
+			Date:     date,
+			InMonth:  date >= monthFirst(month) && date <= monthLast(month),
+			Selected: date >= from && date <= to,
+		}
+		for _, h := range holidays {
+			if h.Date == date {
+				day.Holidays = append(day.Holidays, h)
+			}
+		}
+		// A run of days marks every cell it covers, so a week away reads as a
+		// week away rather than a single dot on the day it started.
+		for _, e := range events {
+			if e.Covers(date) {
+				day.Events = append(day.Events, e)
+			}
+		}
+		week = append(week, day)
+		if len(week) == 7 {
+			weeks = append(weeks, week)
+			week = nil
+		}
+	}
+	if len(week) > 0 {
+		weeks = append(weeks, week)
+	}
+
+	var selectedEvents []AdultEvent
+	for _, e := range events {
+		if e.StartsOn <= to && e.EndsOn >= from {
+			selectedEvents = append(selectedEvents, e)
+		}
+	}
+	var selectedHolidays []Holiday
+	for _, h := range holidays {
+		if h.Date >= from && h.Date <= to {
+			selectedHolidays = append(selectedHolidays, h)
+		}
+	}
+
+	data["Month"] = month
+	data["MonthLabel"] = formatDate(month, "January 2006")
+	data["PrevMonth"] = addMonths(month, -1)
+	data["NextMonth"] = addMonths(month, 1)
+	data["ThisMonth"] = monthFirst(today())
+	data["Weeks"] = weeks
+	data["SelectedFrom"] = from
+	data["SelectedTo"] = to
+	data["SelectionLabel"] = rangeLabel(from, to)
+	data["DayEvents"] = selectedEvents
+	data["DayHolidays"] = selectedHolidays
+	return nil
+}
+
+// monthGridDates lists the days a month's grid shows, padded out to whole
+// Monday-to-Sunday weeks the way the attendance calendar does.
+func monthGridDates(month string) []string {
+	first := parseDate(monthFirst(month))
+	last := parseDate(monthLast(month))
+	start := weekStart(first)
+	end := last.AddDate(0, 0, (7-int(last.Weekday()))%7)
+
+	var dates []string
+	for t := start; !t.After(end); t = t.AddDate(0, 0, 1) {
+		dates = append(dates, t.Format(dateLayout))
+	}
+	return dates
+}
+
+// selectedRange settles on the run of days the page is talking about. Dragging
+// backwards across the grid is the same selection as dragging forwards, and
+// anything outside the visible weeks is ignored rather than obeyed, so a
+// hand-edited URL cannot select days that are not on screen.
+func selectedRange(rawFrom, rawTo, month, gridFrom, gridTo string) (string, string) {
+	from := dateInRange(rawFrom, gridFrom, gridTo)
+	to := dateInRange(rawTo, gridFrom, gridTo)
+	switch {
+	case from == "" && to == "":
+		// Nothing asked for: start on today when she is looking at this month,
+		// and at the first of the month when she has paged away from it.
+		if today() >= monthFirst(month) && today() <= monthLast(month) {
+			return today(), today()
+		}
+		return monthFirst(month), monthFirst(month)
+	case from == "":
+		from = to
+	case to == "":
+		to = from
+	}
+	if to < from {
+		from, to = to, from
+	}
+	return from, to
+}
+
+func dateInRange(raw, from, to string) string {
+	raw = strings.TrimSpace(raw)
+	if _, err := time.Parse(dateLayout, raw); err != nil {
+		return ""
+	}
+	if raw < from || raw > to {
+		return ""
+	}
+	return raw
+}
+
+func rangeLabel(from, to string) string {
+	if from == to {
+		return prettyDate(from)
+	}
+	return prettyDate(from) + " - " + prettyDate(to)
+}
+
+// handleCreateAdultEvent writes something onto her calendar. The end date is
+// optional: leaving it off means a single day.
+func (a *App) handleCreateAdultEvent(w http.ResponseWriter, r *http.Request) {
+	adult, ok := a.lookupAdult(w, r)
+	if !ok {
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "Could not read that form.", http.StatusBadRequest)
+		return
+	}
+
+	title := strings.TrimSpace(r.FormValue("title"))
+	if title == "" {
+		http.Error(w, "An event needs a title.", http.StatusBadRequest)
+		return
+	}
+	starts := formDate(r, "starts_on")
+	ends := formDateOrEmpty(r, "ends_on")
+	if ends == "" {
+		ends = starts
+	}
+	if ends < starts {
+		http.Error(w, "An event cannot end before it starts.", http.StatusBadRequest)
+		return
+	}
+
+	_, err := a.store.CreateAdultEvent(AdultEvent{
+		AdultID:  adult.ID,
+		StartsOn: starts,
+		EndsOn:   ends,
+		Title:    title,
+		Body:     strings.TrimSpace(r.FormValue("body")),
+	})
+	if err != nil {
+		a.serverError(w, err)
+		return
+	}
+	a.redirect(w, r, a.backToAdult(r, adult))
+}
+
+func (a *App) handleDeleteAdultEvent(w http.ResponseWriter, r *http.Request) {
+	adult, ok := a.lookupAdult(w, r)
+	if !ok {
+		return
+	}
+	if err := a.store.DeleteAdultEvent(adult.ID, pathID(r, "eventID")); err != nil {
+		a.serverError(w, err)
+		return
+	}
+	a.redirect(w, r, a.backToAdult(r, adult))
 }
 
 // handleAdultSchedule is her own week grid. It reuses the planner's day

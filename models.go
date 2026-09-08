@@ -87,6 +87,41 @@ type AdultCard struct {
 	UpdatedAt string
 }
 
+// AdultEvent is something on her own calendar: an appointment, a trip, a week
+// away. Both dates are inclusive, so a one-day event has the same date twice.
+type AdultEvent struct {
+	ID        int64
+	AdultID   int64
+	StartsOn  string
+	EndsOn    string
+	Title     string
+	Body      string
+	CreatedAt string
+}
+
+func (e AdultEvent) Spans() bool { return e.EndsOn > e.StartsOn }
+
+// Covers reports whether a day falls inside the event, which is what puts a
+// mark on every cell of a run rather than only the day it started.
+func (e AdultEvent) Covers(date string) bool {
+	return date >= e.StartsOn && date <= e.EndsOn
+}
+
+// DateLabel names the stretch the way she would say it out loud.
+func (e AdultEvent) DateLabel() string {
+	if !e.Spans() {
+		return prettyDate(e.StartsOn)
+	}
+	return prettyDate(e.StartsOn) + " - " + prettyDate(e.EndsOn)
+}
+
+// Holiday is a day the family keeps that nobody has to enter: the classic US
+// holidays, worked out for whichever year is on screen rather than stored.
+type Holiday struct {
+	Date string
+	Name string
+}
+
 type Subject struct {
 	ID        int64
 	Name      string

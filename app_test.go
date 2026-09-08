@@ -1109,6 +1109,10 @@ func TestDeletingAnAdultClearsHerRecords(t *testing.T) {
 		"body":     {"Order more printer paper"},
 	})
 	ta.post(base+"/cards", url.Values{"title": {"Curriculum wish list"}})
+	ta.post(base+"/events", url.Values{
+		"title":     {"Dentist"},
+		"starts_on": {today()},
+	})
 
 	if _, err := ta.store.db().Exec(`DELETE FROM adults WHERE id = ?`, mom.ID); err != nil {
 		t.Fatalf("deleting her: %v", err)
@@ -1117,6 +1121,7 @@ func TestDeletingAnAdultClearsHerRecords(t *testing.T) {
 		`SELECT COUNT(*) FROM lessons WHERE adult_id IS NOT NULL`,
 		`SELECT COUNT(*) FROM notes WHERE adult_id IS NOT NULL`,
 		`SELECT COUNT(*) FROM adult_cards`,
+		`SELECT COUNT(*) FROM adult_events`,
 	} {
 		var n int
 		if err := ta.store.db().QueryRow(q).Scan(&n); err != nil {
@@ -1126,6 +1131,203 @@ func TestDeletingAnAdultClearsHerRecords(t *testing.T) {
 			t.Errorf("expected nothing left for %q, got %d rows", q, n)
 		}
 	}
+}
+
+// Her calendar --------------------------------------------------------------
+
+// The month has to say which day is today without her hunting for it, and the
+// holidays have to be there before anyone types one in.
+func TestHerCalendarLightsTodayAndKnowsTheHolidays(t *testing.T) {
+	ta := newTestApp(t)
+	mom := ta.mom()
+
+	status, body := ta.get("/adults/" + itoa64(mom.ID))
+	if status != http.StatusOK {
+		t.Fatalf("her profile returned %d", status)
+	}
+	mustContain(t, body, "Calendar", "her profile")
+	mustContain(t, body, "/static/calendar.js", "her profile")
+	mustContain(t, body, `data-calendar`, "her calendar")
+	if class := calendarCellClass(t, body, today()); !strings.Contains(class, "is-today") {
+		t.Errorf("today's cell is %q, expected it to be lit", class)
+	}
+
+	// A month nobody has touched still knows what falls in it.
+	status, body = ta.get("/adults/" + itoa64(mom.ID) + "?month=2026-07")
+	if status != http.StatusOK {
+		t.Fatalf("July returned %d", status)
+	}
+	mustContain(t, body, "Independence Day", "July")
+	mustContain(t, body, `data-date="2026-07-04"`, "July")
+
+	var stored int
+	if err := ta.store.db().QueryRow(`SELECT COUNT(*) FROM adult_events`).Scan(&stored); err != nil {
+		t.Fatalf("counting events: %v", err)
+	}
+	if stored != 0 {
+		t.Errorf("expected holidays to need no rows, found %d", stored)
+	}
+}
+
+func TestHolidaysLandOnTheTraditionalDays(t *testing.T) {
+	want := map[string]string{
+		"2026-01-19": "Martin Luther King Jr. Day",
+		"2026-04-05": "Easter Sunday",
+		"2026-05-10": "Mother's Day",
+		"2026-05-25": "Memorial Day",
+		"2026-07-04": "Independence Day",
+		"2026-11-26": "Thanksgiving",
+		"2026-12-25": "Christmas Day",
+	}
+	got := map[string]string{}
+	for _, h := range usHolidays(2026) {
+		got[h.Date] = h.Name
+	}
+	for date, name := range want {
+		if got[date] != name {
+			t.Errorf("expected %s on %s, got %q", name, date, got[date])
+		}
+	}
+}
+
+// Selecting a stretch of days is what lets one event cover a trip, so the page
+// has to come back saying which run she is pointing at.
+func TestSelectingARangeOnHerCalendar(t *testing.T) {
+	ta := newTestApp(t)
+	mom := ta.mom()
+
+	status, body := ta.get("/adults/" + itoa64(mom.ID) + "?month=2026-07&from=2026-07-13&to=2026-07-17")
+	if status != http.StatusOK {
+		t.Fatalf("her calendar returned %d", status)
+	}
+	for _, date := range []string{"2026-07-13", "2026-07-15", "2026-07-17"} {
+		if class := calendarCellClass(t, body, date); !strings.Contains(class, "is-selected") {
+			t.Errorf("%s is %q, expected it inside the selection", date, class)
+		}
+	}
+	for _, date := range []string{"2026-07-12", "2026-07-18"} {
+		if class := calendarCellClass(t, body, date); strings.Contains(class, "is-selected") {
+			t.Errorf("%s is %q, expected it outside the selection", date, class)
+		}
+	}
+	mustContain(t, body, `name="starts_on" value="2026-07-13"`, "add form")
+	mustContain(t, body, `name="ends_on" value="2026-07-17"`, "add form")
+
+	// Dragging backwards is the same stretch as dragging forwards.
+	_, reversed := ta.get("/adults/" + itoa64(mom.ID) + "?month=2026-07&from=2026-07-17&to=2026-07-13")
+	mustContain(t, reversed, `name="starts_on" value="2026-07-13"`, "backwards drag")
+	mustContain(t, reversed, `name="ends_on" value="2026-07-17"`, "backwards drag")
+}
+
+func TestAMultiDayEventMarksEveryDayItCovers(t *testing.T) {
+	ta := newTestApp(t)
+	mom := ta.mom()
+	base := "/adults/" + itoa64(mom.ID)
+
+	status, _ := ta.post(base+"/events", url.Values{
+		"title":     {"Grandma visits"},
+		"starts_on": {"2026-07-13"},
+		"ends_on":   {"2026-07-16"},
+		"body":      {"Guest room needs making up"},
+	})
+	if status != http.StatusOK {
+		t.Fatalf("adding her event returned %d", status)
+	}
+
+	_, body := ta.get(base + "?month=2026-07")
+	for _, date := range []string{"2026-07-13", "2026-07-14", "2026-07-15", "2026-07-16"} {
+		if !strings.Contains(calendarCell(t, body, date), "Grandma visits") {
+			t.Errorf("expected the visit to show on %s", date)
+		}
+	}
+	for _, date := range []string{"2026-07-12", "2026-07-17"} {
+		if strings.Contains(calendarCell(t, body, date), "Grandma visits") {
+			t.Errorf("the visit reached %s, which it does not cover", date)
+		}
+	}
+
+	// It reads the same from any day inside the run, not only the first.
+	_, mid := ta.get(base + "?month=2026-07&from=2026-07-15&to=2026-07-15")
+	mustContain(t, mid, "Guest room needs making up", "a day inside the visit")
+
+	events, err := ta.store.AdultEventsOverlapping(mom.ID, "2026-07-01", "2026-07-31")
+	if err != nil || len(events) != 1 {
+		t.Fatalf("expected 1 event, got %d (err %v)", len(events), err)
+	}
+	if status, _ := ta.post(base+"/events/"+itoa64(events[0].ID)+"/delete", nil); status != http.StatusOK {
+		t.Fatalf("removing it returned %d", status)
+	}
+	_, after := ta.get(base + "?month=2026-07")
+	mustNotContain(t, after, "Grandma visits", "her calendar")
+}
+
+func TestAnEventCannotEndBeforeItStarts(t *testing.T) {
+	ta := newTestApp(t)
+	mom := ta.mom()
+
+	status, _ := ta.post("/adults/"+itoa64(mom.ID)+"/events", url.Values{
+		"title":     {"Backwards"},
+		"starts_on": {"2026-07-16"},
+		"ends_on":   {"2026-07-13"},
+	})
+	if status != http.StatusBadRequest {
+		t.Fatalf("a backwards event returned %d, want 400", status)
+	}
+}
+
+// One profile must not be able to clear something off another's calendar.
+func TestHerCalendarIsHerOwn(t *testing.T) {
+	ta := newTestApp(t)
+	mom := ta.mom()
+	if _, err := ta.store.db().Exec(`INSERT INTO adults (name, role, color, sort_order)
+		VALUES ('Dad', 'Dad', '#3f7fae', 2)`); err != nil {
+		t.Fatalf("adding him: %v", err)
+	}
+	adults, _ := ta.store.Adults(false)
+	var dad Adult
+	for _, a := range adults {
+		if a.Name == "Dad" {
+			dad = a
+		}
+	}
+
+	id, err := ta.store.CreateAdultEvent(AdultEvent{
+		AdultID: mom.ID, StartsOn: "2026-07-13", EndsOn: "2026-07-13", Title: "Her appointment",
+	})
+	if err != nil {
+		t.Fatalf("adding her event: %v", err)
+	}
+
+	ta.post("/adults/"+itoa64(dad.ID)+"/events/"+itoa64(id)+"/delete", nil)
+	hers, err := ta.store.AdultEventsOverlapping(mom.ID, "2026-07-13", "2026-07-13")
+	if err != nil || len(hers) != 1 {
+		t.Fatalf("expected her event to survive, got %d (err %v)", len(hers), err)
+	}
+
+	_, his := ta.get("/adults/" + itoa64(dad.ID) + "?month=2026-07")
+	mustNotContain(t, his, "Her appointment", "his calendar")
+}
+
+// calendarCell returns the markup of one day's cell, so a test can ask what
+// that day says without matching the whole page.
+func calendarCell(t *testing.T, body, date string) string {
+	t.Helper()
+	pattern := regexp.MustCompile(`(?s)<div class="cal-cell[^"]*"\s+data-date="` + date + `">(.*?)</div>\s*</div>`)
+	match := pattern.FindStringSubmatch(body)
+	if match == nil {
+		t.Fatalf("no calendar cell for %s", date)
+	}
+	return match[1]
+}
+
+func calendarCellClass(t *testing.T, body, date string) string {
+	t.Helper()
+	pattern := regexp.MustCompile(`<div class="(cal-cell[^"]*)"\s+data-date="` + date + `">`)
+	match := pattern.FindStringSubmatch(body)
+	if match == nil {
+		t.Fatalf("no calendar cell for %s", date)
+	}
+	return match[1]
 }
 
 func TestFileRoundTrip(t *testing.T) {
