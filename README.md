@@ -116,10 +116,11 @@ ignores allow rules. Run once (elevated; accepts a UAC prompt):
 .\scripts\allow-lan.ps1
 ```
 
-That adds the port rule, turns off “block all incoming” when it is on, and
-prints the active profile state. Or from the Windows package, double‑click
-**Allow tablet access.bat**. Check with `.\scripts\allow-lan.ps1 -Diagnose`;
-undo with `.\scripts\allow-lan.ps1 -Remove`.
+That adds port and program allow rules, turns off “block all incoming” when
+it is on, disables conflicting Block rules (for example after Cancel on the
+Windows firewall prompt), and prints the active profile state. Or from the
+Windows package, double‑click **Allow tablet access.bat**. Check with
+`.\scripts\allow-lan.ps1 -Diagnose`; undo with `.\scripts\allow-lan.ps1 -Remove`.
 
 ## Where the records live, and backups
 
