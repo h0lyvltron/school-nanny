@@ -36,7 +36,8 @@
                     <input type="hidden" name="id" value="{{.ID}}">
                     {{template "avatar" (dict "Person" . "Size" "card")}}
                     <input type="text" name="name" value="{{.Name}}" required aria-label="Name">
-                    <input type="text" name="grade" value="{{.Grade}}" placeholder="Grade" aria-label="Grade">
+                    <input type="text" name="grade" value="{{.Grade}}" placeholder="Grade" aria-label="Grade"
+                           class="settings-grade" size="6">
                     <input type="color" name="color" value="{{.Color}}" aria-label="Colour">
                     <label class="check"><input type="checkbox" name="archived" {{if .Archived}}checked{{end}}> Hide</label>
                     <button type="submit" class="secondary">Save</button>
@@ -60,7 +61,8 @@
 
     <form method="post" action="/settings/kids" class="settings-row new">
         <input type="text" name="name" placeholder="Name" required aria-label="Name">
-        <input type="text" name="grade" placeholder="Grade" aria-label="Grade">
+        <input type="text" name="grade" placeholder="Grade" aria-label="Grade"
+               class="settings-grade" size="6">
         <input type="color" name="color" value="{{.NextColor}}" aria-label="Colour">
         <button type="submit">Add child</button>
     </form>
