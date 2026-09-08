@@ -1824,7 +1824,12 @@ func TestSubjectColourReachesTheLessonTitle(t *testing.T) {
 
 	ta.insertUnassignedLesson(kid, subject, today(), "Place value", today())
 	_, home := ta.get("/")
-	mustContain(t, home, "--subject:#b8437a", "today's lesson title")
+	mustContain(t, home, "--subject:#b8437a", "today's lesson card")
+	mustContain(t, home, `<span class="lesson-subject">Math</span>`, "today's subject label")
+
+	_, planner := ta.get("/planner")
+	mustContain(t, planner, "--subject:#b8437a", "the planner's lesson card")
+	mustContain(t, planner, `<span class="lesson-subject">Math</span>`, "the planner's subject label")
 
 	_, settings := ta.get("/settings")
 	mustContain(t, settings, `value="#b8437a"`, "subject colour picker")

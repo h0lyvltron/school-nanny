@@ -439,18 +439,21 @@ img.avatar-nav { width: 1.4rem; height: 1.4rem; }
     flex-wrap: wrap;
 }
 
-/* A lesson title is written in its subject's colour, which is what tells one
-   apart from the next in a list. Subjects that have no colour fall back to
-   ordinary ink, and the dark theme lifts the stored colour towards the page's
-   own ink so a deep blue or green is not left sitting in the dark. */
+/* The title and the subject label are both written in the subject's colour,
+   which is what tells one lesson apart from the next in a list. The card
+   carries the colour as --subject; a subject that has none falls back to
+   ordinary ink. The dark theme lifts the stored colour towards the page's own
+   ink so a deep blue or green is not left sitting in the dark. */
 .lesson-title {
-    --subject: var(--ink);
     font-weight: 600;
-    color: var(--subject);
+    color: var(--subject, var(--ink));
     text-decoration: none;
 }
 
-[data-theme="dark"] .lesson-title { color: color-mix(in srgb, var(--subject) 68%, var(--ink)); }
+.lesson-subject { color: var(--subject, var(--ink-soft)); font-weight: 600; }
+
+[data-theme="dark"] .lesson-title { color: color-mix(in srgb, var(--subject, var(--ink)) 68%, var(--ink)); }
+[data-theme="dark"] .lesson-subject { color: color-mix(in srgb, var(--subject, var(--ink-soft)) 68%, var(--ink)); }
 
 .lesson-title:hover,
 [data-theme="dark"] .lesson-title:hover { color: var(--accent); }
@@ -482,6 +485,15 @@ img.avatar-nav { width: 1.4rem; height: 1.4rem; }
 
 .lesson-actions { display: flex; gap: 0.35rem; flex: none; flex-wrap: wrap; }
 .lesson-actions form { display: contents; }
+
+/* In a day cell or a child's card on Today the card is narrow, so the buttons
+   drop below the title instead of squeezing it into a column. The wider lists
+   elsewhere keep them out to the right. */
+.day-lessons .lesson,
+.today-lessons .lesson { flex-direction: column; gap: 0.5rem; }
+
+.day-lessons .lesson-actions,
+.today-lessons .lesson-actions { align-self: flex-start; }
 
 .pill {
     background: var(--card);
@@ -648,11 +660,6 @@ body.is-dragging-lesson .drop-kids { display: flex; }
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
     transform: translate(-9999px, -9999px);
 }
-
-/* Inside a day cell the card is narrow, so the buttons drop below the title
-   instead of squeezing it into a column. */
-.day-lessons .lesson { flex-direction: column; gap: 0.5rem; }
-.day-lessons .lesson-actions { align-self: flex-start; }
 
 /* Keep the disclosure arrow next to its label rather than out at the margin. */
 .add-box summary { display: inline-block; }

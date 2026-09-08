@@ -1,14 +1,14 @@
 {{define "lesson_row"}}
 <article class="lesson status-{{.Lesson.Status}}{{if .Lesson.Overdue}} is-overdue{{end}}" id="lesson-{{.Lesson.ID}}"
+         {{if .Lesson.SubjectColor}}style="--subject:{{color .Lesson.SubjectColor}}"{{end}}
          {{if .Draggable}}draggable="true" data-lesson-id="{{.Lesson.ID}}" data-kid-id="{{.Lesson.KidID}}" data-date="{{.Lesson.ScheduledOn}}"{{end}}>
     <div class="lesson-body">
         <div class="lesson-title-line">
             {{if .ShowKid}}<span class="chip" style="background:{{color .Lesson.PersonColor}}">{{if .Lesson.PersonHasPhoto}}<img class="avatar avatar-chip" src="{{.Lesson.PersonAvatarURL}}" alt="" loading="lazy">{{end}}{{.Lesson.PersonName}}</span>{{end}}
-            <a class="lesson-title" href="/lessons/{{.Lesson.ID}}"
-               {{if .Lesson.SubjectColor}}style="--subject:{{color .Lesson.SubjectColor}}"{{end}}>{{.Lesson.Title}}</a>
+            <a class="lesson-title" href="/lessons/{{.Lesson.ID}}">{{.Lesson.Title}}</a>
         </div>
         <p class="lesson-meta">
-            {{if .ShowSubject}}{{.Lesson.SubjectName}} &middot; {{end}}{{prettyDate .Lesson.ScheduledOn}}
+            {{if .ShowSubject}}<span class="lesson-subject">{{.Lesson.SubjectName}}</span> &middot; {{end}}{{prettyDate .Lesson.ScheduledOn}}
             {{if .Lesson.Minutes}} &middot; {{.Lesson.Minutes}} min{{end}}
             {{if .Lesson.IsSkipped}} &middot; skipped{{end}}
             {{if .Lesson.Overdue}} &middot; <span class="overdue-flag">not marked done</span>{{end}}
