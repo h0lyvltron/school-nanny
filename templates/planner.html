@@ -39,8 +39,9 @@
     {{$subjects := .Subjects}}
     {{$kidFilter := .KidFilter}}
     {{$today := .Today}}
+    {{$back := plannerURL .WeekStart .KidFilter}}
     {{range .Days}}
-        {{template "planner_day" (dict "Day" . "Kids" $kids "Subjects" $subjects "KidFilter" $kidFilter "Today" $today)}}
+        {{template "planner_day" (dict "Day" . "Kids" $kids "Subjects" $subjects "KidFilter" $kidFilter "Today" $today "Back" $back)}}
     {{end}}
 </div>
 {{end}}

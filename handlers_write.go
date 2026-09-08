@@ -260,6 +260,7 @@ func (a *App) renderPlannerDays(w http.ResponseWriter, kidFilter int64, dates ..
 			"Subjects":  subjects,
 			"KidFilter": kidFilter,
 			"Today":     today(),
+			"Back":      plannerURL(weekStart(parseDate(date)).Format(dateLayout), kidFilter),
 			"OOB":       i > 0,
 		})
 	}

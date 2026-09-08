@@ -62,6 +62,25 @@ echo   School Nanny has stopped.
 pause
 '@
 
+$lanBat = @'
+@echo off
+cd /d "%~dp0"
+title School Nanny (home network)
+echo.
+echo   Starting School Nanny for tablets and phones on this Wi-Fi...
+echo   Set a family password in Settings first if you have not already.
+echo.
+echo   Keep this window open while you use the app.
+echo   Closing this window closes School Nanny.
+echo.
+echo   Look below for the address to open on a tablet.
+echo.
+school-nanny.exe -lan -open
+echo.
+echo   School Nanny has stopped.
+pause
+'@
+
 $readme = @'
 School Nanny
 ============
@@ -70,6 +89,12 @@ To start it:
     Double-click "Start School Nanny.bat".
     A black window opens and your browser goes to the app.
     Leave the black window open while you are using it.
+
+To use it from a tablet or phone on the same Wi-Fi:
+    1. In the app, open Settings and set a family password.
+    2. Close the normal starter if it is running.
+    3. Double-click "Start on Home Network.bat".
+    4. On the tablet, open the address printed in the black window.
 
 To stop it:
     Close the black window.
@@ -90,9 +115,14 @@ To back it up:
 To install a newer version:
     Replace school-nanny.exe with the new one. Nothing else to do, and
     nothing here to preserve.
+
+If Windows warns about an unrecognized app:
+    Click "More info", then "Run anyway". The program was built at home and
+    is not signed by a company, which is what triggers the warning.
 '@
 
 Set-Content -Path (Join-Path $out 'Start School Nanny.bat') -Value $bat -Encoding ASCII
+Set-Content -Path (Join-Path $out 'Start on Home Network.bat') -Value $lanBat -Encoding ASCII
 Set-Content -Path (Join-Path $out 'README.txt') -Value $readme -Encoding ASCII
 
 Write-Host ''

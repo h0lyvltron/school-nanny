@@ -55,7 +55,7 @@
 
     <div class="day-lessons">
         {{range .Day.Lessons}}
-            {{template "lesson_row" (dict "Lesson" . "ShowKid" true "ShowSubject" true "Back" "/planner" "Draggable" true)}}
+            {{template "lesson_row" (dict "Lesson" . "ShowKid" true "ShowSubject" true "Back" $.Back "Draggable" true)}}
         {{else}}
             <p class="muted small">Nothing planned.</p>
         {{end}}
@@ -64,6 +64,7 @@
     {{if .Kids}}
     <div class="drop-kids">
         <span class="drop-kids-label">Drop here to copy for</span>
+        <span class="day-copy-target" data-date="{{.Day.Date}}" title="Copy this lesson onto this day">Copy to this day</span>
         {{range .Kids}}
             {{if or (not $.KidFilter) (eq $.KidFilter .ID)}}
                 <span class="kid-target" data-kid-id="{{.ID}}" data-date="{{$.Day.Date}}">

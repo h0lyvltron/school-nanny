@@ -139,7 +139,8 @@ func (a *App) handlePushLesson(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	a.redirect(w, r, safeRedirect(r.FormValue("back"), "/"))
+	a.redirect(w, r, safeRedirect(r.FormValue("back"), plannerURL(
+		weekStart(parseDate(lesson.ScheduledOn)).Format(dateLayout), lesson.KidID)))
 }
 
 func (a *App) lookupAssignment(w http.ResponseWriter, r *http.Request) (PlanAssignment, bool) {

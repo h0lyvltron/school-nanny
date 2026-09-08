@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"html"
 	"io"
 	"mime/multipart"
 	"net/http"
@@ -541,13 +542,16 @@ func TestPlannerMarkupIsDraggable(t *testing.T) {
 	}
 	mustContain(t, body, `draggable="true"`, "planner")
 	mustContain(t, body, `class="kid-target"`, "planner")
+	mustContain(t, body, `class="day-copy-target"`, "planner")
 	mustContain(t, body, `data-kid-filter="0"`, "planner")
 	mustContain(t, body, "/static/planner.js", "planner")
 
-	status, _ = ta.get("/static/planner.js")
+	status, js := ta.get("/static/planner.js")
 	if status != http.StatusOK {
 		t.Fatalf("planner.js returned %d", status)
 	}
+	mustContain(t, js, "pointerdown", "touch long-press")
+	mustContain(t, js, "LONG_PRESS_MS", "touch long-press")
 }
 
 // A one-pixel PNG, which is enough for the sniffing the upload does.
@@ -1865,6 +1869,61 @@ func TestPushMovesThisAndLaterPlanned(t *testing.T) {
 	}
 	_ = kid
 	_ = subject
+}
+
+// Pushing from a filtered week must send her back to that child, not the
+// whole-family view she just left.
+func TestPushFromFilteredPlannerKeepsTheKid(t *testing.T) {
+	ta := newTestApp(t)
+	kid, _, lessons := ta.applyThreeMathLessons()
+	week := weekStart(parseDate(lessons[0].ScheduledOn)).Format(dateLayout)
+	back := plannerURL(week, kid)
+
+	status, body := ta.get("/planner?week=" + week + "&kid=" + itoa64(kid))
+	if status != http.StatusOK {
+		t.Fatalf("planner returned %d", status)
+	}
+	mustContain(t, body, `name="back" value="`+html.EscapeString(back)+`"`, "push back link")
+
+	req, err := http.NewRequest(http.MethodPost, ta.server.URL+"/lessons/"+itoa64(lessons[0].ID)+"/push",
+		strings.NewReader(url.Values{"back": {back}}.Encode()))
+	if err != nil {
+		t.Fatalf("building request: %v", err)
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	client := &http.Client{
+		Jar: ta.client.Jar,
+		CheckRedirect: func(*http.Request, []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatalf("push: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusSeeOther {
+		t.Fatalf("push returned %d, want 303", resp.StatusCode)
+	}
+	if got := resp.Header.Get("Location"); got != back {
+		t.Fatalf("push redirected to %q, want %q", got, back)
+	}
+
+	status, body = ta.get(back)
+	if status != http.StatusOK {
+		t.Fatalf("filtered planner returned %d", status)
+	}
+	mustContain(t, body, `Week planner`, "filtered planner")
+	if !strings.Contains(body, `class="filter-chip current"`) {
+		t.Fatal("expected a selected kid filter chip")
+	}
+	if strings.Contains(body, `href="/planner?week=`+week+`" class="filter-chip current"`) {
+		t.Error("push dumped the view back onto all kids")
+	}
+	if !strings.Contains(body, `&amp;kid=`+itoa64(kid)+`"`) &&
+		!strings.Contains(body, `&kid=`+itoa64(kid)+`"`) {
+		t.Errorf("expected the kid=%d filter to remain on the page", kid)
+	}
 }
 
 func TestPauseUntilRelayoutsRemaining(t *testing.T) {

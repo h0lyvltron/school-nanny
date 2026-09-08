@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"html/template"
 	"regexp"
+	"strconv"
+	"strings"
 	"time"
 )
 
@@ -23,6 +25,7 @@ func templateFuncs() template.FuncMap {
 		"dict":           dict,
 		"initial":        initial,
 		"color":          safeColor,
+		"plannerURL":     plannerURL,
 	}
 }
 
@@ -91,4 +94,18 @@ func initial(name string) string {
 		return string(r)
 	}
 	return "?"
+}
+
+// plannerURL keeps the week and child filter in "go back" links, so Push and
+// similar actions do not dump the parent onto every child's week at once.
+func plannerURL(week string, kidID int64) string {
+	week = strings.TrimSpace(week)
+	if week == "" {
+		week = weekStart(time.Now()).Format(dateLayout)
+	}
+	url := "/planner?week=" + week
+	if kidID > 0 {
+		url += "&kid=" + strconv.FormatInt(kidID, 10)
+	}
+	return url
 }

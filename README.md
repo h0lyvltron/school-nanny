@@ -15,8 +15,10 @@ connection needed once it is built.
   Drag a lesson onto another day to move it. Hold Ctrl (or Cmd) while you drop
   to leave the original where it is and put a copy on the new day, or drop onto
   one of the child chips that appear mid-drag to copy the work for that child.
-  A copy is always a standalone lesson, so copying something from a repeating
-  plan never disturbs the plan itself.
+  On a tablet, press and hold a lesson until it lifts, then drop it the same
+  way; use **Copy to this day** where you would have held Ctrl. A copy is
+  always a standalone lesson, so copying something from a repeating plan never
+  disturbs the plan itself.
 - **Child page** — a card per subject with progress for the week and the school
   year, the next thing coming up, and the most recent test.
 - **Subject page** — upcoming and finished lessons, reusable files for that
@@ -101,7 +103,9 @@ To build a binary for this machine instead of running from source:
 
 By default the app is reachable only from the computer it runs on. `-lan` opens
 it to other devices on the house network, which is how you would use it from a
-tablet. Set a password in Settings first if you do that.
+tablet. Set a password in Settings first if you do that. When `-lan` is on, the
+console prints the `http://…` addresses to open on a phone or tablet; the
+Windows package also has **Start on Home Network.bat** for the same thing.
 
 ## Where the records live, and backups
 

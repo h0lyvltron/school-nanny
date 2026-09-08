@@ -563,6 +563,7 @@ img.avatar-nav { width: 1.4rem; height: 1.4rem; }
 
 .lesson[draggable="true"] { cursor: grab; }
 .lesson.is-dragging { opacity: 0.45; cursor: grabbing; }
+.lesson.is-pressing { box-shadow: 0 0 0 2px var(--accent); }
 
 .day.is-drop-target {
     border-color: var(--accent);
@@ -580,29 +581,60 @@ img.avatar-nav { width: 1.4rem; height: 1.4rem; }
     font-size: 0.8rem;
 }
 
+body.is-dragging-lesson {
+    user-select: none;
+    -webkit-user-select: none;
+    overscroll-behavior: none;
+}
+
 body.is-dragging-lesson .drop-kids { display: flex; }
 
 .drop-kids-label { color: var(--ink-soft); }
 
-.kid-target {
+.kid-target,
+.day-copy-target {
     display: inline-flex;
     align-items: center;
     gap: 0.35rem;
-    padding: 0.2rem 0.6rem;
+    padding: 0.35rem 0.7rem;
     border: 1px dashed var(--line);
     border-radius: 999px;
     background: var(--card);
+    min-height: 2rem;
 }
 
-.kid-target.is-drop-target {
+.day-copy-target {
+    border-style: solid;
+    color: var(--accent);
+    border-color: var(--accent);
+}
+
+.kid-target.is-drop-target,
+.day-copy-target.is-drop-target {
     border-style: solid;
     border-color: var(--accent);
     color: var(--accent);
+    background: var(--accent-soft);
 }
 
 /* Chips and their contents must not swallow the drop event themselves. */
-.kid-target * { pointer-events: none; }
+.kid-target *,
+.day-copy-target * { pointer-events: none; }
 .lesson.is-dragging * { pointer-events: none; }
+
+/* Follows the finger on a tablet so the original card stays put until drop. */
+.lesson-ghost {
+    position: fixed;
+    left: 0;
+    top: 0;
+    z-index: 1000;
+    width: min(280px, 70vw);
+    margin: 0;
+    opacity: 0.92;
+    pointer-events: none;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+    transform: translate(-9999px, -9999px);
+}
 
 /* Inside a day cell the card is narrow, so the buttons drop below the title
    instead of squeezing it into a column. */
@@ -944,6 +976,7 @@ body.is-dragging-lesson .drop-kids { display: flex; }
 
     .day .add-box { grid-column: 1; }
     .day-lessons { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
+    .drop-kids { grid-column: 1; }
 }
 
 @media (max-width: 640px) {
@@ -951,9 +984,11 @@ body.is-dragging-lesson .drop-kids { display: flex; }
     .page { padding: 1rem 0.75rem 3rem; }
     .lesson { flex-direction: column; }
     .lesson-actions { width: 100%; }
-    .pill { flex: 1; }
+    .pill { flex: 1; min-height: 2.4rem; }
     .day-lessons { grid-template-columns: 1fr; }
     .week-summary { gap: 0.6rem 1rem; }
+    .app-nav { gap: 0.55rem 0.85rem; }
+    .filter-chip { min-height: 2.2rem; padding: 0.4rem 0.9rem; }
 }
 
 /* Attendance ---------------------------------------------------------- */

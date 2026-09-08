@@ -38,12 +38,12 @@ func main() {
 		*addr = ":" + port
 	}
 
-	if err := run(*addr, *dataDir, *open); err != nil {
+	if err := run(*addr, *dataDir, *open, *lan); err != nil {
 		log.Fatalf("school nanny: %v", err)
 	}
 }
 
-func run(addr, dataDir string, open bool) error {
+func run(addr, dataDir string, open, lan bool) error {
 	dataDir, adopted, err := prepareDataDir(dataDir)
 	if err != nil {
 		return err
@@ -83,6 +83,16 @@ func run(addr, dataDir string, open bool) error {
 
 	url := browserURL(listener.Addr())
 	log.Printf("School Nanny is running at %s", url)
+	if lan {
+		announceLAN(listener.Addr())
+		password, err := store.Setting(settingPassword)
+		if err != nil {
+			log.Printf("could not check the family password: %v", err)
+		} else if password == "" {
+			log.Printf("warning: no family password is set")
+			log.Printf("anyone on this Wi-Fi can open the app until you set one in Settings")
+		}
+	}
 	log.Printf("data folder: %s", dataDir)
 	if adopted != "" {
 		log.Printf("copied your existing records here from %s", adopted)
@@ -162,6 +172,61 @@ func browserURL(addr net.Addr) string {
 		host = "[" + host + "]"
 	}
 	return "http://" + net.JoinHostPort(host, port)
+}
+
+// announceLAN prints the addresses a tablet or phone on the same Wi-Fi should
+// open, so nobody has to dig through Windows network settings to find them.
+func announceLAN(addr net.Addr) {
+	_, port, err := net.SplitHostPort(addr.String())
+	if err != nil {
+		return
+	}
+	urls := lanIPv4URLs(port)
+	if len(urls) == 0 {
+		log.Printf("could not find a home-network address; try http://<this-computer>:%s from the tablet", port)
+		return
+	}
+	log.Printf("on a tablet or phone on this Wi-Fi, open:")
+	for _, u := range urls {
+		log.Printf("  %s", u)
+	}
+}
+
+func lanIPv4URLs(port string) []string {
+	ifaces, err := net.Interfaces()
+	if err != nil {
+		return nil
+	}
+	var urls []string
+	seen := map[string]bool{}
+	for _, iface := range ifaces {
+		if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagLoopback != 0 {
+			continue
+		}
+		addrs, err := iface.Addrs()
+		if err != nil {
+			continue
+		}
+		for _, addr := range addrs {
+			var ip net.IP
+			switch v := addr.(type) {
+			case *net.IPNet:
+				ip = v.IP
+			case *net.IPAddr:
+				ip = v.IP
+			}
+			if ip == nil || ip.IsLoopback() || ip.To4() == nil || !ip.IsGlobalUnicast() {
+				continue
+			}
+			u := "http://" + net.JoinHostPort(ip.String(), port)
+			if seen[u] {
+				continue
+			}
+			seen[u] = true
+			urls = append(urls, u)
+		}
+	}
+	return urls
 }
 
 func openBrowser(url string) {
