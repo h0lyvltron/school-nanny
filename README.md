@@ -107,6 +107,16 @@ tablet. Set a password in Settings first if you do that. When `-lan` is on, the
 console prints the `http://…` addresses to open on a phone or tablet; the
 Windows package also has **Start on Home Network.bat** for the same thing.
 
+On Windows, home Wi‑Fi is often still marked **Public**, so inbound TCP 8080
+needs an explicit firewall rule. Run once (elevated; accepts a UAC prompt):
+
+```powershell
+.\scripts\allow-lan.ps1
+```
+
+Or from the Windows package, double‑click **Allow tablet access.bat**. Undo with
+`.\scripts\allow-lan.ps1 -Remove`. The rule covers Private and Public profiles.
+
 ## Where the records live, and backups
 
 The database and the attachments sit in one folder per computer:

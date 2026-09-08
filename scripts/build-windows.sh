@@ -91,6 +91,20 @@ echo   School Nanny has stopped.
 pause
 BAT
 
+write_crlf "$OUT/Allow tablet access.bat" <<'BAT'
+@echo off
+cd /d "%~dp0"
+title Allow tablet access
+echo.
+echo   This opens Windows Firewall so a tablet on this Wi-Fi can reach
+echo   School Nanny. You may see a UAC prompt — choose Yes.
+echo.
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0allow-lan.ps1"
+if errorlevel 1 pause
+BAT
+
+cp scripts/allow-lan.ps1 "$OUT/allow-lan.ps1"
+
 write_crlf "$OUT/README.txt" <<'TXT'
 School Nanny
 ============
@@ -102,9 +116,12 @@ To start it:
 
 To use it from a tablet or phone on the same Wi-Fi:
     1. In the app, open Settings and set a family password.
-    2. Close the normal starter if it is running.
-    3. Double-click "Start on Home Network.bat".
-    4. On the tablet, open the address printed in the black window.
+    2. Once, double-click "Allow tablet access.bat" and accept the UAC prompt.
+       That opens TCP 8080 on Private and Public firewall profiles (home Wi-Fi
+       is often still marked Public).
+    3. Close the normal starter if it is running.
+    4. Double-click "Start on Home Network.bat".
+    5. On the tablet, open the address printed in the black window.
 
 To stop it:
     Close the black window.
