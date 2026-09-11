@@ -17,6 +17,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"syscall"
 	"time"
 )
@@ -29,6 +30,13 @@ func main() {
 		open    = flag.Bool("open", false, "open the app in a browser once it is listening")
 	)
 	flag.Parse()
+
+	// Coolify (and most PaaS) set PORT and expect the process to bind all
+	// interfaces. Local Windows/desktop use stays on 127.0.0.1 unless -lan.
+	if port := strings.TrimSpace(os.Getenv("PORT")); port != "" {
+		*addr = ":" + port
+		*lan = true
+	}
 
 	if *lan {
 		_, port, err := net.SplitHostPort(*addr)

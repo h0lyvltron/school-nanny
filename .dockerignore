@@ -1,0 +1,12 @@
+.git
+.toolchain
+data
+dist
+*.exe
+*.pdb
+school-nanny
+scripts
+**/*_test.go
+.dockerignore
+.gitignore
+README.md

@@ -1,0 +1,19 @@
+# Thin PoC without Coolify: build + run with persistent /data.
+# Usage:
+#   docker compose -f compose.hosted.yml up --build
+# Then attach mkcert leaf in a reverse proxy, or test plain HTTP on :8080.
+
+services:
+  school-nanny:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      PORT: "8080"
+      BASE_URL: "https://school-nanny.home"
+    volumes:
+      - school_nanny_data:/data
+    restart: unless-stopped
+
+volumes:
+  school_nanny_data:
