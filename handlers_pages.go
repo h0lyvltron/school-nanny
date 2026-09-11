@@ -237,7 +237,7 @@ func progressFromLessons(lessons []Lesson) Progress {
 	return p
 }
 
-// SubjectCard summarises one subject on a child's page.
+// SubjectCard summarizes one subject on a child's page.
 type SubjectCard struct {
 	Subject   Subject
 	Week      Progress

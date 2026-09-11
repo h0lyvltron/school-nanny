@@ -32,8 +32,8 @@ func templateFuncs() template.FuncMap {
 
 var hexColor = regexp.MustCompile(`^#[0-9A-Fa-f]{6}$`)
 
-// safeColor lets a stored colour into a style attribute only when it really is
-// a hex colour, which keeps template escaping from mangling it.
+// safeColor lets a stored color into a style attribute only when it really is
+// a hex color, which keeps template escaping from mangling it.
 func safeColor(value string) template.CSS {
 	if hexColor.MatchString(value) {
 		return template.CSS(value)

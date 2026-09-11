@@ -11,32 +11,32 @@ import (
 // sees Thanksgiving on the right Thursday.
 //
 // These are the days a household actually marks - the federal holidays plus
-// the traditional ones people cook and decorate for. They are read-only on the
-// calendar: anything she wants to change is her own event instead.
+// the traditional ones people cook and decorate for. Each carries a default
+// emoji; an adult can swap it (or add a note) without changing the holiday
+// itself for anyone else.
 func usHolidays(year int) []Holiday {
 	days := []Holiday{
-		{onDate(year, time.January, 1), "New Year's Day"},
-		{nthWeekdayOf(year, time.January, time.Monday, 3), "Martin Luther King Jr. Day"},
-		{onDate(year, time.February, 2), "Groundhog Day"},
-		{onDate(year, time.February, 14), "Valentine's Day"},
-		{nthWeekdayOf(year, time.February, time.Monday, 3), "Presidents' Day"},
-		{onDate(year, time.March, 17), "St. Patrick's Day"},
-		{goodFriday(year), "Good Friday"},
-		{easterSunday(year), "Easter Sunday"},
-		{nthWeekdayOf(year, time.May, time.Sunday, 2), "Mother's Day"},
-		{lastWeekdayOf(year, time.May, time.Monday), "Memorial Day"},
-		{onDate(year, time.June, 14), "Flag Day"},
-		{nthWeekdayOf(year, time.June, time.Sunday, 3), "Father's Day"},
-		{onDate(year, time.June, 19), "Juneteenth"},
-		{onDate(year, time.July, 4), "Independence Day"},
-		{nthWeekdayOf(year, time.September, time.Monday, 1), "Labor Day"},
-		{nthWeekdayOf(year, time.October, time.Monday, 2), "Columbus Day"},
-		{onDate(year, time.October, 31), "Halloween"},
-		{onDate(year, time.November, 11), "Veterans Day"},
-		{nthWeekdayOf(year, time.November, time.Thursday, 4), "Thanksgiving"},
-		{onDate(year, time.December, 24), "Christmas Eve"},
-		{onDate(year, time.December, 25), "Christmas Day"},
-		{onDate(year, time.December, 31), "New Year's Eve"},
+		{Date: onDate(year, time.January, 1), Name: "New Year's Day", Emoji: "🎉"},
+		{Date: nthWeekdayOf(year, time.January, time.Monday, 3), Name: "Martin Luther King Jr. Day", Emoji: "✊"},
+		{Date: onDate(year, time.February, 2), Name: "Groundhog Day", Emoji: "🦫"},
+		{Date: onDate(year, time.February, 14), Name: "Valentine's Day", Emoji: "💝"},
+		{Date: nthWeekdayOf(year, time.February, time.Monday, 3), Name: "Presidents' Day", Emoji: "🇺🇸"},
+		{Date: onDate(year, time.March, 17), Name: "St. Patrick's Day", Emoji: "☘️"},
+		{Date: goodFriday(year), Name: "Good Friday", Emoji: "✝️"},
+		{Date: easterSunday(year), Name: "Easter Sunday", Emoji: "🐣"},
+		{Date: nthWeekdayOf(year, time.May, time.Sunday, 2), Name: "Mother's Day", Emoji: "💐"},
+		{Date: lastWeekdayOf(year, time.May, time.Monday), Name: "Memorial Day", Emoji: "🫡"},
+		{Date: onDate(year, time.June, 14), Name: "Flag Day", Emoji: "🚩"},
+		{Date: nthWeekdayOf(year, time.June, time.Sunday, 3), Name: "Father's Day", Emoji: "👔"},
+		{Date: onDate(year, time.July, 4), Name: "Independence Day", Emoji: "🇺🇸"},
+		{Date: nthWeekdayOf(year, time.September, time.Monday, 1), Name: "Labor Day", Emoji: "🛠️"},
+		{Date: nthWeekdayOf(year, time.October, time.Monday, 2), Name: "Columbus Day", Emoji: "⛵"},
+		{Date: onDate(year, time.October, 31), Name: "Halloween", Emoji: "🎃"},
+		{Date: onDate(year, time.November, 11), Name: "Veterans Day", Emoji: "🎖️"},
+		{Date: nthWeekdayOf(year, time.November, time.Thursday, 4), Name: "Thanksgiving", Emoji: "🦃"},
+		{Date: onDate(year, time.December, 24), Name: "Christmas Eve", Emoji: "🎄"},
+		{Date: onDate(year, time.December, 25), Name: "Christmas Day", Emoji: "🎄"},
+		{Date: onDate(year, time.December, 31), Name: "New Year's Eve", Emoji: "🥂"},
 	}
 	sort.SliceStable(days, func(i, j int) bool { return days[i].Date < days[j].Date })
 	return days
@@ -80,8 +80,8 @@ func lastWeekdayOf(year int, month time.Month, weekday time.Weekday) string {
 	return last.AddDate(0, 0, -back).Format(dateLayout)
 }
 
-// easterSunday uses the anonymous Gregorian computus. Easter is the one day
-// here with no simple rule, and Good Friday hangs off it.
+// easterSunday is the anonymous Gregorian computus: the same arithmetic the
+// Western churches have used for centuries to put Easter on the right Sunday.
 func easterSunday(year int) string {
 	a := year % 19
 	b := year / 100
@@ -102,4 +102,13 @@ func easterSunday(year int) string {
 
 func goodFriday(year int) string {
 	return addDays(easterSunday(year), -2)
+}
+
+// suggestedLabelEmojis are the quick picks offered when she is inventing or
+// editing a label. Birthdays, holidays, and ordinary family life are all here.
+func suggestedLabelEmojis() []string {
+	return []string{
+		"🎂", "🎁", "🎄", "✝️", "🦃", "🇺🇸", "💝", "🎃", "🐣", "☘️",
+		"🎉", "🏥", "✈️", "🏫", "💼", "⚽", "🎵", "📚", "🦷", "👨‍👩‍👧‍👦",
+	}
 }

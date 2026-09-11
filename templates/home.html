@@ -23,8 +23,8 @@
         {{range .TodayEvents}}
             <article class="today-event{{if .Spans}} is-span{{end}}{{if .HasLabel}} has-label{{end}}"
                      {{if .HasLabel}}style="--label:{{color .LabelColor}}"{{end}}>
-                <strong>{{.Title}}</strong>
-                {{if .HasLabel}}<span class="cal-label-chip">{{.LabelName}}</span>{{end}}
+                <strong>{{if .Icon}}{{.Icon}} {{end}}{{.Title}}</strong>
+                {{if .HasLabel}}<span class="cal-label-chip">{{if .LabelEmoji}}{{.LabelEmoji}} {{end}}{{.LabelName}}</span>{{end}}
                 {{if .Spans}}<span class="muted small">{{.DateLabel}}</span>{{end}}
                 {{if .Body}}<p class="muted small">{{.Body}}</p>{{end}}
             </article>

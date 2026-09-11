@@ -33,7 +33,7 @@ connection needed once it is built.
 - **Settings** — the kids, the grown-ups, the subjects, the school year, and an
   optional password.
 
-Everyone can have a photo. Add one under Settings and it replaces their colour
+Everyone can have a photo. Add one under Settings and it replaces their color
 dot in the top bar, on their cards, and on every lesson chip; leave it off and
 the dot stays.
 
@@ -70,7 +70,7 @@ path is on the Settings page and in the console window at startup.
 - **Update** by replacing `school-nanny.exe`. There is nothing to preserve
   alongside it.
 
-Windows may warn that the app is unrecognised, because it is not signed by a
+Windows may warn that the app is unrecognized, because it is not signed by a
 company. "More info" then "Run anyway" gets past it.
 
 If you would rather build on the Windows machine itself, run `.\scripts\setup.ps1`
@@ -217,8 +217,8 @@ scripts/                setup, build, run, and the Windows package
 
 ### A note on the two themes
 
-`app.css` names every colour once as a token and then gives that token a light
-value and a dark one. Nothing below the palette blocks hardcodes a colour, so
+`app.css` names every color once as a token and then gives that token a light
+value and a dark one. Nothing below the palette blocks hardcodes a color, so
 adding a screen costs no theme work. The head of every page resolves the choice
 to `data-theme="light"` or `data-theme="dark"` before the stylesheet paints,
 which keeps both palettes as plain attribute selectors and means there is no

@@ -38,7 +38,7 @@
                     <input type="text" name="name" value="{{.Name}}" required aria-label="Name">
                     <input type="text" name="grade" value="{{.Grade}}" placeholder="Grade" aria-label="Grade"
                            class="settings-grade" size="6">
-                    <input type="color" name="color" value="{{.Color}}" aria-label="Colour">
+                    <input type="color" name="color" value="{{.Color}}" aria-label="Color">
                     <label class="check"><input type="checkbox" name="archived" {{if .Archived}}checked{{end}}> Hide</label>
                     <button type="submit" class="secondary">Save</button>
                 </form>
@@ -63,7 +63,7 @@
         <input type="text" name="name" placeholder="Name" required aria-label="Name">
         <input type="text" name="grade" placeholder="Grade" aria-label="Grade"
                class="settings-grade" size="6">
-        <input type="color" name="color" value="{{.NextColor}}" aria-label="Colour">
+        <input type="color" name="color" value="{{.NextColor}}" aria-label="Color">
         <button type="submit">Add child</button>
     </form>
 
@@ -95,7 +95,7 @@
                     {{template "avatar" (dict "Person" . "Size" "card")}}
                     <input type="text" name="name" value="{{.Name}}" required aria-label="Name">
                     <input type="text" name="role" value="{{.Role}}" placeholder="Role" aria-label="Role">
-                    <input type="color" name="color" value="{{.Color}}" aria-label="Colour">
+                    <input type="color" name="color" value="{{.Color}}" aria-label="Color">
                     <label class="check"><input type="checkbox" name="archived" {{if .Archived}}checked{{end}}> Hide</label>
                     <button type="submit" class="secondary">Save</button>
                 </form>
@@ -124,7 +124,7 @@
             <form method="post" action="/settings/subjects" class="settings-row">
                 <input type="hidden" name="id" value="{{.ID}}">
                 <input type="text" name="name" value="{{.Name}}" required aria-label="Subject name">
-                <input type="color" name="color" value="{{.Color}}" aria-label="Subject colour">
+                <input type="color" name="color" value="{{.Color}}" aria-label="Subject color">
                 <label class="check"><input type="checkbox" name="archived" {{if .Archived}}checked{{end}}> Hide</label>
                 <button type="submit" class="secondary">Save</button>
             </form>
@@ -133,10 +133,10 @@
 
     <form method="post" action="/settings/subjects" class="settings-row new">
         <input type="text" name="name" placeholder="New subject" required aria-label="New subject">
-        <input type="color" name="color" value="{{.NextSubjectColor}}" aria-label="Subject colour">
+        <input type="color" name="color" value="{{.NextSubjectColor}}" aria-label="Subject color">
         <button type="submit">Add subject</button>
     </form>
-    <p class="muted small">The colour writes the lesson title wherever that subject's work is listed. Hiding a subject keeps its history but takes it out of the forms.</p>
+    <p class="muted small">The color writes the lesson title wherever that subject's work is listed. Hiding a subject keeps its history but takes it out of the forms.</p>
 </section>
 
 <section class="panel">

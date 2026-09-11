@@ -312,7 +312,7 @@ function Start-ElevatedSelf {
             -Wait `
             -PassThru
     } catch {
-        Write-Error 'Administrator approval was cancelled or blocked.'
+        Write-Error 'Administrator approval was canceled or blocked.'
         exit 1
     }
     if ($null -eq $proc) {

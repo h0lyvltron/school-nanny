@@ -6,11 +6,11 @@
     --pico-font-size: 100%;
 }
 
-/* Colour tokens.
+/* Color tokens.
    The page resolves data-theme to "light" or "dark" in the document head
    before anything paints, so each palette is a plain attribute selector and
    there is no duplicated prefers-color-scheme block to keep in step. Every
-   colour below is a token: nothing further down this file hardcodes one. */
+   color below is a token: nothing further down this file hardcodes one. */
 :root,
 [data-theme="light"] {
     color-scheme: light;
@@ -128,7 +128,7 @@
     --pico-card-border-color: var(--line);
     --pico-text-selection-color: var(--accent-soft);
 
-    /* The active colour matters as much as the resting one: it is what shows
+    /* The active color matters as much as the resting one: it is what shows
        while a field has focus, which is when you are reading what you typed. */
     --pico-form-element-background-color: var(--field-bg);
     --pico-form-element-active-background-color: var(--field-bg);
@@ -259,7 +259,7 @@ h3 { font-size: 1rem; }
 
 /* Avatars ------------------------------------------------------------- */
 
-/* One shape in three sizes, whether it holds a photo or the fallback colour
+/* One shape in three sizes, whether it holds a photo or the fallback color
    dot, so a child looks the same in the nav, on a card, and on a chip. */
 .avatar {
     display: inline-block;
@@ -461,10 +461,10 @@ img.avatar-nav { width: 1.4rem; height: 1.4rem; }
     flex-wrap: wrap;
 }
 
-/* The title and the subject label are both written in the subject's colour,
+/* The title and the subject label are both written in the subject's color,
    which is what tells one lesson apart from the next in a list. The card
-   carries the colour as --subject; a subject that has none falls back to
-   ordinary ink. The dark theme lifts the stored colour towards the page's own
+   carries the color as --subject; a subject that has none falls back to
+   ordinary ink. The dark theme lifts the stored color toward the page's own
    ink so a deep blue or green is not left sitting in the dark. */
 .lesson-title {
     font-weight: 600;
@@ -1189,6 +1189,10 @@ a.cal-num:hover { color: var(--accent); }
 }
 
 .cal-holiday { color: var(--ink-soft); background: var(--muted-surface); }
+.cal-holiday.has-label {
+    color: var(--label);
+    background: color-mix(in srgb, var(--label) 16%, var(--card));
+}
 .cal-event { color: var(--accent); background: var(--accent-soft); border: 1px solid var(--accent); }
 .cal-event.has-label {
     color: var(--label);
@@ -1242,6 +1246,60 @@ a.cal-num:hover { color: var(--accent); }
 .cal-entry-actions .link-button {
     padding: 0.2rem 0.15rem;
 }
+.cal-icon { line-height: 1; }
+.cal-edit {
+    margin: 0;
+    flex: 1 1 auto;
+    min-width: 0;
+}
+.cal-edit > summary {
+    cursor: pointer;
+    color: var(--accent);
+    font-size: 0.9rem;
+    list-style: none;
+}
+.cal-edit > summary::-webkit-details-marker { display: none; }
+.cal-edit[open] > summary { margin-bottom: 0.45rem; }
+.cal-edit form {
+    display: grid;
+    gap: 0.45rem;
+}
+.cal-holiday-entry .cal-edit { width: 100%; }
+.emoji-picks {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+}
+.emoji-pick {
+    margin: 0;
+    padding: 0.15rem 0.35rem;
+    min-width: 2rem;
+    font-size: 1.05rem;
+    line-height: 1.2;
+    background: var(--muted-surface);
+    border: 1px solid var(--line);
+    border-radius: 0.35rem;
+    cursor: pointer;
+}
+.emoji-pick:hover { border-color: var(--accent); }
+.cal-label-edit {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.35rem;
+    flex: 1 1 auto;
+    min-width: 0;
+    margin: 0;
+}
+.cal-label-edit input[type="text"] { min-width: 6rem; flex: 1 1 6rem; }
+.cal-label-edit input[name="emoji"] { flex: 0 0 4rem; width: 4rem; }
+.cal-label-edit input[type="color"] {
+    width: 2.25rem;
+    height: 2.25rem;
+    padding: 0;
+    border: none;
+    background: transparent;
+}
 .cal-entry-label {
     margin: 0;
 }
@@ -1274,8 +1332,8 @@ a.cal-num:hover { color: var(--accent); }
 
 .cal-labels { margin-top: 0.75rem; }
 .cal-label-row {
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr) auto;
+    display: flex;
+    flex-wrap: wrap;
     gap: 0.55rem;
     align-items: center;
     padding: 0.35rem 0;
@@ -1290,7 +1348,7 @@ a.cal-num:hover { color: var(--accent); }
     flex: none;
 }
 .cal-label-name { min-width: 0; overflow-wrap: anywhere; }
-.cal-label-add { margin-top: 0.75rem; }
+.cal-label-add { margin-top: 0.75rem; display: grid; gap: 0.45rem; }
 .cal-label-add .field-row {
     align-items: center;
 }

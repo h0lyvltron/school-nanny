@@ -1,4 +1,4 @@
--- Labels are personal colour tags on a grown-up's calendar: "Medical", "Travel",
+-- Labels are personal color tags on a grown-up's calendar: "Medical", "Travel",
 -- "School" and so on. They belong to one adult so Mom's labels never spill onto
 -- someone else's profile, and deleting a label clears it from her events rather
 -- than deleting the events themselves.

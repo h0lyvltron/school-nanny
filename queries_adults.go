@@ -2,6 +2,7 @@ package main
 
 import (
 	"database/sql"
+	"strings"
 	"time"
 )
 
@@ -141,7 +142,7 @@ func (s *Store) DeleteAdultCard(id int64) error {
 
 const adultEventSelect = `SELECT e.id, e.adult_id, COALESCE(e.label_id, 0),
 		e.starts_on, e.ends_on, e.title, e.body, e.created_at,
-		COALESCE(l.name, ''), COALESCE(l.color, '')
+		COALESCE(l.name, ''), COALESCE(l.color, ''), COALESCE(l.emoji, '')
 	FROM adult_events e
 	LEFT JOIN adult_event_labels l ON l.id = e.label_id`
 
@@ -151,7 +152,7 @@ func scanAdultEvents(rows *sql.Rows) ([]AdultEvent, error) {
 	for rows.Next() {
 		var e AdultEvent
 		if err := rows.Scan(&e.ID, &e.AdultID, &e.LabelID, &e.StartsOn, &e.EndsOn,
-			&e.Title, &e.Body, &e.CreatedAt, &e.LabelName, &e.LabelColor); err != nil {
+			&e.Title, &e.Body, &e.CreatedAt, &e.LabelName, &e.LabelColor, &e.LabelEmoji); err != nil {
 			return nil, err
 		}
 		events = append(events, e)
@@ -176,7 +177,7 @@ func (s *Store) AdultEvent(id int64) (AdultEvent, error) {
 	var e AdultEvent
 	err := s.db().QueryRow(adultEventSelect+` WHERE e.id = ?`, id).
 		Scan(&e.ID, &e.AdultID, &e.LabelID, &e.StartsOn, &e.EndsOn,
-			&e.Title, &e.Body, &e.CreatedAt, &e.LabelName, &e.LabelColor)
+			&e.Title, &e.Body, &e.CreatedAt, &e.LabelName, &e.LabelColor, &e.LabelEmoji)
 	return e, err
 }
 
@@ -192,7 +193,18 @@ func (s *Store) CreateAdultEvent(e AdultEvent) (int64, error) {
 	return res.LastInsertId()
 }
 
-// SetAdultEventLabel pins a colour tag onto an event, or clears it when
+// UpdateAdultEvent rewrites an existing event in place: title, notes, dates,
+// and which label it wears. That is how a note written last month still gets a
+// birthday cake when she invents the label later.
+func (s *Store) UpdateAdultEvent(adultID, id int64, e AdultEvent) error {
+	_, err := s.db().Exec(`UPDATE adult_events
+		SET label_id = ?, starts_on = ?, ends_on = ?, title = ?, body = ?
+		WHERE id = ? AND adult_id = ?`,
+		nullableID(e.LabelID), e.StartsOn, e.EndsOn, e.Title, e.Body, id, adultID)
+	return err
+}
+
+// SetAdultEventLabel pins a color tag onto an event, or clears it when
 // labelID is zero. The adult id keeps one profile from retagging another's.
 func (s *Store) SetAdultEventLabel(adultID, eventID, labelID int64) error {
 	_, err := s.db().Exec(`UPDATE adult_events SET label_id = ?
@@ -209,7 +221,7 @@ func (s *Store) DeleteAdultEvent(adultID, id int64) error {
 
 // Event labels ------------------------------------------------------------
 
-const adultLabelSelect = `SELECT id, adult_id, name, color, sort_order, created_at
+const adultLabelSelect = `SELECT id, adult_id, name, color, emoji, sort_order, created_at
 	FROM adult_event_labels`
 
 func scanAdultLabels(rows *sql.Rows) ([]AdultEventLabel, error) {
@@ -217,7 +229,7 @@ func scanAdultLabels(rows *sql.Rows) ([]AdultEventLabel, error) {
 	var out []AdultEventLabel
 	for rows.Next() {
 		var l AdultEventLabel
-		if err := rows.Scan(&l.ID, &l.AdultID, &l.Name, &l.Color, &l.SortOrder, &l.CreatedAt); err != nil {
+		if err := rows.Scan(&l.ID, &l.AdultID, &l.Name, &l.Color, &l.Emoji, &l.SortOrder, &l.CreatedAt); err != nil {
 			return nil, err
 		}
 		out = append(out, l)
@@ -237,7 +249,7 @@ func (s *Store) AdultEventLabels(adultID int64) ([]AdultEventLabel, error) {
 func (s *Store) AdultEventLabel(id int64) (AdultEventLabel, error) {
 	var l AdultEventLabel
 	err := s.db().QueryRow(adultLabelSelect+` WHERE id = ?`, id).
-		Scan(&l.ID, &l.AdultID, &l.Name, &l.Color, &l.SortOrder, &l.CreatedAt)
+		Scan(&l.ID, &l.AdultID, &l.Name, &l.Color, &l.Emoji, &l.SortOrder, &l.CreatedAt)
 	return l, err
 }
 
@@ -248,23 +260,87 @@ func (s *Store) CreateAdultEventLabel(l AdultEventLabel) (int64, error) {
 		return 0, err
 	}
 	res, err := s.db().Exec(`INSERT INTO adult_event_labels
-		(adult_id, name, color, sort_order, created_at)
-		VALUES (?, ?, ?, ?, ?)`,
-		l.AdultID, l.Name, l.Color, next, time.Now().Format(time.RFC3339))
+		(adult_id, name, color, emoji, sort_order, created_at)
+		VALUES (?, ?, ?, ?, ?, ?)`,
+		l.AdultID, l.Name, l.Color, strings.TrimSpace(l.Emoji), next, time.Now().Format(time.RFC3339))
 	if err != nil {
 		return 0, err
 	}
 	return res.LastInsertId()
 }
 
-// DeleteAdultEventLabel removes a colour tag. Events that wore it keep their
+func (s *Store) UpdateAdultEventLabel(adultID, id int64, name, color, emoji string) error {
+	_, err := s.db().Exec(`UPDATE adult_event_labels
+		SET name = ?, color = ?, emoji = ?
+		WHERE id = ? AND adult_id = ?`,
+		name, color, strings.TrimSpace(emoji), id, adultID)
+	return err
+}
+
+// DeleteAdultEventLabel removes a color tag. Events that wore it keep their
 // dates and wording; they simply become unlabeled.
 func (s *Store) DeleteAdultEventLabel(adultID, id int64) error {
 	_, err := s.db().Exec(`DELETE FROM adult_event_labels WHERE id = ? AND adult_id = ?`, id, adultID)
 	return err
 }
 
-// MoveAdultCard swaps a card with its neighbour, which is all the ordering a
+// Holiday notes -----------------------------------------------------------
+
+const holidayNoteSelect = `SELECT n.id, n.adult_id, n.observed_on, n.holiday_name,
+		n.emoji, n.notes, COALESCE(n.label_id, 0),
+		COALESCE(l.name, ''), COALESCE(l.color, ''), COALESCE(l.emoji, '')
+	FROM adult_holiday_notes n
+	LEFT JOIN adult_event_labels l ON l.id = n.label_id`
+
+type holidayNoteRow struct {
+	AdultHolidayNote
+	LabelName, LabelColor, LabelEmoji string
+}
+
+func (s *Store) HolidayNotesOverlapping(adultID int64, from, to string) ([]holidayNoteRow, error) {
+	rows, err := s.db().Query(holidayNoteSelect+`
+		WHERE n.adult_id = ? AND n.observed_on BETWEEN ? AND ?
+		ORDER BY n.observed_on, n.holiday_name`, adultID, from, to)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []holidayNoteRow
+	for rows.Next() {
+		var r holidayNoteRow
+		if err := rows.Scan(&r.ID, &r.AdultID, &r.ObservedOn, &r.HolidayName,
+			&r.Emoji, &r.Notes, &r.LabelID, &r.LabelName, &r.LabelColor, &r.LabelEmoji); err != nil {
+			return nil, err
+		}
+		out = append(out, r)
+	}
+	return out, rows.Err()
+}
+
+// UpsertHolidayNote writes her personalization of a computed holiday. Empty
+// emoji/notes with no label clears the override entirely so the default icon
+// comes back.
+func (s *Store) UpsertHolidayNote(n AdultHolidayNote) error {
+	emoji := strings.TrimSpace(n.Emoji)
+	notes := strings.TrimSpace(n.Notes)
+	if emoji == "" && notes == "" && n.LabelID == 0 {
+		_, err := s.db().Exec(`DELETE FROM adult_holiday_notes
+			WHERE adult_id = ? AND observed_on = ? AND holiday_name = ?`,
+			n.AdultID, n.ObservedOn, n.HolidayName)
+		return err
+	}
+	_, err := s.db().Exec(`INSERT INTO adult_holiday_notes
+		(adult_id, observed_on, holiday_name, emoji, notes, label_id)
+		VALUES (?, ?, ?, ?, ?, ?)
+		ON CONFLICT(adult_id, observed_on, holiday_name) DO UPDATE SET
+			emoji = excluded.emoji,
+			notes = excluded.notes,
+			label_id = excluded.label_id`,
+		n.AdultID, n.ObservedOn, n.HolidayName, emoji, notes, nullableID(n.LabelID))
+	return err
+}
+
+// MoveAdultCard swaps a card with its neighbor, which is all the ordering a
 // short pinboard needs.
 func (s *Store) MoveAdultCard(id int64, up bool) error {
 	card, err := s.AdultCard(id)

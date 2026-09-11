@@ -28,12 +28,14 @@
                     <a class="cal-num" href="{{$url}}?month={{$month}}&from={{.Date}}&to={{.Date}}">{{dayNum .Date}}</a>
                     <div class="cal-marks">
                         {{range .Holidays}}
-                            <span class="cal-holiday" title="{{.Name}}">{{.Name}}</span>
+                            <span class="cal-holiday{{if .HasLabel}} has-label{{end}}"
+                                  {{if .HasLabel}}style="--label:{{color .LabelColor}}"{{end}}
+                                  title="{{.Name}}">{{if .Icon}}{{.Icon}} {{end}}{{.Name}}</span>
                         {{end}}
                         {{range .Events}}
                             <span class="cal-event{{if .Spans}} is-span{{end}}{{if .HasLabel}} has-label{{end}}"
                                   {{if .HasLabel}}style="--label:{{color .LabelColor}}"{{end}}
-                                  title="{{.Title}}{{if .LabelName}} ({{.LabelName}}){{end}}">{{.Title}}</span>
+                                  title="{{.Title}}{{if .LabelName}} ({{.LabelName}}){{end}}">{{if .Icon}}{{.Icon}} {{end}}{{.Title}}</span>
                         {{end}}
                     </div>
                 </div>
@@ -43,42 +45,107 @@
 
     <div class="cal-detail">
         <h3>{{.SelectionLabel}}</h3>
-        {{range .DayHolidays}}
-            <p class="muted small">{{.Name}}</p>
-        {{end}}
         <div class="stack">
+            {{range .DayHolidays}}
+                <article class="cal-entry cal-holiday-entry{{if .HasLabel}} has-label{{end}}"
+                         {{if .HasLabel}}style="--label:{{color .LabelColor}}"{{end}}>
+                    <div class="cal-entry-title">
+                        {{if .Icon}}<span class="cal-icon" aria-hidden="true">{{.Icon}}</span>{{end}}
+                        <strong>{{.Name}}</strong>
+                        {{if .HasLabel}}<span class="cal-label-chip">{{if .LabelEmoji}}{{.LabelEmoji}} {{end}}{{.LabelName}}</span>{{end}}
+                    </div>
+                    {{if .Notes}}<p class="note-body">{{.Notes}}</p>{{end}}
+                    <details class="cal-edit">
+                        <summary>Personalize</summary>
+                        <form method="post" action="/adults/{{$.Adult.ID}}/holidays"
+                              hx-post="/adults/{{$.Adult.ID}}/holidays">
+                            <input type="hidden" name="back" value="{{$back}}">
+                            <input type="hidden" name="view" value="calendar">
+                            <input type="hidden" name="month" value="{{$.Month}}">
+                            <input type="hidden" name="from" value="{{$.SelectedFrom}}">
+                            <input type="hidden" name="to" value="{{$.SelectedTo}}">
+                            <input type="hidden" name="observed_on" value="{{.Date}}">
+                            <input type="hidden" name="holiday_name" value="{{.Name}}">
+                            <label>Emoji
+                                <input type="text" name="emoji" value="{{.OverrideEmoji}}"
+                                       placeholder="{{.Emoji}}" maxlength="16" aria-label="Emoji for {{.Name}}">
+                            </label>
+                            {{if $.SuggestedEmojis}}
+                                <div class="emoji-picks" role="group" aria-label="Suggested emoji">
+                                    {{range $.SuggestedEmojis}}
+                                        <button type="button" class="emoji-pick" data-emoji="{{.}}"
+                                                onclick="this.form.emoji.value=this.dataset.emoji">{{.}}</button>
+                                    {{end}}
+                                </div>
+                            {{end}}
+                            <textarea name="notes" rows="2" placeholder="Anything worth remembering" aria-label="Notes">{{.Notes}}</textarea>
+                            {{if $.Labels}}
+                                <label>Label
+                                    <select name="label_id" aria-label="Label for {{.Name}}">
+                                        <option value="0">None</option>
+                                        {{$labelID := .LabelID}}
+                                        {{range $.Labels}}
+                                            <option value="{{.ID}}" {{if eq $labelID .ID}}selected{{end}}>
+                                                {{if .Emoji}}{{.Emoji}} {{end}}{{.Name}}
+                                            </option>
+                                        {{end}}
+                                    </select>
+                                </label>
+                            {{end}}
+                            <button type="submit">Save</button>
+                        </form>
+                    </details>
+                </article>
+            {{end}}
+
             {{range .DayEvents}}
                 <article class="cal-entry{{if .HasLabel}} has-label{{end}}"
                          {{if .HasLabel}}style="--label:{{color .LabelColor}}"{{end}}>
                     <div class="cal-entry-title">
+                        {{if .Icon}}<span class="cal-icon" aria-hidden="true">{{.Icon}}</span>{{end}}
                         <strong>{{.Title}}</strong>
-                        {{if .HasLabel}}<span class="cal-label-chip">{{.LabelName}}</span>{{end}}
+                        {{if .HasLabel}}<span class="cal-label-chip">{{if .LabelEmoji}}{{.LabelEmoji}} {{end}}{{.LabelName}}</span>{{end}}
                     </div>
                     <p class="muted small">{{.DateLabel}}</p>
                     {{if .Body}}<p class="note-body">{{.Body}}</p>{{end}}
                     <div class="cal-entry-foot">
-                        {{if $.Labels}}
-                            <form method="post" action="/adults/{{.AdultID}}/events/{{.ID}}/label" class="cal-entry-label"
-                                  hx-post="/adults/{{.AdultID}}/events/{{.ID}}/label">
+                        <details class="cal-edit">
+                            <summary>Edit</summary>
+                            <form method="post" action="/adults/{{.AdultID}}/events/{{.ID}}"
+                                  hx-post="/adults/{{.AdultID}}/events/{{.ID}}">
                                 <input type="hidden" name="back" value="{{$back}}">
                                 <input type="hidden" name="view" value="calendar">
                                 <input type="hidden" name="month" value="{{$.Month}}">
                                 <input type="hidden" name="from" value="{{$.SelectedFrom}}">
                                 <input type="hidden" name="to" value="{{$.SelectedTo}}">
-                                <label class="muted small">Label
-                                    <select name="label_id" aria-label="Label for {{.Title}}"
-                                            onchange="this.form.requestSubmit()">
-                                        <option value="0">None</option>
-                                        {{$labelID := .LabelID}}
-                                        {{range $.Labels}}
-                                            <option value="{{.ID}}" {{if eq $labelID .ID}}selected{{end}}>{{.Name}}</option>
-                                        {{end}}
-                                    </select>
-                                </label>
+                                <input type="text" name="title" value="{{.Title}}" required aria-label="Title">
+                                <div class="field-row">
+                                    <label>From
+                                        <input type="date" name="starts_on" value="{{.StartsOn}}" required>
+                                    </label>
+                                    <label>To
+                                        <input type="date" name="ends_on" value="{{.EndsOn}}" required>
+                                    </label>
+                                </div>
+                                {{if $.Labels}}
+                                    <label>Label
+                                        <select name="label_id" aria-label="Label for {{.Title}}">
+                                            <option value="0">None</option>
+                                            {{$labelID := .LabelID}}
+                                            {{range $.Labels}}
+                                                <option value="{{.ID}}" {{if eq $labelID .ID}}selected{{end}}>
+                                                    {{if .Emoji}}{{.Emoji}} {{end}}{{.Name}}
+                                                </option>
+                                            {{end}}
+                                        </select>
+                                    </label>
+                                {{else}}
+                                    <p class="muted small">Add a label below to color-code this event.</p>
+                                {{end}}
+                                <textarea name="body" rows="2" placeholder="Anything worth remembering" aria-label="Notes">{{.Body}}</textarea>
+                                <button type="submit">Save</button>
                             </form>
-                        {{else}}
-                            <span></span>
-                        {{end}}
+                        </details>
                         <form method="post" action="/adults/{{.AdultID}}/events/{{.ID}}/delete" class="cal-entry-actions"
                               hx-post="/adults/{{.AdultID}}/events/{{.ID}}/delete">
                             <input type="hidden" name="back" value="{{$back}}">
@@ -92,7 +159,9 @@
                     </div>
                 </article>
             {{else}}
-                <p class="muted small">Nothing written down here yet.</p>
+                {{if not $.DayHolidays}}
+                    <p class="muted small">Nothing written down here yet.</p>
+                {{end}}
             {{end}}
         </div>
 
@@ -119,7 +188,7 @@
                         <select name="label_id" aria-label="Label">
                             <option value="0">None</option>
                             {{range .Labels}}
-                                <option value="{{.ID}}">{{.Name}}</option>
+                                <option value="{{.ID}}">{{if .Emoji}}{{.Emoji}} {{end}}{{.Name}}</option>
                             {{end}}
                         </select>
                     </label>
@@ -131,12 +200,23 @@
 
         <details class="add-box cal-labels">
             <summary>Labels</summary>
-            <p class="muted small">Colour tags for the kinds of things on this calendar.</p>
+            <p class="muted small">Color tags (and optional emoji) for the kinds of things on this calendar.</p>
             <div class="stack">
                 {{range .Labels}}
                     <div class="cal-label-row" style="--label:{{color .Color}}">
                         <span class="cal-label-swatch" aria-hidden="true"></span>
-                        <span class="cal-label-name">{{.Name}}</span>
+                        <form method="post" action="/adults/{{.AdultID}}/labels/{{.ID}}" class="cal-label-edit"
+                              hx-post="/adults/{{.AdultID}}/labels/{{.ID}}">
+                            <input type="hidden" name="back" value="{{$back}}">
+                            <input type="hidden" name="view" value="calendar">
+                            <input type="hidden" name="month" value="{{$.Month}}">
+                            <input type="hidden" name="from" value="{{$.SelectedFrom}}">
+                            <input type="hidden" name="to" value="{{$.SelectedTo}}">
+                            <input type="text" name="name" value="{{.Name}}" required aria-label="Label name">
+                            <input type="color" name="color" value="{{.Color}}" aria-label="Label color">
+                            <input type="text" name="emoji" value="{{.Emoji}}" maxlength="16" placeholder="emoji" aria-label="Label emoji">
+                            <button type="submit">Save</button>
+                        </form>
                         <form method="post" action="/adults/{{.AdultID}}/labels/{{.ID}}/delete" class="cal-entry-actions"
                               hx-post="/adults/{{.AdultID}}/labels/{{.ID}}/delete">
                             <input type="hidden" name="back" value="{{$back}}">
@@ -161,9 +241,18 @@
                 <input type="hidden" name="to" value="{{.SelectedTo}}">
                 <div class="field-row">
                     <input type="text" name="name" placeholder="Label name" required aria-label="Label name">
-                    <input type="color" name="color" value="{{.NextLabelColor}}" aria-label="Label colour">
-                    <button type="submit">Add label</button>
+                    <input type="color" name="color" value="{{.NextLabelColor}}" aria-label="Label color">
+                    <input type="text" name="emoji" maxlength="16" placeholder="emoji" aria-label="Label emoji">
                 </div>
+                {{if .SuggestedEmojis}}
+                    <div class="emoji-picks" role="group" aria-label="Suggested emoji">
+                        {{range .SuggestedEmojis}}
+                            <button type="button" class="emoji-pick" data-emoji="{{.}}"
+                                    onclick="this.form.emoji.value=this.dataset.emoji">{{.}}</button>
+                        {{end}}
+                    </div>
+                {{end}}
+                <button type="submit">Add label</button>
             </form>
         </details>
     </div>
@@ -240,7 +329,7 @@
         {{range .Day.Events}}
             <span class="cal-event{{if .Spans}} is-span{{end}}{{if .HasLabel}} has-label{{end}}"
                   {{if .HasLabel}}style="--label:{{color .LabelColor}}"{{end}}
-                  title="{{.Title}}{{if .LabelName}} ({{.LabelName}}){{end}}{{if .Body}} — {{.Body}}{{end}}">{{.Title}}</span>
+                  title="{{.Title}}{{if .LabelName}} ({{.LabelName}}){{end}}{{if .Body}} — {{.Body}}{{end}}">{{if .Icon}}{{.Icon}} {{end}}{{.Title}}</span>
         {{end}}
     </div>
     {{end}}
@@ -332,7 +421,7 @@
 
 
 {{/* avatar renders a person — child or adult — wherever their identity needs a
-     visual anchor: a photo when there is one, otherwise their colour. Size is
+     visual anchor: a photo when there is one, otherwise their color. Size is
      one of chip, nav, card, or hero. */}}
 {{define "avatar"}}{{if .Person.HasPhoto}}<img class="avatar avatar-{{.Size}}" src="{{.Person.AvatarURL}}" alt="{{.Person.Name}}" loading="lazy">{{else}}<span class="avatar avatar-{{.Size}}" style="background:{{color .Person.Color}}" aria-hidden="true"></span>{{end}}{{end}}
 

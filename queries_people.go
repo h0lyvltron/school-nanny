@@ -123,10 +123,10 @@ func (s *Store) UpdateSubject(id int64, name, color string, archived bool) error
 	return err
 }
 
-// BackfillSubjectColors gives a colour to every subject that does not have one
-// yet: the ones that existed before subjects were coloured, and any that were
+// BackfillSubjectColors gives a color to every subject that does not have one
+// yet: the ones that existed before subjects were colored, and any that were
 // somehow saved blank. Walking the whole list rather than only the blank ones
-// keeps the colours spread across the palette instead of piling onto its first
+// keeps the colors spread across the palette instead of piling onto its first
 // entries.
 func (s *Store) BackfillSubjectColors() error {
 	rows, err := s.db().Query(subjectSelect + ` ORDER BY sort_order, id`)

@@ -88,7 +88,7 @@ func (a *App) handleKidAvatarDelete(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleKidAvatarImage serves the photo itself. A child with no photo is a 404
-// rather than an error, because the page falls back to their colour dot.
+// rather than an error, because the page falls back to their color dot.
 func (a *App) handleKidAvatarImage(w http.ResponseWriter, r *http.Request) {
 	kid, err := a.store.Kid(pathID(r, "id"))
 	if err != nil {
@@ -208,7 +208,7 @@ func isRequestTooLarge(err error) bool {
 	return strings.Contains(err.Error(), "request body too large")
 }
 
-// looksLikeHEIC recognises Apple's camera format so the error can say what to
+// looksLikeHEIC recognizes Apple's camera format so the error can say what to
 // do next, rather than the generic "not an image" refusal.
 func looksLikeHEIC(header []byte) bool {
 	if len(header) < 12 || string(header[4:8]) != "ftyp" {

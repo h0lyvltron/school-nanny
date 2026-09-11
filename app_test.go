@@ -223,7 +223,7 @@ func TestSubjectsAreSeeded(t *testing.T) {
 }
 
 // The theme is applied by a script in the head, so a page that renders without
-// it flashes the wrong colours or ignores the saved choice entirely. go:embed
+// it flashes the wrong colors or ignores the saved choice entirely. go:embed
 // silently skips files it does not match, so check the asset is really served.
 func TestThemeSwitchIsWiredUp(t *testing.T) {
 	ta := newTestApp(t)
@@ -715,7 +715,7 @@ func TestKidPhotoUploadServeAndRemove(t *testing.T) {
 		t.Error("served photo does not match what was uploaded")
 	}
 
-	// The photo should now stand in for the colour dot wherever the child is
+	// The photo should now stand in for the color dot wherever the child is
 	// named.
 	_, home := ta.get("/")
 	mustContain(t, home, "/avatars/kids/"+itoa64(kid), "home")
@@ -1466,9 +1466,9 @@ func TestHerCalendarIsHerOwn(t *testing.T) {
 	mustNotContain(t, his, "Her appointment", "his calendar")
 }
 
-// Labels are colour tags on her calendar: she can invent them, put them on
-// events, and the month paints those events in that colour.
-func TestSheCanColourCodeEventsWithLabels(t *testing.T) {
+// Labels are color tags on her calendar: she can invent them, put them on
+// events, and the month paints those events in that color.
+func TestSheCanColorCodeEventsWithLabels(t *testing.T) {
 	ta := newTestApp(t)
 	mom := ta.mom()
 	base := "/adults/" + itoa64(mom.ID)
@@ -1514,10 +1514,10 @@ func TestSheCanColourCodeEventsWithLabels(t *testing.T) {
 	if status != http.StatusOK {
 		t.Fatalf("calendar returned %d", status)
 	}
-	mustContain(t, body, `has-label`, "labelled mark")
-	mustContain(t, body, `--label:#b03a33`, "labelled mark")
-	mustContain(t, body, `class="cal-entry has-label"`, "labelled entry")
-	mustContain(t, body, `class="cal-label-chip">Medical</span>`, "labelled entry")
+	mustContain(t, body, `has-label`, "labeled mark")
+	mustContain(t, body, `--label:#b03a33`, "labeled mark")
+	mustContain(t, body, `class="cal-entry has-label"`, "labeled entry")
+	mustContain(t, body, `class="cal-label-chip">Medical</span>`, "labeled entry")
 
 	// Retagging an existing event, and clearing a label, both keep the event.
 	ta.post(base+"/events/"+itoa64(events[0].ID)+"/label", url.Values{"label_id": {"0"}})
@@ -1584,6 +1584,138 @@ func TestEventLabelsStayOnTheirCalendar(t *testing.T) {
 	if len(still) != 1 {
 		t.Errorf("he must not be able to delete her label")
 	}
+}
+
+// An event written before labels existed can still be tagged later, with an
+// emoji riding along on the label.
+func TestSheCanLabelExistingEventsAndPutEmojiOnLabels(t *testing.T) {
+	ta := newTestApp(t)
+	mom := ta.mom()
+	base := "/adults/" + itoa64(mom.ID)
+
+	eventID, err := ta.store.CreateAdultEvent(AdultEvent{
+		AdultID: mom.ID, StartsOn: "2026-07-13", EndsOn: "2026-07-13",
+		Title: "Dentist", Body: "checkup",
+	})
+	if err != nil {
+		t.Fatalf("creating event: %v", err)
+	}
+
+	status, _ := ta.post(base+"/labels", url.Values{
+		"name":  {"Medical"},
+		"color": {"#b03a33"},
+		"emoji": {"🦷"},
+	})
+	if status != http.StatusOK {
+		t.Fatalf("creating a label returned %d", status)
+	}
+	labels, err := ta.store.AdultEventLabels(mom.ID)
+	if err != nil || len(labels) != 1 || labels[0].Emoji != "🦷" {
+		t.Fatalf("expected Medical with tooth emoji, got %+v (err %v)", labels, err)
+	}
+
+	status, body := ta.postHTMX(base+"/events/"+itoa64(eventID), url.Values{
+		"title":     {"Dentist"},
+		"starts_on": {"2026-07-13"},
+		"ends_on":   {"2026-07-13"},
+		"body":      {"checkup"},
+		"label_id":  {itoa64(labels[0].ID)},
+		"view":      {"calendar"},
+		"month":     {"2026-07"},
+		"from":      {"2026-07-13"},
+		"to":        {"2026-07-13"},
+	})
+	if status != http.StatusOK {
+		t.Fatalf("updating event returned %d", status)
+	}
+	mustContain(t, body, "🦷", "labeled event")
+	mustContain(t, body, `has-label`, "labeled event")
+
+	got, err := ta.store.AdultEvent(eventID)
+	if err != nil {
+		t.Fatalf("reading event: %v", err)
+	}
+	if got.LabelID != labels[0].ID || got.LabelEmoji != "🦷" {
+		t.Errorf("expected retroactive label with emoji, got %+v", got)
+	}
+
+	status, _ = ta.postHTMX(base+"/labels/"+itoa64(labels[0].ID), url.Values{
+		"name":  {"Medical"},
+		"color": {"#b03a33"},
+		"emoji": {"🏥"},
+		"view":  {"calendar"},
+		"month": {"2026-07"},
+		"from":  {"2026-07-13"},
+		"to":    {"2026-07-13"},
+	})
+	if status != http.StatusOK {
+		t.Fatalf("updating label returned %d", status)
+	}
+	updated, _ := ta.store.AdultEventLabel(labels[0].ID)
+	if updated.Emoji != "🏥" {
+		t.Errorf("expected hospital emoji, got %q", updated.Emoji)
+	}
+}
+
+// Holidays come with default icons; she can add a note and swap the emoji
+// without changing the date the holiday falls on.
+func TestSheCanPersonalizeHolidays(t *testing.T) {
+	ta := newTestApp(t)
+	mom := ta.mom()
+	base := "/adults/" + itoa64(mom.ID)
+
+	found := false
+	for _, h := range usHolidays(2026) {
+		if h.Name == "Independence Day" && h.Emoji == "🇺🇸" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatal("Independence Day should carry a flag by default")
+	}
+
+	status, body := ta.get(base + "?month=2026-07&from=2026-07-04&to=2026-07-04")
+	if status != http.StatusOK {
+		t.Fatalf("calendar returned %d", status)
+	}
+	mustContain(t, body, "Independence Day", "holiday")
+	mustContain(t, body, "🇺🇸", "default holiday emoji")
+	mustContain(t, body, "Personalize", "holiday edit")
+
+	status, body = ta.postHTMX(base+"/holidays", url.Values{
+		"observed_on":  {"2026-07-04"},
+		"holiday_name": {"Independence Day"},
+		"emoji":        {"🎆"},
+		"notes":        {"Fireworks at the park"},
+		"view":         {"calendar"},
+		"month":        {"2026-07"},
+		"from":         {"2026-07-04"},
+		"to":           {"2026-07-04"},
+	})
+	if status != http.StatusOK {
+		t.Fatalf("saving holiday note returned %d", status)
+	}
+	mustContain(t, body, "🎆", "custom holiday emoji")
+	mustContain(t, body, "Fireworks at the park", "holiday notes")
+
+	// Clearing everything restores the default icon.
+	status, body = ta.postHTMX(base+"/holidays", url.Values{
+		"observed_on":  {"2026-07-04"},
+		"holiday_name": {"Independence Day"},
+		"emoji":        {""},
+		"notes":        {""},
+		"label_id":     {"0"},
+		"view":         {"calendar"},
+		"month":        {"2026-07"},
+		"from":         {"2026-07-04"},
+		"to":           {"2026-07-04"},
+	})
+	if status != http.StatusOK {
+		t.Fatalf("clearing holiday note returned %d", status)
+	}
+	mustContain(t, body, "🇺🇸", "default holiday emoji restored")
+	mustNotContain(t, body, "Fireworks at the park", "holiday notes cleared")
 }
 
 // calendarCell returns the markup of one day's cell, so a test can ask what
@@ -2290,9 +2422,9 @@ func TestArchiveExportsDoneLessonsAsFromYearPlan(t *testing.T) {
 	mustContain(t, page, "Saved from a year", "curriculum index")
 }
 
-// A subject's colour is what stops a day of lessons reading as one block of
+// A subject's color is what stops a day of lessons reading as one block of
 // black text, so it has to survive the settings form and reach the title.
-func TestSubjectColourReachesTheLessonTitle(t *testing.T) {
+func TestSubjectColorReachesTheLessonTitle(t *testing.T) {
 	ta := newTestApp(t)
 	kid := ta.addKid("Mia")
 	subject := ta.mathSubjectID()
@@ -2304,10 +2436,10 @@ func TestSubjectColourReachesTheLessonTitle(t *testing.T) {
 	seen := map[string]bool{}
 	for _, sub := range subjects {
 		if sub.Color == "" {
-			t.Fatalf("subject %q was left without a colour", sub.Name)
+			t.Fatalf("subject %q was left without a color", sub.Name)
 		}
 		if seen[sub.Color] {
-			t.Errorf("subject %q repeats the colour %s", sub.Name, sub.Color)
+			t.Errorf("subject %q repeats the color %s", sub.Name, sub.Color)
 		}
 		seen[sub.Color] = true
 	}
@@ -2325,7 +2457,7 @@ func TestSubjectColourReachesTheLessonTitle(t *testing.T) {
 		t.Fatalf("reloading the subject: %v", err)
 	}
 	if saved.Color != "#b8437a" || saved.Name != "Math" {
-		t.Fatalf("expected the colour to be saved, got %+v", saved)
+		t.Fatalf("expected the color to be saved, got %+v", saved)
 	}
 
 	ta.insertUnassignedLesson(kid, subject, today(), "Place value", today())
@@ -2338,7 +2470,7 @@ func TestSubjectColourReachesTheLessonTitle(t *testing.T) {
 	mustContain(t, planner, `<span class="lesson-subject">Math</span>`, "the planner's subject label")
 
 	_, settings := ta.get("/settings")
-	mustContain(t, settings, `value="#b8437a"`, "subject colour picker")
+	mustContain(t, settings, `value="#b8437a"`, "subject color picker")
 }
 
 // schoolWeekdays is Monday to Friday, the mask every plan in these tests runs on.

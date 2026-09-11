@@ -126,6 +126,11 @@ func (a *App) populateAdultCalendar(data map[string]any, adult Adult, query url.
 		return err
 	}
 	holidays := holidaysBetween(gridFrom, gridTo)
+	notes, err := a.store.HolidayNotesOverlapping(adult.ID, gridFrom, gridTo)
+	if err != nil {
+		return err
+	}
+	holidays = applyHolidayNotes(holidays, notes)
 
 	var weeks [][]AdultCalendarDay
 	var week []AdultCalendarDay
@@ -181,6 +186,7 @@ func (a *App) populateAdultCalendar(data map[string]any, adult Adult, query url.
 	data["SelectionLabel"] = rangeLabel(from, to)
 	data["DayEvents"] = selectedEvents
 	data["DayHolidays"] = selectedHolidays
+	data["SuggestedEmojis"] = suggestedLabelEmojis()
 
 	labels, err := a.store.AdultEventLabels(adult.ID)
 	if err != nil {
@@ -189,6 +195,28 @@ func (a *App) populateAdultCalendar(data map[string]any, adult Adult, query url.
 	data["Labels"] = labels
 	data["NextLabelColor"] = subjectPalette[len(labels)%len(subjectPalette)]
 	return nil
+}
+
+// applyHolidayNotes lays her personalization onto the computed holidays for
+// this month: a different emoji, a note, or a color label.
+func applyHolidayNotes(holidays []Holiday, notes []holidayNoteRow) []Holiday {
+	byKey := make(map[string]holidayNoteRow, len(notes))
+	for _, n := range notes {
+		byKey[n.ObservedOn+"\x00"+n.HolidayName] = n
+	}
+	out := make([]Holiday, len(holidays))
+	for i, h := range holidays {
+		if n, ok := byKey[h.Date+"\x00"+h.Name]; ok {
+			h.OverrideEmoji = n.Emoji
+			h.Notes = n.Notes
+			h.LabelID = n.LabelID
+			h.LabelName = n.LabelName
+			h.LabelColor = n.LabelColor
+			h.LabelEmoji = n.LabelEmoji
+		}
+		out[i] = h
+	}
+	return out
 }
 
 // monthGridDates lists the days a month's grid shows, padded out to whole
@@ -301,6 +329,54 @@ func (a *App) handleCreateAdultEvent(w http.ResponseWriter, r *http.Request) {
 	a.redirect(w, r, a.backToAdult(r, adult))
 }
 
+// handleUpdateAdultEvent rewrites an existing note: title, dates, body, and
+// which label it wears. That is how a dentist appointment written last month
+// still gets the Medical tag when she invents labels later.
+func (a *App) handleUpdateAdultEvent(w http.ResponseWriter, r *http.Request) {
+	adult, ok := a.lookupAdult(w, r)
+	if !ok {
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "Could not read that form.", http.StatusBadRequest)
+		return
+	}
+	title := strings.TrimSpace(r.FormValue("title"))
+	if title == "" {
+		http.Error(w, "An event needs a title.", http.StatusBadRequest)
+		return
+	}
+	starts := formDate(r, "starts_on")
+	ends := formDateOrEmpty(r, "ends_on")
+	if ends == "" {
+		ends = starts
+	}
+	if ends < starts {
+		http.Error(w, "An event cannot end before it starts.", http.StatusBadRequest)
+		return
+	}
+	labelID, err := a.ownedEventLabelID(adult.ID, formID(r, "label_id"))
+	if err != nil {
+		a.serverError(w, err)
+		return
+	}
+	if err := a.store.UpdateAdultEvent(adult.ID, pathID(r, "eventID"), AdultEvent{
+		LabelID:  labelID,
+		StartsOn: starts,
+		EndsOn:   ends,
+		Title:    title,
+		Body:     strings.TrimSpace(r.FormValue("body")),
+	}); err != nil {
+		a.serverError(w, err)
+		return
+	}
+	if a.wantsCalendar(r) {
+		a.renderAdultCalendar(w, adult, r.Form)
+		return
+	}
+	a.redirect(w, r, a.backToAdult(r, adult))
+}
+
 func (a *App) handleSetAdultEventLabel(w http.ResponseWriter, r *http.Request) {
 	adult, ok := a.lookupAdult(w, r)
 	if !ok {
@@ -387,7 +463,38 @@ func (a *App) handleCreateAdultEventLabel(w http.ResponseWriter, r *http.Request
 		AdultID: adult.ID,
 		Name:    name,
 		Color:   color,
+		Emoji:   strings.TrimSpace(r.FormValue("emoji")),
 	}); err != nil {
+		a.serverError(w, err)
+		return
+	}
+	if a.wantsCalendar(r) {
+		a.renderAdultCalendar(w, adult, r.Form)
+		return
+	}
+	a.redirect(w, r, a.backToAdult(r, adult))
+}
+
+func (a *App) handleUpdateAdultEventLabel(w http.ResponseWriter, r *http.Request) {
+	adult, ok := a.lookupAdult(w, r)
+	if !ok {
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "Could not read that form.", http.StatusBadRequest)
+		return
+	}
+	name := strings.TrimSpace(r.FormValue("name"))
+	if name == "" {
+		http.Error(w, "A label needs a name.", http.StatusBadRequest)
+		return
+	}
+	color := strings.TrimSpace(r.FormValue("color"))
+	if !hexColor.MatchString(color) {
+		color = subjectPalette[0]
+	}
+	if err := a.store.UpdateAdultEventLabel(adult.ID, pathID(r, "labelID"), name, color,
+		strings.TrimSpace(r.FormValue("emoji"))); err != nil {
 		a.serverError(w, err)
 		return
 	}
@@ -408,6 +515,47 @@ func (a *App) handleDeleteAdultEventLabel(w http.ResponseWriter, r *http.Request
 		return
 	}
 	if err := a.store.DeleteAdultEventLabel(adult.ID, pathID(r, "labelID")); err != nil {
+		a.serverError(w, err)
+		return
+	}
+	if a.wantsCalendar(r) {
+		a.renderAdultCalendar(w, adult, r.Form)
+		return
+	}
+	a.redirect(w, r, a.backToAdult(r, adult))
+}
+
+// handleUpsertHolidayNote stores her personalization of a computed holiday:
+// emoji, notes, and an optional color label. Clearing every field removes the
+// override so the default icon comes back.
+func (a *App) handleUpsertHolidayNote(w http.ResponseWriter, r *http.Request) {
+	adult, ok := a.lookupAdult(w, r)
+	if !ok {
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "Could not read that form.", http.StatusBadRequest)
+		return
+	}
+	observed := formDate(r, "observed_on")
+	name := strings.TrimSpace(r.FormValue("holiday_name"))
+	if name == "" {
+		http.Error(w, "Which holiday is this for?", http.StatusBadRequest)
+		return
+	}
+	labelID, err := a.ownedEventLabelID(adult.ID, formID(r, "label_id"))
+	if err != nil {
+		a.serverError(w, err)
+		return
+	}
+	if err := a.store.UpsertHolidayNote(AdultHolidayNote{
+		AdultID:     adult.ID,
+		ObservedOn:  observed,
+		HolidayName: name,
+		Emoji:       strings.TrimSpace(r.FormValue("emoji")),
+		Notes:       strings.TrimSpace(r.FormValue("notes")),
+		LabelID:     labelID,
+	}); err != nil {
 		a.serverError(w, err)
 		return
 	}

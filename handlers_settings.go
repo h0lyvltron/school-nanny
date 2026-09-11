@@ -57,14 +57,14 @@ func (a *App) handleSettings(w http.ResponseWriter, r *http.Request) {
 	a.render(w, "settings", data)
 }
 
-// kidPalette gives each child a distinct, readable colour without asking the
+// kidPalette gives each child a distinct, readable color without asking the
 // parent to think about hex codes.
 var kidPalette = []string{
 	"#5b8def", "#e0709a", "#3fae7f", "#e0913f", "#8d78e0", "#3fa8b8", "#c2544d", "#6f8f3f",
 }
 
-// subjectPalette colours the lesson titles. These are read as text rather than
-// filled behind it, so they are deeper than the kid colours: they have to hold
+// subjectPalette colors the lesson titles. These are read as text rather than
+// filled behind it, so they are deeper than the kid colors: they have to hold
 // up against paper in the light theme and still lift off the dark one.
 var subjectPalette = []string{
 	"#2f6ecb", "#b8437a", "#1f8a63", "#b56a12", "#6f5bc9", "#12808f", "#b03a33", "#5a7226",

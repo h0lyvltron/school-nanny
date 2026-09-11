@@ -187,7 +187,7 @@ lesson "$LUX" 1 "$TWO_AGO"   "Fractions with measuring cups" 30 done "Clicked af
 lesson "$LUX" 3 "$YESTERDAY" "Volcano model, part 1" 45 done ""
 lesson "$LUX" 5 "$THREE_AGO" "Map of the Oregon Trail" 25 "" ""   # overdue planned
 lesson "$LUX" 2 "$TOMORROW"  "Essay draft: a local hero" 40 "" ""
-lesson "$LUX" 7 "$IN_TWO"    "Watercolour: warm and cool" 45 "" ""
+lesson "$LUX" 7 "$IN_TWO"    "Watercolor: warm and cool" 45 "" ""
 
 # Emi
 lesson "$EMI" 1 "$YESTERDAY" "Counting bears to 15" 15 done ""

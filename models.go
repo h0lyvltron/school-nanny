@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -45,7 +46,7 @@ type Kid struct {
 }
 
 // HasPhoto reports whether this child has a photo to show instead of the
-// fallback colour dot.
+// fallback color dot.
 func (k Kid) HasPhoto() bool { return k.AvatarPath != "" }
 
 // AvatarURL is where the photo is served from, cache-busted by the stored
@@ -87,16 +88,20 @@ type AdultCard struct {
 	UpdatedAt string
 }
 
-// AdultEventLabel is a colour tag she keeps on her own calendar so appointments
-// of a kind can be told apart at a glance.
+// AdultEventLabel is a color tag she keeps on her own calendar so appointments
+// of a kind can be told apart at a glance. An optional emoji rides along for
+// the same reason a cake says "birthday" faster than the word does.
 type AdultEventLabel struct {
 	ID        int64
 	AdultID   int64
 	Name      string
 	Color     string
+	Emoji     string
 	SortOrder int
 	CreatedAt string
 }
+
+func (l AdultEventLabel) HasEmoji() bool { return strings.TrimSpace(l.Emoji) != "" }
 
 // AdultEvent is something on her own calendar: an appointment, a trip, a week
 // away. Both dates are inclusive, so a one-day event has the same date twice.
@@ -112,12 +117,17 @@ type AdultEvent struct {
 
 	LabelName  string
 	LabelColor string
+	LabelEmoji string
 }
 
 func (e AdultEvent) Spans() bool { return e.EndsOn > e.StartsOn }
 
 func (e AdultEvent) HasLabel() bool {
 	return e.LabelID != 0 && hexColor.MatchString(e.LabelColor)
+}
+
+func (e AdultEvent) Icon() string {
+	return strings.TrimSpace(e.LabelEmoji)
 }
 
 // Covers reports whether a day falls inside the event, which is what puts a
@@ -136,9 +146,42 @@ func (e AdultEvent) DateLabel() string {
 
 // Holiday is a day the family keeps that nobody has to enter: the classic US
 // holidays, worked out for whichever year is on screen rather than stored.
+// Emoji is the default icon; an adult can override it (and add notes or a
+// color label) without changing the holiday for anyone else.
 type Holiday struct {
-	Date string
-	Name string
+	Date  string
+	Name  string
+	Emoji string
+
+	// Filled in when the calendar is drawn for one adult.
+	Notes          string
+	OverrideEmoji  string
+	LabelID        int64
+	LabelName      string
+	LabelColor     string
+	LabelEmoji     string
+}
+
+func (h Holiday) Icon() string {
+	if e := strings.TrimSpace(h.OverrideEmoji); e != "" {
+		return e
+	}
+	return strings.TrimSpace(h.Emoji)
+}
+
+func (h Holiday) HasLabel() bool {
+	return h.LabelID != 0 && hexColor.MatchString(h.LabelColor)
+}
+
+// AdultHolidayNote is one adult's personalization of a computed holiday.
+type AdultHolidayNote struct {
+	ID          int64
+	AdultID     int64
+	ObservedOn  string
+	HolidayName string
+	Emoji       string
+	Notes       string
+	LabelID     int64
 }
 
 type Subject struct {
