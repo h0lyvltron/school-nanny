@@ -186,7 +186,7 @@ func (a *App) populateAdultCalendar(data map[string]any, adult Adult, query url.
 	data["SelectionLabel"] = rangeLabel(from, to)
 	data["DayEvents"] = selectedEvents
 	data["DayHolidays"] = selectedHolidays
-	data["SuggestedEmojis"] = suggestedLabelEmojis()
+	data["SuggestedEmojis"] = calendarEmojis()
 
 	labels, err := a.store.AdultEventLabels(adult.ID)
 	if err != nil {

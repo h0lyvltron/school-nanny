@@ -48,9 +48,10 @@
         <div class="stack">
             {{range .DayHolidays}}
                 <article class="cal-entry cal-holiday-entry{{if .HasLabel}} has-label{{end}}"
+                         data-emoji-root
                          {{if .HasLabel}}style="--label:{{color .LabelColor}}"{{end}}>
                     <div class="cal-entry-title">
-                        {{if .Icon}}<span class="cal-icon" aria-hidden="true">{{.Icon}}</span>{{end}}
+                        <span class="cal-icon" data-holiday-icon aria-hidden="true">{{.Icon}}</span>
                         <strong>{{.Name}}</strong>
                         {{if .HasLabel}}<span class="cal-label-chip">{{if .LabelEmoji}}{{.LabelEmoji}} {{end}}{{.LabelName}}</span>{{end}}
                     </div>
@@ -66,15 +67,22 @@
                             <input type="hidden" name="to" value="{{$.SelectedTo}}">
                             <input type="hidden" name="observed_on" value="{{.Date}}">
                             <input type="hidden" name="holiday_name" value="{{.Name}}">
-                            <label>Emoji
-                                <input type="text" name="emoji" value="{{.OverrideEmoji}}"
-                                       placeholder="{{.Emoji}}" maxlength="16" aria-label="Emoji for {{.Name}}">
-                            </label>
+                            <input type="hidden" name="emoji" value="{{.OverrideEmoji}}"
+                                   data-default="{{.Emoji}}" aria-label="Emoji for {{.Name}}">
                             {{if $.SuggestedEmojis}}
-                                <div class="emoji-picks" role="group" aria-label="Suggested emoji">
+                                <div class="emoji-picks" role="group" aria-label="Choose an emoji">
+                                    {{$override := .OverrideEmoji}}
+                                    {{$default := .Emoji}}
+                                    <button type="button" class="emoji-pick emoji-pick-default{{if not $override}} is-selected{{end}}"
+                                            data-emoji-default data-emoji="{{$default}}"
+                                            aria-pressed="{{if not $override}}true{{else}}false{{end}}"
+                                            title="Holiday default">{{$default}}</button>
                                     {{range $.SuggestedEmojis}}
-                                        <button type="button" class="emoji-pick" data-emoji="{{.}}"
-                                                onclick="this.form.emoji.value=this.dataset.emoji">{{.}}</button>
+                                        {{if ne . $default}}
+                                            <button type="button" class="emoji-pick{{if eq $override .}} is-selected{{end}}"
+                                                    data-emoji="{{.}}"
+                                                    aria-pressed="{{if eq $override .}}true{{else}}false{{end}}">{{.}}</button>
+                                        {{end}}
                                     {{end}}
                                 </div>
                             {{end}}
@@ -245,10 +253,9 @@
                     <input type="text" name="emoji" maxlength="16" placeholder="emoji" aria-label="Label emoji">
                 </div>
                 {{if .SuggestedEmojis}}
-                    <div class="emoji-picks" role="group" aria-label="Suggested emoji">
+                    <div class="emoji-picks" role="group" aria-label="Choose an emoji">
                         {{range .SuggestedEmojis}}
-                            <button type="button" class="emoji-pick" data-emoji="{{.}}"
-                                    onclick="this.form.emoji.value=this.dataset.emoji">{{.}}</button>
+                            <button type="button" class="emoji-pick" data-emoji="{{.}}">{{.}}</button>
                         {{end}}
                     </div>
                 {{end}}

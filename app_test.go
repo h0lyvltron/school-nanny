@@ -1682,6 +1682,17 @@ func TestSheCanPersonalizeHolidays(t *testing.T) {
 	mustContain(t, body, "Independence Day", "holiday")
 	mustContain(t, body, "🇺🇸", "default holiday emoji")
 	mustContain(t, body, "Personalize", "holiday edit")
+	mustContain(t, body, "🛠️", "labor day default is in the shared palette")
+
+	// Labor Day in September uses the same full palette, not a holiday-only set.
+	status, labor := ta.get(base + "?month=2026-09&from=2026-09-07&to=2026-09-07")
+	if status != http.StatusOK {
+		t.Fatalf("labor day calendar returned %d", status)
+	}
+	mustContain(t, labor, "Labor Day", "holiday")
+	mustContain(t, labor, "🛠️", "labor day icon")
+	mustContain(t, labor, "🎂", "full shared palette")
+	mustContain(t, labor, "✈️", "full shared palette")
 
 	status, body = ta.postHTMX(base+"/holidays", url.Values{
 		"observed_on":  {"2026-07-04"},

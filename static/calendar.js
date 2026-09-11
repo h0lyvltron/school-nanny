@@ -226,6 +226,36 @@
 
     // A click anywhere in a cell selects that day, not only the date itself.
     document.addEventListener("click", function (event) {
+        var pick = closest(event.target, ".emoji-pick");
+        if (pick && pick.form) {
+            var field = pick.form.elements.namedItem("emoji");
+            if (!field) {
+                return;
+            }
+            event.preventDefault();
+            var emoji = pick.getAttribute("data-emoji") || "";
+            var useDefault = pick.hasAttribute("data-emoji-default");
+            if (useDefault) {
+                emoji = "";
+            }
+            field.value = emoji;
+            var root = pick.form.closest("[data-emoji-root]");
+            var icon = root && root.querySelector("[data-holiday-icon]");
+            if (icon) {
+                icon.textContent = emoji || field.getAttribute("data-default") || "";
+            }
+            var picks = pick.form.querySelectorAll(".emoji-pick");
+            for (var i = 0; i < picks.length; i++) {
+                var btn = picks[i];
+                var selected = useDefault
+                    ? btn.hasAttribute("data-emoji-default")
+                    : !btn.hasAttribute("data-emoji-default") && (btn.getAttribute("data-emoji") || "") === emoji;
+                btn.classList.toggle("is-selected", selected);
+                btn.setAttribute("aria-pressed", selected ? "true" : "false");
+            }
+            return;
+        }
+
         // Opening a day in its own tab is still the browser's business.
         if (event.button > 0 || event.metaKey || event.ctrlKey || event.shiftKey) {
             return;

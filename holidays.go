@@ -2,6 +2,7 @@ package main
 
 import (
 	"sort"
+	"strings"
 	"time"
 )
 
@@ -104,11 +105,30 @@ func goodFriday(year int) string {
 	return addDays(easterSunday(year), -2)
 }
 
-// suggestedLabelEmojis are the quick picks offered when she is inventing or
-// editing a label. Birthdays, holidays, and ordinary family life are all here.
-func suggestedLabelEmojis() []string {
-	return []string{
-		"🎂", "🎁", "🎄", "✝️", "🦃", "🇺🇸", "💝", "🎃", "🐣", "☘️",
-		"🎉", "🏥", "✈️", "🏫", "💼", "⚽", "🎵", "📚", "🦷", "👨‍👩‍👧‍👦",
+// calendarEmojis is the shared palette for holiday personalization and label
+// icons. It starts with every holiday's default, then adds common family and
+// school marks so Labor Day's wrench is here alongside birthday cakes.
+func calendarEmojis() []string {
+	seen := map[string]bool{}
+	var out []string
+	add := func(emoji string) {
+		emoji = strings.TrimSpace(emoji)
+		if emoji == "" || seen[emoji] {
+			return
+		}
+		seen[emoji] = true
+		out = append(out, emoji)
 	}
+	for _, h := range usHolidays(2026) {
+		add(h.Emoji)
+	}
+	for _, emoji := range []string{
+		"🎂", "🎁", "🕯️", "🎆", "🎇", "✨", "❄️", "☃️", "🌸", "🌻",
+		"🏥", "🦷", "✈️", "🏫", "💼", "⚽", "🎵", "📚", "👨‍👩‍👧‍👦", "🏠",
+		"🚗", "🗓️", "📝", "💡", "❤️", "⭐", "🌈", "🐶", "🐱", "☕",
+		"🧹", "🛒", "💊", "🧘", "🎨", "🎤", "🎬", "🏕️", "🏖️", "🧳",
+	} {
+		add(emoji)
+	}
+	return out
 }
