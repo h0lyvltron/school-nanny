@@ -97,7 +97,8 @@
 {{define "lesson_row"}}
 <article class="lesson status-{{.Lesson.Status}}{{if .Lesson.Overdue}} is-overdue{{end}}" id="lesson-{{.Lesson.ID}}"
          {{if .Lesson.SubjectColor}}style="--subject:{{color .Lesson.SubjectColor}}"{{end}}
-         {{if .Draggable}}draggable="true" data-lesson-id="{{.Lesson.ID}}" data-kid-id="{{.Lesson.KidID}}" data-date="{{.Lesson.ScheduledOn}}"{{end}}>
+         {{if .Draggable}}draggable="true" data-lesson-id="{{.Lesson.ID}}" data-kid-id="{{.Lesson.KidID}}" data-date="{{.Lesson.ScheduledOn}}"
+         {{if .Lesson.HasAssignment}}data-assignment-id="{{.Lesson.AssignmentID}}" data-sequence="{{.Lesson.Sequence}}"{{end}}{{end}}>
     <div class="lesson-body">
         <div class="lesson-title-line">
             {{if .ShowKid}}<span class="chip" style="background:{{color .Lesson.PersonColor}}">{{if .Lesson.PersonHasPhoto}}<img class="avatar avatar-chip" src="{{.Lesson.PersonAvatarURL}}" alt="" loading="lazy">{{end}}{{.Lesson.PersonName}}</span>{{end}}

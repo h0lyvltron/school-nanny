@@ -2391,6 +2391,198 @@ func TestDraggingADoneLessonLeavesThePlanAlone(t *testing.T) {
 	}
 }
 
+// Pulling a lesson back past work that is still pending cannot simply drop it
+// there: the lessons it jumped would sit on the days the rest of the plan is
+// about to land on. The dropped lesson shares its new day with whatever was
+// already there, and everything still beyond that day closes up behind it in
+// order.
+func TestDraggingAPlanLessonPastPendingWorkClosesTheWholeSetUp(t *testing.T) {
+	ta := newTestApp(t)
+	start := mondayWeeksOut(3)
+	_, _, lessons := ta.applyMathLessonsFrom(start, "L1", "L2", "L3", "L4", "L5")
+
+	status, _ := ta.postHTMX("/lessons/"+itoa64(lessons[2].ID)+"/reschedule", url.Values{
+		"view":         {"planner"},
+		"scheduled_on": {start},
+		"kid_filter":   {"0"},
+	})
+	if status != http.StatusOK {
+		t.Fatalf("reschedule returned %d", status)
+	}
+
+	// L3 joins L1 on the Monday it was dropped on, then L2, L4 and L5 take the
+	// school days that follow, still in the order they are meant to be worked.
+	ta.wantScheduled(lessons, map[string]string{
+		"L1": start,
+		"L3": start,
+		"L2": addDays(start, 1),
+		"L4": addDays(start, 2),
+		"L5": addDays(start, 3),
+	})
+}
+
+// With the earlier lessons already behind her there is nothing to jump, so the
+// set simply slides forward without doubling anything up.
+func TestPullingTheNextPlanLessonForwardLeavesFinishedWorkAlone(t *testing.T) {
+	ta := newTestApp(t)
+	start := mondayWeeksOut(3)
+	_, _, lessons := ta.applyMathLessonsFrom(start, "L1", "L2", "L3", "L4", "L5")
+	for _, done := range lessons[:2] {
+		if err := ta.store.SetLessonStatus(done.ID, StatusDone); err != nil {
+			t.Fatalf("marking %s done: %v", done.Title, err)
+		}
+	}
+
+	status, _ := ta.postHTMX("/lessons/"+itoa64(lessons[2].ID)+"/reschedule", url.Values{
+		"view":         {"planner"},
+		"scheduled_on": {start},
+		"kid_filter":   {"0"},
+	})
+	if status != http.StatusOK {
+		t.Fatalf("reschedule returned %d", status)
+	}
+
+	ta.wantScheduled(lessons, map[string]string{
+		"L1": start,
+		"L2": addDays(start, 1),
+		"L3": start,
+		"L4": addDays(start, 1),
+		"L5": addDays(start, 2),
+	})
+}
+
+// A card that belongs to a plan carries the plan and its place in it, which is
+// what lets the planner warn her before a drag rearranges days she is not
+// pointing at.
+func TestPlanLessonCardsCarryTheirPlaceInTheSet(t *testing.T) {
+	ta := newTestApp(t)
+	start := mondayWeeksOut(3)
+	kid, _, lessons := ta.applyMathLessonsFrom(start, "L1", "L2")
+	loose := ta.insertUnassignedLesson(kid, ta.mathSubjectID(), start, "Spelling", "")
+
+	status, body := ta.get(plannerURL(start, 0))
+	if status != http.StatusOK {
+		t.Fatalf("planner returned %d", status)
+	}
+	mustContain(t, body, `data-assignment-id="`+itoa64(lessons[1].AssignmentID)+`"`, "plan card")
+	mustContain(t, body, `data-sequence="2"`, "plan card")
+
+	_, after, ok := strings.Cut(body, `data-lesson-id="`+itoa64(loose)+`"`)
+	if !ok {
+		t.Fatal("the unassigned lesson is missing from the week")
+	}
+	card, _, _ := strings.Cut(after, "</article>")
+	if strings.Contains(card, "data-assignment-id") {
+		t.Error("a lesson outside any plan claims to belong to one")
+	}
+}
+
+// Changing the date on the lesson page is the same move as dragging the card:
+// the rest of a planned curriculum set closes up behind it.
+func TestSavingANewDateOnAPlanLessonClosesTheSetUp(t *testing.T) {
+	ta := newTestApp(t)
+	start := mondayWeeksOut(3)
+	kid, subject, lessons := ta.applyMathLessonsFrom(start, "L1", "L2", "L3", "L4", "L5")
+
+	ta.redirectAfterPost("/lessons/"+itoa64(lessons[2].ID), url.Values{
+		"title":        {"L3"},
+		"kid_id":       {itoa64(kid)},
+		"subject_id":   {itoa64(subject)},
+		"scheduled_on": {start},
+		"status":       {"planned"},
+		"minutes":      {"0"},
+	})
+
+	ta.wantScheduled(lessons, map[string]string{
+		"L1": start,
+		"L3": start,
+		"L2": addDays(start, 1),
+		"L4": addDays(start, 2),
+		"L5": addDays(start, 3),
+	})
+}
+
+func TestSavingALaterDateOnAPlanLessonPushesTheRestBack(t *testing.T) {
+	ta := newTestApp(t)
+	start := mondayWeeksOut(3)
+	kid, subject, lessons := ta.applyThreeMathLessonsFrom(start)
+	thursday := addDays(start, 3)
+
+	ta.redirectAfterPost("/lessons/"+itoa64(lessons[0].ID), url.Values{
+		"title":        {lessons[0].Title},
+		"kid_id":       {itoa64(kid)},
+		"subject_id":   {itoa64(subject)},
+		"scheduled_on": {thursday},
+		"status":       {"planned"},
+		"minutes":      {"0"},
+	})
+
+	ta.wantScheduled(lessons, map[string]string{
+		lessons[0].Title: thursday,
+		lessons[1].Title: addDays(start, 4),
+		lessons[2].Title: addDays(start, 7),
+	})
+}
+
+// Marking a lesson done while correcting its date is a record of what happened,
+// not a reshuffle of what is still planned.
+func TestSavingADoneLessonOnANewDateLeavesThePlanAlone(t *testing.T) {
+	ta := newTestApp(t)
+	start := mondayWeeksOut(3)
+	kid, subject, lessons := ta.applyThreeMathLessonsFrom(start)
+
+	ta.redirectAfterPost("/lessons/"+itoa64(lessons[0].ID), url.Values{
+		"title":        {lessons[0].Title},
+		"kid_id":       {itoa64(kid)},
+		"subject_id":   {itoa64(subject)},
+		"scheduled_on": {addDays(start, 3)},
+		"status":       {"done"},
+		"minutes":      {"0"},
+	})
+
+	ta.wantScheduled(lessons, map[string]string{
+		lessons[0].Title: addDays(start, 3),
+		lessons[1].Title: lessons[1].ScheduledOn,
+		lessons[2].Title: lessons[2].ScheduledOn,
+	})
+}
+
+// The lesson page hands the save form enough of the set to warn her before a
+// date change rearranges days she is not looking at.
+func TestPlanLessonPageCarriesItsMatesForTheDateWarning(t *testing.T) {
+	ta := newTestApp(t)
+	start := mondayWeeksOut(3)
+	_, _, lessons := ta.applyMathLessonsFrom(start, "L1", "L2", "L3")
+
+	status, body := ta.get("/lessons/" + itoa64(lessons[2].ID))
+	if status != http.StatusOK {
+		t.Fatalf("lesson returned %d", status)
+	}
+	mustContain(t, body, `class="lesson-save"`, "save form")
+	mustContain(t, body, `data-in-plan="1"`, "save form")
+	mustContain(t, body, `data-was-on="`+lessons[2].ScheduledOn+`"`, "save form")
+	mustContain(t, body, `class="plan-mate" data-title="L1"`, "earlier mate")
+	mustContain(t, body, `class="plan-mate" data-title="L2"`, "earlier mate")
+}
+
+// wantScheduled checks where every lesson of a plan ended up, by title.
+func (ta *testApp) wantScheduled(lessons []Lesson, want map[string]string) {
+	ta.t.Helper()
+	for _, l := range lessons {
+		on, ok := want[l.Title]
+		if !ok {
+			continue
+		}
+		got, err := ta.store.Lesson(l.ID)
+		if err != nil {
+			ta.t.Fatalf("reading %s: %v", l.Title, err)
+		}
+		if got.ScheduledOn != on {
+			ta.t.Errorf("%s landed on %s, want %s", l.Title, got.ScheduledOn, on)
+		}
+	}
+}
+
 // mondayWeeksOut is the Monday of a week far enough ahead that a plan starting
 // there is still entirely in the future whenever these tests are run.
 func mondayWeeksOut(weeks int) string {
@@ -2702,6 +2894,11 @@ func (ta *testApp) applyThreeMathLessons() (kid, subject int64, lessons []Lesson
 // fixed date in the calendar stops being.
 func (ta *testApp) applyThreeMathLessonsFrom(start string) (kid, subject int64, lessons []Lesson) {
 	ta.t.Helper()
+	return ta.applyMathLessonsFrom(start, "Place value", "Addition", "Subtraction")
+}
+
+func (ta *testApp) applyMathLessonsFrom(start string, titles ...string) (kid, subject int64, lessons []Lesson) {
+	ta.t.Helper()
 	kid = ta.addKid("Mia")
 	subject = ta.mathSubjectID()
 
@@ -2717,7 +2914,7 @@ func (ta *testApp) applyThreeMathLessonsFrom(start string) (kid, subject int64, 
 		ta.t.Fatalf("expected 1 plan, got %d (err %v)", len(plans), err)
 	}
 	planID := plans[0].ID
-	for _, title := range []string{"Place value", "Addition", "Subtraction"} {
+	for _, title := range titles {
 		ta.post("/curriculum/"+itoa64(planID)+"/items", url.Values{"title": {title}})
 	}
 	status, _ = ta.post("/curriculum/"+itoa64(planID)+"/apply", url.Values{
@@ -2728,16 +2925,16 @@ func (ta *testApp) applyThreeMathLessonsFrom(start string) (kid, subject int64, 
 	if status != http.StatusOK {
 		ta.t.Fatalf("applying plan returned %d", status)
 	}
-	dates, err := occurrenceDates(start, "", 3, parseWeekdays(schoolWeekdays))
+	dates, err := occurrenceDates(start, "", len(titles), parseWeekdays(schoolWeekdays))
 	if err != nil {
 		ta.t.Fatalf("expected dates: %v", err)
 	}
-	lessons, err = ta.store.LessonsInRange(dates[0], dates[2], kid, subject)
+	lessons, err = ta.store.LessonsInRange(dates[0], dates[len(titles)-1], kid, subject)
 	if err != nil {
 		ta.t.Fatalf("listing applied lessons: %v", err)
 	}
-	if len(lessons) != 3 {
-		ta.t.Fatalf("expected 3 lessons, got %d", len(lessons))
+	if len(lessons) != len(titles) {
+		ta.t.Fatalf("expected %d lessons, got %d", len(titles), len(lessons))
 	}
 	return kid, subject, lessons
 }

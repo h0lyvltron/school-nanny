@@ -92,6 +92,81 @@
         return closest(under, ".day");
     }
 
+    // The name a day goes by on screen, so a question about it reads the way
+    // the week does: "Monday 28 Sep".
+    function dayLabel(date) {
+        var day = document.getElementById("day-" + date);
+        if (!day) {
+            return date;
+        }
+        var name = day.querySelector(".day-head h3");
+        var number = day.querySelector(".day-date");
+        return [name, number].filter(Boolean).map(function (node) {
+            return node.textContent.trim();
+        }).join(" ") || date;
+    }
+
+    function lessonTitle(card) {
+        var title = card.querySelector(".lesson-title");
+        return title ? title.textContent.trim() : "That lesson";
+    }
+
+    function sentence(list) {
+        if (list.length < 2) {
+            return list.join("");
+        }
+        return list.slice(0, -1).join(", ") + " and " + list[list.length - 1];
+    }
+
+    // Dragging a lesson from a curriculum set back past work that is still
+    // pending is not the simple day swap it looks like. The lesson shares the
+    // day it lands on, and everything still ahead of it closes up behind, one
+    // school day each. That rearranges days she is not even pointing at, so
+    // she gets told what it will do before it happens.
+    function shuffleWarning(card, date) {
+        var assignment = card.getAttribute("data-assignment-id");
+        if (!assignment || !date || date >= card.getAttribute("data-date")) {
+            return "";
+        }
+
+        var sequence = Number(card.getAttribute("data-sequence"));
+        var siblings = document.querySelectorAll(
+            ".lesson.status-planned[data-assignment-id='" + assignment + "']");
+        var sharing = [];
+        var following = 0;
+        var jumped = 0;
+        for (var i = 0; i < siblings.length; i++) {
+            var other = siblings[i];
+            var on = other.getAttribute("data-date");
+            if (other === card || on < date) {
+                continue;
+            }
+            if (Number(other.getAttribute("data-sequence")) < sequence) {
+                jumped++;
+            }
+            if (on === date) {
+                sharing.push(lessonTitle(other));
+            } else {
+                following++;
+            }
+        }
+        if (!jumped) {
+            return "";
+        }
+
+        var parts = [lessonTitle(card) + " belongs to a curriculum set."];
+        if (sharing.length) {
+            parts.push("It will share " + dayLabel(date) + " with " +
+                sentence(sharing) + ".");
+        }
+        if (following) {
+            parts.push("The " + following + " lesson" + (following === 1 ? "" : "s") +
+                " still ahead of it will close up behind, one school day each.");
+        }
+        parts.push("Move it?");
+        return parts.join(" ");
+    }
+
     function commitDrop(target, copyOverride) {
         if (!dragging || !target) {
             return;
@@ -110,6 +185,12 @@
 
         if (!copy && date === dragging.date) {
             return;
+        }
+        if (!copy) {
+            var warning = shuffleWarning(dragging.card, date);
+            if (warning && !window.confirm(warning)) {
+                return;
+            }
         }
 
         var values = {

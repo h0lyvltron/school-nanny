@@ -66,6 +66,16 @@ func (a *App) handleUpdateLesson(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	before, err := a.store.Lesson(id)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			a.notFound(w)
+			return
+		}
+		a.serverError(w, err)
+		return
+	}
+
 	lesson := Lesson{
 		KidID:       formID(r, "kid_id"),
 		AdultID:     formID(r, "adult_id"),
@@ -87,8 +97,18 @@ func (a *App) handleUpdateLesson(w http.ResponseWriter, r *http.Request) {
 		a.serverError(w, err)
 		return
 	}
-	if status := r.FormValue("status"); status != "" {
-		if err := a.store.SetLessonStatus(id, normalizeStatus(status)); err != nil {
+	status := before.Status
+	if raw := r.FormValue("status"); raw != "" {
+		status = normalizeStatus(raw)
+		if err := a.store.SetLessonStatus(id, status); err != nil {
+			a.serverError(w, err)
+			return
+		}
+	}
+	// Changing the date on a planned curriculum lesson is the same move as
+	// dragging its card: the rest of the set closes up behind it.
+	if status == StatusPlanned && lesson.ScheduledOn != before.ScheduledOn {
+		if _, err := a.store.CascadeAssignmentAfterMove(before, lesson.ScheduledOn); err != nil {
 			a.serverError(w, err)
 			return
 		}

@@ -31,6 +31,75 @@
         return false;
     }
 
+    function sentence(list) {
+        if (list.length < 2) {
+            return list.join("");
+        }
+        return list.slice(0, -1).join(", ") + " and " + list[list.length - 1];
+    }
+
+    // Saving a new date on a planned curriculum lesson is the same move as
+    // dragging its card. When she pulls it earlier past work that is still
+    // pending, the set closes up behind it — so ask before rearranging days
+    // she is not looking at. Pushing later commits quietly, matching drag.
+    function dateChangeWarning(form) {
+        if (!form || !form.getAttribute("data-in-plan")) {
+            return "";
+        }
+        var wasOn = form.getAttribute("data-was-on");
+        var dateInput = form.querySelector('input[name="scheduled_on"]');
+        var statusInput = form.querySelector('select[name="status"]');
+        if (!dateInput || !wasOn) {
+            return "";
+        }
+        var date = dateInput.value;
+        if (!date || date >= wasOn) {
+            return "";
+        }
+        if (statusInput && statusInput.value && statusInput.value !== "planned") {
+            return "";
+        }
+
+        var sequence = Number(form.getAttribute("data-sequence"));
+        var mates = form.querySelectorAll(".plan-mate");
+        var sharing = [];
+        var following = 0;
+        var jumped = 0;
+        var shareLabel = date;
+        for (var i = 0; i < mates.length; i++) {
+            var mate = mates[i];
+            var on = mate.getAttribute("data-date");
+            if (on < date) {
+                continue;
+            }
+            if (Number(mate.getAttribute("data-sequence")) < sequence) {
+                jumped++;
+            }
+            if (on === date) {
+                sharing.push(mate.getAttribute("data-title"));
+                shareLabel = mate.getAttribute("data-label") || date;
+            } else {
+                following++;
+            }
+        }
+        if (!jumped) {
+            return "";
+        }
+
+        var title = form.getAttribute("data-title") || "That lesson";
+        var parts = [title + " belongs to a curriculum set."];
+        if (sharing.length) {
+            parts.push("It will share " + shareLabel + " with " +
+                sentence(sharing) + ".");
+        }
+        if (following) {
+            parts.push("The " + following + " lesson" + (following === 1 ? "" : "s") +
+                " still ahead of it will close up behind, one school day each.");
+        }
+        parts.push("Save anyway?");
+        return parts.join(" ");
+    }
+
     document.addEventListener("submit", function (event) {
         var form = event.target;
         if (!form || form.tagName !== "FORM") {
@@ -38,6 +107,14 @@
         }
         if (form.hasAttribute("hx-post") || form.hasAttribute("hx-get")) {
             return;
+        }
+
+        if (form.classList.contains("lesson-save")) {
+            var warning = dateChangeWarning(form);
+            if (warning && !window.confirm(warning)) {
+                event.preventDefault();
+                return;
+            }
         }
 
         var toast = "";

@@ -379,17 +379,31 @@ func (a *App) handleLesson(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	var assignment PlanAssignment
+	var planMates []Lesson
 	if lesson.AssignmentID != 0 {
 		assignment, err = a.store.Assignment(lesson.AssignmentID)
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			a.serverError(w, err)
 			return
 		}
+		if lesson.IsPlanned() {
+			all, err := a.store.LessonsForAssignment(lesson.AssignmentID)
+			if err != nil {
+				a.serverError(w, err)
+				return
+			}
+			for _, other := range all {
+				if other.ID != lesson.ID && other.IsPlanned() {
+					planMates = append(planMates, other)
+				}
+			}
+		}
 	}
 
 	data["Lesson"] = lesson
 	data["Series"] = series
 	data["Assignment"] = assignment
+	data["PlanMates"] = planMates
 	data["Return"] = lessonReturn(lesson, r.URL.Query().Get("back"))
 	data["Subjects"] = subjects
 	data["Kids"] = data["NavKids"]

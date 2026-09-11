@@ -34,8 +34,16 @@
 <div class="two-col">
     <section class="panel">
         <h2>Details</h2>
-        <form method="post" action="/lessons/{{.Lesson.ID}}">
+        <form method="post" action="/lessons/{{.Lesson.ID}}" class="lesson-save"
+              data-was-on="{{.Lesson.ScheduledOn}}"
+              data-sequence="{{.Lesson.Sequence}}"
+              data-title="{{.Lesson.Title}}"
+              {{if and .Assignment.ID .Lesson.IsPlanned}}data-in-plan="1"{{end}}>
             <input type="hidden" name="back" value="{{.Return.Save}}">
+            {{range .PlanMates}}
+                <span hidden class="plan-mate" data-title="{{.Title}}" data-date="{{.ScheduledOn}}"
+                      data-label="{{prettyDate .ScheduledOn}}" data-sequence="{{.Sequence}}"></span>
+            {{end}}
             <label>Title
                 <input type="text" name="title" value="{{.Lesson.Title}}" required>
             </label>

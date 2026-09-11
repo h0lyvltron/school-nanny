@@ -168,6 +168,13 @@ func (s *Store) RelayoutPlannedFrom(asg PlanAssignment, resumeOn string, fromSeq
 	if err != nil {
 		return err
 	}
+	return s.relayoutLessons(asg, resumeOn, planned)
+}
+
+// relayoutLessons drops the given lessons onto consecutive school days from
+// resumeOn, in the order they arrive. Callers decide which lessons move and
+// where the run begins; this only deals out the days.
+func (s *Store) relayoutLessons(asg PlanAssignment, resumeOn string, planned []Lesson) error {
 	if len(planned) == 0 {
 		return nil
 	}
@@ -238,23 +245,77 @@ func (s *Store) RescheduleAssignmentLesson(lesson Lesson, date string) (bool, er
 	if err := s.RescheduleLesson(lesson.ID, date); err != nil {
 		return false, err
 	}
+	return s.CascadeAssignmentAfterMove(lesson, date)
+}
+
+// CascadeAssignmentAfterMove reshuffles the rest of a plan once one lesson has
+// already been moved onto date (by a drag, or by editing the date and saving).
+// lesson must still describe the lesson as it was before the move.
+func (s *Store) CascadeAssignmentAfterMove(lesson Lesson, date string) (bool, error) {
 	if !lesson.HasAssignment() || lesson.Status != StatusPlanned ||
 		lesson.Sequence == 0 || date == lesson.ScheduledOn {
 		return false, nil
 	}
 
-	later, err := s.PlannedAssignmentIDsFrom(lesson.AssignmentID, lesson.Sequence+1)
-	if err != nil || len(later) == 0 {
+	siblings, err := s.plannedSiblings(lesson)
+	if err != nil {
 		return false, err
+	}
+	follow := lessonsClosingUpBehind(lesson, siblings, date)
+	if len(follow) == 0 {
+		return false, nil
 	}
 	asg, err := s.Assignment(lesson.AssignmentID)
 	if err != nil {
 		return false, err
 	}
-	if err := s.RelayoutPlannedFrom(asg, addDays(date, 1), lesson.Sequence+1); err != nil {
+	if err := s.relayoutLessons(asg, addDays(date, 1), follow); err != nil {
 		return false, err
 	}
 	return true, nil
+}
+
+// plannedSiblings is the rest of a lesson's plan that is still to be done.
+// Lessons already marked done or skipped are a record of what happened, so
+// they are left out of any reshuffle.
+func (s *Store) plannedSiblings(lesson Lesson) ([]Lesson, error) {
+	all, err := s.LessonsForAssignment(lesson.AssignmentID)
+	if err != nil {
+		return nil, err
+	}
+	var out []Lesson
+	for _, l := range all {
+		if l.ID != lesson.ID && l.Status == StatusPlanned {
+			out = append(out, l)
+		}
+	}
+	return out, nil
+}
+
+// lessonsClosingUpBehind picks which of a plan's remaining lessons have to
+// shuffle once one of them has been dropped on a new day, in the order they
+// should be worked through.
+//
+// Dragged later, it is the lessons numbered after it that follow it down the
+// calendar; the ones in front of it were done first and stay where they are.
+//
+// Dragged earlier she is pulling a lesson forward past work that is still
+// pending, and that pending work cannot be left behind: it would double up on
+// the days the rest of the plan is about to land on and the set would read out
+// of order. So everything still sitting beyond the day she dropped on closes
+// up behind it, lowest number first. Whatever is already on that day stays
+// there and shares it with the lesson she just let go.
+func lessonsClosingUpBehind(dragged Lesson, siblings []Lesson, date string) []Lesson {
+	later := date > dragged.ScheduledOn
+	var out []Lesson
+	for _, l := range siblings {
+		if later && l.Sequence > dragged.Sequence {
+			out = append(out, l)
+		} else if !later && l.ScheduledOn > date {
+			out = append(out, l)
+		}
+	}
+	return out
 }
 
 func (s *Store) PauseAssignmentUntil(assignmentID int64, resumeOn string) error {
