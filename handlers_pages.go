@@ -80,12 +80,24 @@ func (a *App) handleHome(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	adults, _ := data["NavAdults"].([]Adult)
+	var todayEvents []AdultEvent
+	for _, adult := range adults {
+		events, err := a.store.AdultEventsOverlapping(adult.ID, now, now)
+		if err != nil {
+			a.serverError(w, err)
+			return
+		}
+		todayEvents = append(todayEvents, events...)
+	}
+
 	data["Cards"] = cards
 	data["Overdue"] = overdue
 	data["WeekStart"] = start
 	data["WeekEnd"] = end
 	data["FamilyWeek"] = familyWeek
 	data["Subjects"] = subjects
+	data["TodayEvents"] = todayEvents
 	data["NeedsSetup"] = len(kids) == 0
 	a.render(w, "home", data)
 }
@@ -94,6 +106,7 @@ func (a *App) handleHome(w http.ResponseWriter, r *http.Request) {
 type PlannerDay struct {
 	Date    string
 	Lessons []Lesson
+	Events  []AdultEvent
 }
 
 func (a *App) handlePlanner(w http.ResponseWriter, r *http.Request) {
@@ -105,12 +118,14 @@ func (a *App) handlePlanner(w http.ResponseWriter, r *http.Request) {
 
 	start := weekStart(parseDate(r.URL.Query().Get("week"))).Format(dateLayout)
 	end := addDays(start, 6)
-	kidFilter := int64(0)
-	if raw := r.URL.Query().Get("kid"); raw != "" {
-		kidFilter = parseInt64(raw)
-	}
+	kidFilter, adultFilter := plannerPersonFilter(r.URL.Query())
 
-	lessons, err := a.store.LessonsBetween(start, end, kidFilter)
+	var lessons []Lesson
+	if adultFilter > 0 {
+		lessons, err = a.store.AdultLessonsBetween(start, end, adultFilter)
+	} else {
+		lessons, err = a.store.LessonsBetween(start, end, kidFilter)
+	}
 	if err != nil {
 		a.serverError(w, err)
 		return
@@ -120,10 +135,21 @@ func (a *App) handlePlanner(w http.ResponseWriter, r *http.Request) {
 		byDay[l.ScheduledOn] = append(byDay[l.ScheduledOn], l)
 	}
 
+	adults, _ := data["NavAdults"].([]Adult)
+	eventsByDay, err := a.eventsByDay(adults, start, end)
+	if err != nil {
+		a.serverError(w, err)
+		return
+	}
+
 	days := make([]PlannerDay, 0, 7)
 	for i := 0; i < 7; i++ {
 		date := addDays(start, i)
-		days = append(days, PlannerDay{Date: date, Lessons: byDay[date]})
+		days = append(days, PlannerDay{
+			Date:    date,
+			Lessons: byDay[date],
+			Events:  eventsByDay[date],
+		})
 	}
 
 	subjects, err := a.store.Subjects(false)
@@ -131,15 +157,29 @@ func (a *App) handlePlanner(w http.ResponseWriter, r *http.Request) {
 		a.serverError(w, err)
 		return
 	}
-	progress, err := a.store.ProgressBetween(start, end, kidFilter, 0)
-	if err != nil {
-		a.serverError(w, err)
-		return
+	var progress Progress
+	if adultFilter > 0 {
+		progress = progressFromLessons(lessons)
+	} else {
+		progress, err = a.store.ProgressBetween(start, end, kidFilter, 0)
+		if err != nil {
+			a.serverError(w, err)
+			return
+		}
 	}
 
 	data["Days"] = days
 	data["Subjects"] = subjects
 	data["KidFilter"] = kidFilter
+	data["AdultFilter"] = adultFilter
+	if adultFilter > 0 {
+		if adult, err := a.store.Adult(adultFilter); err == nil {
+			data["FilterAdult"] = adult
+		} else if !errors.Is(err, sql.ErrNoRows) {
+			a.serverError(w, err)
+			return
+		}
+	}
 	data["WeekStart"] = start
 	data["WeekEnd"] = end
 	data["PrevWeek"] = addDays(start, -7)
@@ -147,6 +187,54 @@ func (a *App) handlePlanner(w http.ResponseWriter, r *http.Request) {
 	data["ThisWeek"] = weekStart(time.Now()).Format(dateLayout)
 	data["Progress"] = progress
 	a.render(w, "planner", data)
+}
+
+// plannerPersonFilter reads the week filter: a child, an adult, or everybody.
+// Adult wins if both somehow arrive, so the URL stays unambiguous.
+func plannerPersonFilter(query url.Values) (kidID, adultID int64) {
+	if raw := query.Get("adult"); raw != "" {
+		return 0, parseInt64(raw)
+	}
+	if raw := query.Get("kid"); raw != "" {
+		return parseInt64(raw), 0
+	}
+	return 0, 0
+}
+
+// eventsByDay hangs every adult's calendar entries on the days they cover, so
+// the week planner and Today can paint them without another query per cell.
+func (a *App) eventsByDay(adults []Adult, from, to string) (map[string][]AdultEvent, error) {
+	out := map[string][]AdultEvent{}
+	for _, adult := range adults {
+		events, err := a.store.AdultEventsOverlapping(adult.ID, from, to)
+		if err != nil {
+			return nil, err
+		}
+		for _, e := range events {
+			for date := from; date <= to; date = addDays(date, 1) {
+				if e.Covers(date) {
+					out[date] = append(out[date], e)
+				}
+			}
+		}
+	}
+	return out, nil
+}
+
+func progressFromLessons(lessons []Lesson) Progress {
+	var p Progress
+	for _, l := range lessons {
+		switch l.Status {
+		case StatusPlanned:
+			p.Planned++
+		case StatusDone:
+			p.Done++
+			p.Minutes += l.Minutes
+		case StatusSkipped:
+			p.Skipped++
+		}
+	}
+	return p
 }
 
 // SubjectCard summarises one subject on a child's page.

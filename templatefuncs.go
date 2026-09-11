@@ -11,21 +11,22 @@ import (
 
 func templateFuncs() template.FuncMap {
 	return template.FuncMap{
-		"prettyDate":     prettyDate,
-		"dayName":        func(d string) string { return formatDate(d, "Monday") },
-		"dayShort":       func(d string) string { return formatDate(d, "Mon") },
-		"monthDay":       func(d string) string { return formatDate(d, "Jan 2") },
-		"isToday":        func(d string) bool { return d == today() },
-		"isPast":         func(d string) bool { return d < today() },
-		"monthYear":      func(d string) string { return formatDate(d, "January 2006") },
-		"dayNum":         func(d string) string { return formatDate(d, "2") },
-		"addDays":        addDays,
-		"addMonths":      addMonths,
-		"weekdayChoices": weekdayChoices,
-		"dict":           dict,
-		"initial":        initial,
-		"color":          safeColor,
-		"plannerURL":     plannerURL,
+		"prettyDate":       prettyDate,
+		"dayName":          func(d string) string { return formatDate(d, "Monday") },
+		"dayShort":         func(d string) string { return formatDate(d, "Mon") },
+		"monthDay":         func(d string) string { return formatDate(d, "Jan 2") },
+		"isToday":          func(d string) bool { return d == today() },
+		"isPast":           func(d string) bool { return d < today() },
+		"monthYear":        func(d string) string { return formatDate(d, "January 2006") },
+		"dayNum":           func(d string) string { return formatDate(d, "2") },
+		"addDays":          addDays,
+		"addMonths":        addMonths,
+		"weekdayChoices":   weekdayChoices,
+		"dict":             dict,
+		"initial":          initial,
+		"color":            safeColor,
+		"plannerURL":       plannerURL,
+		"plannerFilterURL": plannerFilterURL,
 	}
 }
 
@@ -99,12 +100,20 @@ func initial(name string) string {
 // plannerURL keeps the week and child filter in "go back" links, so Push and
 // similar actions do not dump the parent onto every child's week at once.
 func plannerURL(week string, kidID int64) string {
+	return plannerFilterURL(week, kidID, 0)
+}
+
+// plannerFilterURL is the week planner with either a child or an adult filter
+// selected — never both, because the week is one person's work at a time.
+func plannerFilterURL(week string, kidID, adultID int64) string {
 	week = strings.TrimSpace(week)
 	if week == "" {
 		week = weekStart(time.Now()).Format(dateLayout)
 	}
 	url := "/planner?week=" + week
-	if kidID > 0 {
+	if adultID > 0 {
+		url += "&adult=" + strconv.FormatInt(adultID, 10)
+	} else if kidID > 0 {
 		url += "&kid=" + strconv.FormatInt(kidID, 10)
 	}
 	return url

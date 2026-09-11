@@ -428,6 +428,10 @@ func (a *App) handleCreateAdultLesson(w http.ResponseWriter, r *http.Request) {
 		a.renderAdultDay(w, adult, item.ScheduledOn)
 		return
 	}
+	if r.Header.Get("HX-Request") == "true" && r.FormValue("view") == "planner" {
+		a.renderPlannerDay(w, item.ScheduledOn, formID(r, "kid_filter"), adult.ID)
+		return
+	}
 	a.redirect(w, r, safeRedirect(r.FormValue("back"), "/adults/"+r.PathValue("id")+"/schedule"))
 }
 

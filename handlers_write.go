@@ -53,7 +53,7 @@ func (a *App) handleCreateLesson(w http.ResponseWriter, r *http.Request) {
 
 	// The planner swaps just the day that changed; everywhere else reloads.
 	if r.Header.Get("HX-Request") == "true" && r.FormValue("view") == "planner" && r.FormValue("repeat") != "on" {
-		a.renderPlannerDay(w, lesson.ScheduledOn, formID(r, "kid_filter"))
+		a.renderPlannerDay(w, lesson.ScheduledOn, formID(r, "kid_filter"), formID(r, "adult_filter"))
 		return
 	}
 	a.redirect(w, r, safeRedirect(r.FormValue("back"), "/"))
@@ -175,7 +175,7 @@ func (a *App) handleRescheduleLesson(w http.ResponseWriter, r *http.Request) {
 		if cascaded {
 			days = append(days, weekDates(date)...)
 		}
-		a.renderPlannerDays(w, formID(r, "kid_filter"), days...)
+		a.renderPlannerDays(w, formID(r, "kid_filter"), formID(r, "adult_filter"), days...)
 		return
 	}
 	a.redirect(w, r, safeRedirect(r.FormValue("back"), "/planner"))
@@ -219,7 +219,7 @@ func (a *App) handleCloneLesson(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if r.Header.Get("HX-Request") == "true" && r.FormValue("view") == "planner" {
-		a.renderPlannerDays(w, formID(r, "kid_filter"), clone.ScheduledOn)
+		a.renderPlannerDays(w, formID(r, "kid_filter"), formID(r, "adult_filter"), clone.ScheduledOn)
 		return
 	}
 	a.redirect(w, r, safeRedirect(r.FormValue("back"), "/planner"))
@@ -242,21 +242,21 @@ func (a *App) handleDeleteLesson(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if r.Header.Get("HX-Request") == "true" && r.FormValue("view") == "planner" {
-		a.renderPlannerDay(w, lesson.ScheduledOn, formID(r, "kid_filter"))
+		a.renderPlannerDay(w, lesson.ScheduledOn, formID(r, "kid_filter"), formID(r, "adult_filter"))
 		return
 	}
 	a.redirect(w, r, safeRedirect(r.FormValue("back"), "/planner"))
 }
 
 // renderPlannerDay re-renders one day of the week grid after it changed.
-func (a *App) renderPlannerDay(w http.ResponseWriter, date string, kidFilter int64) {
-	a.renderPlannerDays(w, kidFilter, date)
+func (a *App) renderPlannerDay(w http.ResponseWriter, date string, kidFilter, adultFilter int64) {
+	a.renderPlannerDays(w, kidFilter, adultFilter, date)
 }
 
 // renderPlannerDays re-renders one or more days of the week grid. The first
 // day goes into whatever the request targeted; the rest ride along as
 // out-of-band swaps, which is how a dragged lesson updates both ends at once.
-func (a *App) renderPlannerDays(w http.ResponseWriter, kidFilter int64, dates ...string) {
+func (a *App) renderPlannerDays(w http.ResponseWriter, kidFilter, adultFilter int64, dates ...string) {
 	kids, err := a.store.Kids(false)
 	if err != nil {
 		a.serverError(w, err)
@@ -267,6 +267,19 @@ func (a *App) renderPlannerDays(w http.ResponseWriter, kidFilter int64, dates ..
 		a.serverError(w, err)
 		return
 	}
+	adults, err := a.store.Adults(false)
+	if err != nil {
+		a.serverError(w, err)
+		return
+	}
+	var filterAdult Adult
+	if adultFilter > 0 {
+		filterAdult, err = a.store.Adult(adultFilter)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			a.serverError(w, err)
+			return
+		}
+	}
 
 	seen := map[string]bool{}
 	for i, date := range dates {
@@ -275,19 +288,31 @@ func (a *App) renderPlannerDays(w http.ResponseWriter, kidFilter int64, dates ..
 		}
 		seen[date] = true
 
-		lessons, err := a.store.LessonsBetween(date, date, kidFilter)
+		var lessons []Lesson
+		if adultFilter > 0 {
+			lessons, err = a.store.AdultLessonsBetween(date, date, adultFilter)
+		} else {
+			lessons, err = a.store.LessonsBetween(date, date, kidFilter)
+		}
+		if err != nil {
+			a.serverError(w, err)
+			return
+		}
+		eventsByDay, err := a.eventsByDay(adults, date, date)
 		if err != nil {
 			a.serverError(w, err)
 			return
 		}
 		a.renderPartial(w, "planner_day", map[string]any{
-			"Day":       PlannerDay{Date: date, Lessons: lessons},
-			"Kids":      kids,
-			"Subjects":  subjects,
-			"KidFilter": kidFilter,
-			"Today":     today(),
-			"Back":      plannerURL(weekStart(parseDate(date)).Format(dateLayout), kidFilter),
-			"OOB":       i > 0,
+			"Day":         PlannerDay{Date: date, Lessons: lessons, Events: eventsByDay[date]},
+			"Kids":        kids,
+			"Subjects":    subjects,
+			"KidFilter":   kidFilter,
+			"AdultFilter": adultFilter,
+			"Adult":       filterAdult,
+			"Today":       today(),
+			"Back":        plannerFilterURL(weekStart(parseDate(date)).Format(dateLayout), kidFilter, adultFilter),
+			"OOB":         i > 0,
 		})
 	}
 }

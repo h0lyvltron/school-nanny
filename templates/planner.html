@@ -13,35 +13,51 @@
 
 <div class="planner-controls">
     <div class="week-nav">
-        <a role="button" class="secondary" href="/planner?week={{.PrevWeek}}{{if .KidFilter}}&kid={{.KidFilter}}{{end}}">&larr; Previous</a>
-        <a role="button" class="secondary" href="/planner?week={{.ThisWeek}}{{if .KidFilter}}&kid={{.KidFilter}}{{end}}">This week</a>
-        <a role="button" class="secondary" href="/planner?week={{.NextWeek}}{{if .KidFilter}}&kid={{.KidFilter}}{{end}}">Next &rarr;</a>
+        <a role="button" class="secondary" href="{{plannerFilterURL .PrevWeek .KidFilter .AdultFilter}}">&larr; Previous</a>
+        <a role="button" class="secondary" href="{{plannerFilterURL .ThisWeek .KidFilter .AdultFilter}}">This week</a>
+        <a role="button" class="secondary" href="{{plannerFilterURL .NextWeek .KidFilter .AdultFilter}}">Next &rarr;</a>
     </div>
-    <div class="kid-filter">
-        <a href="/planner?week={{.WeekStart}}" class="filter-chip{{if not .KidFilter}} current{{end}}">All kids</a>
-        {{$week := .WeekStart}}
-        {{$filter := .KidFilter}}
-        {{range .NavKids}}
-            <a href="/planner?week={{$week}}&kid={{.ID}}"
-               class="filter-chip{{if eq $filter .ID}} current{{end}}">
-                {{template "avatar" (dict "Person" . "Size" "chip")}}{{.Name}}
-            </a>
-        {{end}}
+    <div class="planner-filters">
+        <div class="kid-filter">
+            <a href="/planner?week={{.WeekStart}}" class="filter-chip{{if and (not .KidFilter) (not .AdultFilter)}} current{{end}}">All kids</a>
+            {{$week := .WeekStart}}
+            {{$kidFilter := .KidFilter}}
+            {{$adultFilter := .AdultFilter}}
+            {{range .NavKids}}
+                <a href="{{plannerFilterURL $week .ID 0}}"
+                   class="filter-chip{{if eq $kidFilter .ID}} current{{end}}">
+                    {{template "avatar" (dict "Person" . "Size" "chip")}}{{.Name}}
+                </a>
+            {{end}}
+            {{range .NavAdults}}
+                <a href="{{plannerFilterURL $week 0 .ID}}"
+                   class="filter-chip{{if eq $adultFilter .ID}} current{{end}}">
+                    {{template "avatar" (dict "Person" . "Size" "chip")}}{{.Name}}
+                </a>
+            {{end}}
+        </div>
+        <label class="slide-toggle" title="Show calendar events on each day">
+            <input type="checkbox" data-events-toggle checked role="switch" aria-checked="true">
+            <span class="slide-toggle-track" aria-hidden="true"></span>
+            Events
+        </label>
     </div>
 </div>
 
-{{if not .NavKids}}
+{{if and (not .NavKids) (not .AdultFilter)}}
     <p class="muted">Add the kids in <a href="/settings">Settings</a> before planning a week.</p>
 {{end}}
 
-<div class="week-grid">
+<div class="week-grid" data-week-events>
     {{$kids := .NavKids}}
     {{$subjects := .Subjects}}
     {{$kidFilter := .KidFilter}}
+    {{$adultFilter := .AdultFilter}}
+    {{$adult := .FilterAdult}}
     {{$today := .Today}}
-    {{$back := plannerURL .WeekStart .KidFilter}}
+    {{$back := plannerFilterURL .WeekStart .KidFilter .AdultFilter}}
     {{range .Days}}
-        {{template "planner_day" (dict "Day" . "Kids" $kids "Subjects" $subjects "KidFilter" $kidFilter "Today" $today "Back" $back)}}
+        {{template "planner_day" (dict "Day" . "Kids" $kids "Subjects" $subjects "KidFilter" $kidFilter "AdultFilter" $adultFilter "Adult" $adult "Today" $today "Back" $back)}}
     {{end}}
 </div>
 {{end}}

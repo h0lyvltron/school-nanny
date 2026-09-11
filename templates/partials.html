@@ -152,21 +152,30 @@
 
 {{define "planner_day"}}
 <section class="day{{if isToday .Day.Date}} is-today{{end}}" id="day-{{.Day.Date}}"
-         {{if .OOB}}hx-swap-oob="true" {{end}}data-date="{{.Day.Date}}" data-kid-filter="{{.KidFilter}}">
+         {{if .OOB}}hx-swap-oob="true" {{end}}data-date="{{.Day.Date}}"
+         data-kid-filter="{{.KidFilter}}" data-adult-filter="{{.AdultFilter}}">
     <header class="day-head">
         <h3>{{dayName .Day.Date}}</h3>
         <span class="day-date">{{monthDay .Day.Date}}</span>
     </header>
 
+    {{if .Day.Events}}
+    <div class="day-events">
+        {{range .Day.Events}}
+            <span class="cal-event{{if .Spans}} is-span{{end}}" title="{{.Title}}{{if .Body}} — {{.Body}}{{end}}">{{.Title}}</span>
+        {{end}}
+    </div>
+    {{end}}
+
     <div class="day-lessons">
         {{range .Day.Lessons}}
-            {{template "lesson_row" (dict "Lesson" . "ShowKid" true "ShowSubject" true "Back" $.Back "Draggable" true)}}
+            {{template "lesson_row" (dict "Lesson" . "ShowKid" (not $.AdultFilter) "ShowSubject" true "Back" $.Back "Draggable" (not $.AdultFilter))}}
         {{else}}
-            <p class="muted small">Nothing planned.</p>
+            <p class="muted small">{{if $.AdultFilter}}Nothing on this day.{{else}}Nothing planned.{{end}}</p>
         {{end}}
     </div>
 
-    {{if .Kids}}
+    {{if and .Kids (not .AdultFilter)}}
     <div class="drop-kids">
         <span class="drop-kids-label">Drop here to copy for</span>
         <span class="day-copy-target" data-date="{{.Day.Date}}" title="Copy this lesson onto this day">Copy to this day</span>
@@ -180,13 +189,14 @@
     </div>
     {{end}}
 
-    {{if .Kids}}
+    {{if and .Kids (not .AdultFilter)}}
     <details class="add-box">
         <summary>Add lesson</summary>
         <form hx-post="/lessons" hx-target="#day-{{.Day.Date}}" hx-swap="outerHTML">
             <input type="hidden" name="view" value="planner">
             <input type="hidden" name="scheduled_on" value="{{.Day.Date}}">
             <input type="hidden" name="kid_filter" value="{{.KidFilter}}">
+            <input type="hidden" name="adult_filter" value="{{.AdultFilter}}">
             <select name="kid_id" required aria-label="Child">
                 {{range .Kids}}
                     <option value="{{.ID}}" {{if eq $.KidFilter .ID}}selected{{end}}>{{.Name}}</option>
@@ -214,6 +224,27 @@
                     <input type="date" name="repeat_until" aria-label="Repeat until">
                 </div>
             </details>
+            <button type="submit">Add</button>
+        </form>
+    </details>
+    {{else if and .AdultFilter .Adult .Adult.ID}}
+    <details class="add-box">
+        <summary>Add to this day</summary>
+        <form hx-post="/adults/{{.Adult.ID}}/schedule" hx-target="#day-{{.Day.Date}}" hx-swap="outerHTML">
+            <input type="hidden" name="view" value="planner">
+            <input type="hidden" name="scheduled_on" value="{{.Day.Date}}">
+            <input type="hidden" name="kid_filter" value="0">
+            <input type="hidden" name="adult_filter" value="{{.AdultFilter}}">
+            <select name="subject_id" required aria-label="Category">
+                {{range .Subjects}}<option value="{{.ID}}">{{.Name}}</option>{{end}}
+            </select>
+            <input type="text" name="title" placeholder="What is it?" required>
+            <div class="add-row">
+                <input type="number" name="minutes" min="0" step="5" placeholder="min" aria-label="Minutes">
+                <label class="check">
+                    <input type="checkbox" name="status" value="done"> Already done
+                </label>
+            </div>
             <button type="submit">Add</button>
         </form>
     </details>

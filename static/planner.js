@@ -196,7 +196,8 @@
         var values = {
             view: "planner",
             scheduled_on: date,
-            kid_filter: dayEl.getAttribute("data-kid-filter") || "0"
+            kid_filter: dayEl.getAttribute("data-kid-filter") || "0",
+            adult_filter: dayEl.getAttribute("data-adult-filter") || "0"
         };
         if (kidID) {
             values.kid_id = kidID;
@@ -390,5 +391,49 @@
             dragging = null;
             setDragging(false);
         }
+    });
+
+    // Calendar events on the week --------------------------------------
+
+    var EVENTS_KEY = "school-nanny-week-events";
+
+    function eventsVisible() {
+        try {
+            var raw = localStorage.getItem(EVENTS_KEY);
+            if (raw === null) {
+                return true;
+            }
+            return raw !== "0" && raw !== "false";
+        } catch (e) {
+            return true;
+        }
+    }
+
+    function applyEventsToggle(on) {
+        var grid = document.querySelector("[data-week-events]");
+        if (grid) {
+            grid.classList.toggle("hide-day-events", !on);
+        }
+        var input = document.querySelector("[data-events-toggle]");
+        if (input) {
+            input.checked = on;
+            input.setAttribute("aria-checked", on ? "true" : "false");
+        }
+    }
+
+    applyEventsToggle(eventsVisible());
+
+    document.addEventListener("change", function (event) {
+        var input = event.target;
+        if (!input || !input.matches || !input.matches("[data-events-toggle]")) {
+            return;
+        }
+        var on = Boolean(input.checked);
+        try {
+            localStorage.setItem(EVENTS_KEY, on ? "1" : "0");
+        } catch (e) {
+            // Private windows can block storage; the toggle still works for this page.
+        }
+        applyEventsToggle(on);
     });
 })();

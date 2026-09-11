@@ -570,6 +570,8 @@ func TestPlannerMarkupIsDraggable(t *testing.T) {
 	mustContain(t, body, `class="kid-target"`, "planner")
 	mustContain(t, body, `class="day-copy-target"`, "planner")
 	mustContain(t, body, `data-kid-filter="0"`, "planner")
+	mustContain(t, body, `data-adult-filter="0"`, "planner")
+	mustContain(t, body, `data-events-toggle`, "planner")
 	mustContain(t, body, "/static/planner.js", "planner")
 
 	status, js := ta.get("/static/planner.js")
@@ -578,6 +580,99 @@ func TestPlannerMarkupIsDraggable(t *testing.T) {
 	}
 	mustContain(t, js, "pointerdown", "touch long-press")
 	mustContain(t, js, "LONG_PRESS_MS", "touch long-press")
+	mustContain(t, js, "data-events-toggle", "events toggle")
+}
+
+// The parent sits in the week filter next to the children, and picking her
+// shows her own schedule rather than theirs.
+func TestPlannerFiltersByTheParent(t *testing.T) {
+	ta := newTestApp(t)
+	mom := ta.mom()
+	kid := ta.addKid("Mia")
+	date := today()
+	ta.insertUnassignedLesson(kid, ta.mathSubjectID(), date, "Long division", "")
+	ta.post("/adults/"+itoa64(mom.ID)+"/schedule", url.Values{
+		"subject_id":   {itoa64(ta.mathSubjectID())},
+		"scheduled_on": {date},
+		"title":        {"Dentist"},
+	})
+
+	status, body := ta.get("/planner")
+	if status != http.StatusOK {
+		t.Fatalf("planner returned %d", status)
+	}
+	mustContain(t, body, `href="/planner?week=`+weekStart(parseDate(date)).Format(dateLayout)+`&amp;adult=`+itoa64(mom.ID)+`"`, "parent chip")
+	mustContain(t, body, "Long division", "all kids")
+	mustNotContain(t, body, "Dentist", "all kids")
+
+	status, hers := ta.get(plannerFilterURL(weekStart(parseDate(date)).Format(dateLayout), 0, mom.ID))
+	if status != http.StatusOK {
+		t.Fatalf("parent filter returned %d", status)
+	}
+	mustContain(t, hers, "Dentist", "parent week")
+	mustNotContain(t, hers, "Long division", "parent week")
+	mustContain(t, hers, `data-adult-filter="`+itoa64(mom.ID)+`"`, "parent week")
+	mustContain(t, hers, `hx-post="/adults/`+itoa64(mom.ID)+`/schedule"`, "parent week")
+}
+
+// Calendar events paint onto the week days so she can see appointments without
+// leaving the planner; the sliding toggle only hides them in the browser.
+func TestPlannerShowsCalendarEventsOnTheDays(t *testing.T) {
+	ta := newTestApp(t)
+	mom := ta.mom()
+	start := weekStart(parseDate(today())).Format(dateLayout)
+	wednesday := addDays(start, 2)
+	_, err := ta.store.CreateAdultEvent(AdultEvent{
+		AdultID:  mom.ID,
+		StartsOn: wednesday,
+		EndsOn:   addDays(wednesday, 1),
+		Title:    "Field trip",
+		Body:     "Bring lunch",
+	})
+	if err != nil {
+		t.Fatalf("creating event: %v", err)
+	}
+
+	status, body := ta.get("/planner?week=" + start)
+	if status != http.StatusOK {
+		t.Fatalf("planner returned %d", status)
+	}
+	mustContain(t, body, `class="day-events"`, "week events")
+	mustContain(t, body, `class="cal-event is-span"`, "multi-day event")
+	mustContain(t, body, "Field trip", "week events")
+	mustContain(t, body, `data-events-toggle`, "events toggle")
+	mustContain(t, body, `data-week-events`, "events toggle")
+}
+
+// Today lists what is on her calendar under the date, before the kids' cards.
+func TestTodayListsCalendarEventsAboveTheKids(t *testing.T) {
+	ta := newTestApp(t)
+	mom := ta.mom()
+	ta.addKid("Mia")
+	_, err := ta.store.CreateAdultEvent(AdultEvent{
+		AdultID:  mom.ID,
+		StartsOn: today(),
+		EndsOn:   today(),
+		Title:    "Piano recital",
+		Body:     "4pm",
+	})
+	if err != nil {
+		t.Fatalf("creating event: %v", err)
+	}
+
+	status, body := ta.get("/")
+	if status != http.StatusOK {
+		t.Fatalf("today returned %d", status)
+	}
+	mustContain(t, body, `class="today-events"`, "today events")
+	mustContain(t, body, "Piano recital", "today events")
+	mustContain(t, body, "4pm", "today events")
+
+	head := strings.Index(body, `class="today-events"`)
+	grid := strings.Index(body, `class="kid-grid"`)
+	if head < 0 || grid < 0 || head > grid {
+		t.Errorf("calendar events should sit above the kid cards")
+	}
 }
 
 // A one-pixel PNG, which is enough for the sniffing the upload does.

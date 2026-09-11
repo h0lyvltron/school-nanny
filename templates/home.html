@@ -18,6 +18,18 @@
         </div>
     </div>
 
+    {{if .TodayEvents}}
+    <div class="today-events">
+        {{range .TodayEvents}}
+            <article class="today-event{{if .Spans}} is-span{{end}}">
+                <strong>{{.Title}}</strong>
+                {{if .Spans}}<span class="muted small">{{.DateLabel}}</span>{{end}}
+                {{if .Body}}<p class="muted small">{{.Body}}</p>{{end}}
+            </article>
+        {{end}}
+    </div>
+    {{end}}
+
     <div class="kid-grid">
         {{$today := .Today}}
         {{$subjects := .Subjects}}

@@ -359,6 +359,28 @@ img.avatar-nav { width: 1.4rem; height: 1.4rem; }
 
 /* Kid cards on the home page ------------------------------------------ */
 
+.today-events {
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+    margin: 0 0 1.1rem;
+}
+
+.today-event {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.35rem 0.75rem;
+    padding: 0.55rem 0.85rem;
+    border: 1px solid var(--accent);
+    border-radius: 0.55rem;
+    background: var(--accent-soft);
+    color: var(--accent);
+}
+.today-event strong { color: var(--ink); }
+.today-event p { margin: 0; flex: 1 1 100%; }
+.today-event.is-span { border-radius: 0.35rem; }
+
 .kid-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
@@ -526,6 +548,13 @@ button.pill[type="submit"] { width: auto; }
     margin-bottom: 1.25rem;
 }
 
+.planner-filters {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+    flex-wrap: wrap;
+}
+
 .week-nav { display: flex; gap: 0.4rem; }
 .week-nav [role="button"] { margin: 0; padding: 0.35rem 0.8rem; font-size: 0.85rem; }
 
@@ -545,6 +574,58 @@ button.pill[type="submit"] { width: auto; }
 }
 
 .filter-chip.current { border-color: var(--accent); color: var(--accent); }
+
+/* Sliding on/off for painting calendar events onto the week. */
+.slide-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.85rem;
+    color: var(--ink-soft);
+    cursor: pointer;
+    user-select: none;
+}
+.slide-toggle input {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+.slide-toggle-track {
+    position: relative;
+    width: 2.35rem;
+    height: 1.3rem;
+    border-radius: 999px;
+    background: var(--muted-surface);
+    border: 1px solid var(--line);
+    flex: none;
+    transition: background 0.15s ease, border-color 0.15s ease;
+}
+.slide-toggle-track::after {
+    content: "";
+    position: absolute;
+    top: 0.1rem;
+    left: 0.1rem;
+    width: 0.95rem;
+    height: 0.95rem;
+    border-radius: 50%;
+    background: var(--card);
+    border: 1px solid var(--line);
+    transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+}
+.slide-toggle input:checked + .slide-toggle-track {
+    background: var(--accent-soft);
+    border-color: var(--accent);
+}
+.slide-toggle input:checked + .slide-toggle-track::after {
+    transform: translateX(1.05rem);
+    background: var(--accent);
+    border-color: var(--accent);
+}
+.slide-toggle input:focus-visible + .slide-toggle-track {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
 
 /* Days stack as full-width rows rather than seven narrow columns: with several
    kids a single day holds a lot, and lesson titles need room to breathe. */
@@ -568,12 +649,20 @@ button.pill[type="submit"] { width: auto; }
     flex-direction: column;
     gap: 0.1rem;
     grid-column: 1;
-    grid-row: span 3;
+    grid-row: 1 / -1;
     padding-top: 0.15rem;
 }
 
 .day.is-today .day-head h3 { color: var(--accent); }
 .day-date { font-size: 0.85rem; color: var(--ink-soft); }
+
+.day-events {
+    grid-column: 2;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+}
+.week-grid.hide-day-events .day-events { display: none; }
 
 .day-lessons {
     display: grid;
