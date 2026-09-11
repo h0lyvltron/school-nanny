@@ -31,7 +31,9 @@
                             <span class="cal-holiday" title="{{.Name}}">{{.Name}}</span>
                         {{end}}
                         {{range .Events}}
-                            <span class="cal-event{{if .Spans}} is-span{{end}}" title="{{.Title}}">{{.Title}}</span>
+                            <span class="cal-event{{if .Spans}} is-span{{end}}{{if .HasLabel}} has-label{{end}}"
+                                  {{if .HasLabel}}style="--label:{{color .LabelColor}}"{{end}}
+                                  title="{{.Title}}{{if .LabelName}} ({{.LabelName}}){{end}}">{{.Title}}</span>
                         {{end}}
                     </div>
                 </div>
@@ -46,13 +48,37 @@
         {{end}}
         <div class="stack">
             {{range .DayEvents}}
-                <article class="cal-entry">
-                    <div>
-                        <strong>{{.Title}}</strong>
+                <article class="cal-entry{{if .HasLabel}} has-label{{end}}"
+                         {{if .HasLabel}}style="--label:{{color .LabelColor}}"{{end}}>
+                    <div class="cal-entry-body">
+                        <div class="cal-entry-head">
+                            <strong>{{.Title}}</strong>
+                            {{if .HasLabel}}<span class="cal-label-chip">{{.LabelName}}</span>{{end}}
+                        </div>
                         <p class="muted small">{{.DateLabel}}</p>
                         {{if .Body}}<p class="note-body">{{.Body}}</p>{{end}}
+                        {{if $.Labels}}
+                            <form method="post" action="/adults/{{.AdultID}}/events/{{.ID}}/label" class="cal-entry-label"
+                                  hx-post="/adults/{{.AdultID}}/events/{{.ID}}/label">
+                                <input type="hidden" name="back" value="{{$back}}">
+                                <input type="hidden" name="view" value="calendar">
+                                <input type="hidden" name="month" value="{{$.Month}}">
+                                <input type="hidden" name="from" value="{{$.SelectedFrom}}">
+                                <input type="hidden" name="to" value="{{$.SelectedTo}}">
+                                <label class="muted small">Label
+                                    <select name="label_id" aria-label="Label for {{.Title}}"
+                                            onchange="this.form.requestSubmit()">
+                                        <option value="0">None</option>
+                                        {{$labelID := .LabelID}}
+                                        {{range $.Labels}}
+                                            <option value="{{.ID}}" {{if eq $labelID .ID}}selected{{end}}>{{.Name}}</option>
+                                        {{end}}
+                                    </select>
+                                </label>
+                            </form>
+                        {{end}}
                     </div>
-                    <form method="post" action="/adults/{{.AdultID}}/events/{{.ID}}/delete" class="inline-form"
+                    <form method="post" action="/adults/{{.AdultID}}/events/{{.ID}}/delete" class="cal-entry-actions"
                           hx-post="/adults/{{.AdultID}}/events/{{.ID}}/delete">
                         <input type="hidden" name="back" value="{{$back}}">
                         <input type="hidden" name="view" value="calendar">
@@ -86,8 +112,56 @@
                         <input type="date" name="ends_on" value="{{.SelectedTo}}" required>
                     </label>
                 </div>
+                {{if .Labels}}
+                    <label>Label
+                        <select name="label_id" aria-label="Label">
+                            <option value="0">None</option>
+                            {{range .Labels}}
+                                <option value="{{.ID}}">{{.Name}}</option>
+                            {{end}}
+                        </select>
+                    </label>
+                {{end}}
                 <textarea name="body" rows="2" placeholder="Anything worth remembering" aria-label="Notes"></textarea>
                 <button type="submit">Add event</button>
+            </form>
+        </details>
+
+        <details class="add-box cal-labels">
+            <summary>Labels</summary>
+            <p class="muted small">Colour tags for the kinds of things on this calendar.</p>
+            <div class="stack">
+                {{range .Labels}}
+                    <div class="cal-label-row" style="--label:{{color .Color}}">
+                        <span class="cal-label-swatch" aria-hidden="true"></span>
+                        <span class="cal-label-name">{{.Name}}</span>
+                        <form method="post" action="/adults/{{.AdultID}}/labels/{{.ID}}/delete" class="cal-entry-actions"
+                              hx-post="/adults/{{.AdultID}}/labels/{{.ID}}/delete">
+                            <input type="hidden" name="back" value="{{$back}}">
+                            <input type="hidden" name="view" value="calendar">
+                            <input type="hidden" name="month" value="{{$.Month}}">
+                            <input type="hidden" name="from" value="{{$.SelectedFrom}}">
+                            <input type="hidden" name="to" value="{{$.SelectedTo}}">
+                            <button type="submit" class="link-button danger"
+                                    onclick="return confirm('Remove this label? Events keep it off afterwards.')">Remove</button>
+                        </form>
+                    </div>
+                {{else}}
+                    <p class="muted small">No labels yet.</p>
+                {{end}}
+            </div>
+            <form method="post" action="/adults/{{.Adult.ID}}/labels"
+                  hx-post="/adults/{{.Adult.ID}}/labels" class="cal-label-add">
+                <input type="hidden" name="back" value="{{$back}}">
+                <input type="hidden" name="view" value="calendar">
+                <input type="hidden" name="month" value="{{.Month}}">
+                <input type="hidden" name="from" value="{{.SelectedFrom}}">
+                <input type="hidden" name="to" value="{{.SelectedTo}}">
+                <div class="field-row">
+                    <input type="text" name="name" placeholder="Label name" required aria-label="Label name">
+                    <input type="color" name="color" value="{{.NextLabelColor}}" aria-label="Label colour">
+                    <button type="submit">Add label</button>
+                </div>
             </form>
         </details>
     </div>
@@ -162,7 +236,9 @@
     {{if .Day.Events}}
     <div class="day-events">
         {{range .Day.Events}}
-            <span class="cal-event{{if .Spans}} is-span{{end}}" title="{{.Title}}{{if .Body}} — {{.Body}}{{end}}">{{.Title}}</span>
+            <span class="cal-event{{if .Spans}} is-span{{end}}{{if .HasLabel}} has-label{{end}}"
+                  {{if .HasLabel}}style="--label:{{color .LabelColor}}"{{end}}
+                  title="{{.Title}}{{if .LabelName}} ({{.LabelName}}){{end}}{{if .Body}} — {{.Body}}{{end}}">{{.Title}}</span>
         {{end}}
     </div>
     {{end}}

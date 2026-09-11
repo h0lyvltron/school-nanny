@@ -181,6 +181,13 @@ func (a *App) populateAdultCalendar(data map[string]any, adult Adult, query url.
 	data["SelectionLabel"] = rangeLabel(from, to)
 	data["DayEvents"] = selectedEvents
 	data["DayHolidays"] = selectedHolidays
+
+	labels, err := a.store.AdultEventLabels(adult.ID)
+	if err != nil {
+		return err
+	}
+	data["Labels"] = labels
+	data["NextLabelColor"] = subjectPalette[len(labels)%len(subjectPalette)]
 	return nil
 }
 
@@ -269,15 +276,46 @@ func (a *App) handleCreateAdultEvent(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "An event cannot end before it starts.", http.StatusBadRequest)
 		return
 	}
+	labelID, err := a.ownedEventLabelID(adult.ID, formID(r, "label_id"))
+	if err != nil {
+		a.serverError(w, err)
+		return
+	}
 
-	_, err := a.store.CreateAdultEvent(AdultEvent{
+	_, err = a.store.CreateAdultEvent(AdultEvent{
 		AdultID:  adult.ID,
+		LabelID:  labelID,
 		StartsOn: starts,
 		EndsOn:   ends,
 		Title:    title,
 		Body:     strings.TrimSpace(r.FormValue("body")),
 	})
 	if err != nil {
+		a.serverError(w, err)
+		return
+	}
+	if a.wantsCalendar(r) {
+		a.renderAdultCalendar(w, adult, r.Form)
+		return
+	}
+	a.redirect(w, r, a.backToAdult(r, adult))
+}
+
+func (a *App) handleSetAdultEventLabel(w http.ResponseWriter, r *http.Request) {
+	adult, ok := a.lookupAdult(w, r)
+	if !ok {
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "Could not read that form.", http.StatusBadRequest)
+		return
+	}
+	labelID, err := a.ownedEventLabelID(adult.ID, formID(r, "label_id"))
+	if err != nil {
+		a.serverError(w, err)
+		return
+	}
+	if err := a.store.SetAdultEventLabel(adult.ID, pathID(r, "eventID"), labelID); err != nil {
 		a.serverError(w, err)
 		return
 	}
@@ -298,6 +336,78 @@ func (a *App) handleDeleteAdultEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := a.store.DeleteAdultEvent(adult.ID, pathID(r, "eventID")); err != nil {
+		a.serverError(w, err)
+		return
+	}
+	if a.wantsCalendar(r) {
+		a.renderAdultCalendar(w, adult, r.Form)
+		return
+	}
+	a.redirect(w, r, a.backToAdult(r, adult))
+}
+
+// ownedEventLabelID accepts a label only when it belongs to this adult. Zero
+// means unlabeled, which is always allowed.
+func (a *App) ownedEventLabelID(adultID, labelID int64) (int64, error) {
+	if labelID == 0 {
+		return 0, nil
+	}
+	label, err := a.store.AdultEventLabel(labelID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return 0, nil
+		}
+		return 0, err
+	}
+	if label.AdultID != adultID {
+		return 0, nil
+	}
+	return label.ID, nil
+}
+
+func (a *App) handleCreateAdultEventLabel(w http.ResponseWriter, r *http.Request) {
+	adult, ok := a.lookupAdult(w, r)
+	if !ok {
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "Could not read that form.", http.StatusBadRequest)
+		return
+	}
+	name := strings.TrimSpace(r.FormValue("name"))
+	if name == "" {
+		http.Error(w, "A label needs a name.", http.StatusBadRequest)
+		return
+	}
+	color := strings.TrimSpace(r.FormValue("color"))
+	if !hexColor.MatchString(color) {
+		color = subjectPalette[0]
+	}
+	if _, err := a.store.CreateAdultEventLabel(AdultEventLabel{
+		AdultID: adult.ID,
+		Name:    name,
+		Color:   color,
+	}); err != nil {
+		a.serverError(w, err)
+		return
+	}
+	if a.wantsCalendar(r) {
+		a.renderAdultCalendar(w, adult, r.Form)
+		return
+	}
+	a.redirect(w, r, a.backToAdult(r, adult))
+}
+
+func (a *App) handleDeleteAdultEventLabel(w http.ResponseWriter, r *http.Request) {
+	adult, ok := a.lookupAdult(w, r)
+	if !ok {
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "Could not read that form.", http.StatusBadRequest)
+		return
+	}
+	if err := a.store.DeleteAdultEventLabel(adult.ID, pathID(r, "labelID")); err != nil {
 		a.serverError(w, err)
 		return
 	}

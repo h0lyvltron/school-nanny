@@ -1190,6 +1190,11 @@ a.cal-num:hover { color: var(--accent); }
 
 .cal-holiday { color: var(--ink-soft); background: var(--muted-surface); }
 .cal-event { color: var(--accent); background: var(--accent-soft); border: 1px solid var(--accent); }
+.cal-event.has-label {
+    color: var(--label);
+    background: color-mix(in srgb, var(--label) 16%, var(--card));
+    border-color: var(--label);
+}
 /* A run of days is drawn flat across its cells so it reads as one thing. */
 .cal-event.is-span { border-radius: 0.15rem; }
 
@@ -1197,15 +1202,93 @@ a.cal-num:hover { color: var(--accent); }
 .cal-detail h3 { margin: 0 0 0.35rem; font-size: 1.05rem; }
 
 .cal-entry {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 0.75rem;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.45rem 0.85rem;
+    align-items: start;
     margin: 0;
-    padding: 0.5rem 0;
+    padding: 0.65rem 0.15rem 0.65rem 0.7rem;
+    border-bottom: 1px dashed var(--line);
+    border-left: 3px solid transparent;
+}
+.cal-entry.has-label { border-left-color: var(--label); }
+.cal-entry-body { min-width: 0; }
+.cal-entry-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.35rem 0.55rem;
+}
+.cal-entry-head strong { overflow-wrap: anywhere; }
+.cal-entry p { margin: 0.15rem 0 0; }
+.cal-entry-actions {
+    margin: 0;
+    flex: none;
+    white-space: nowrap;
+}
+.cal-entry-label {
+    margin: 0.45rem 0 0;
+}
+.cal-entry-label label {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4rem;
+}
+.cal-entry-label select {
+    width: auto;
+    min-width: 8rem;
+    margin: 0;
+    padding: 0.25rem 0.5rem;
+    font-size: 0.85rem;
+}
+
+.cal-label-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.05rem 0.45rem;
+    border-radius: 999px;
+    border: 1px solid var(--label, var(--accent));
+    color: var(--label, var(--accent));
+    background: color-mix(in srgb, var(--label, var(--accent)) 14%, var(--card));
+    font-size: 0.72rem;
+    font-weight: 600;
+    line-height: 1.4;
+}
+
+.cal-labels { margin-top: 0.75rem; }
+.cal-label-row {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: 0.55rem;
+    align-items: center;
+    padding: 0.35rem 0;
     border-bottom: 1px dashed var(--line);
 }
-.cal-entry p { margin: 0.15rem 0 0; }
+.cal-label-swatch {
+    width: 0.95rem;
+    height: 0.95rem;
+    border-radius: 0.25rem;
+    background: var(--label);
+    border: 1px solid color-mix(in srgb, var(--label) 60%, var(--ink));
+    flex: none;
+}
+.cal-label-name { min-width: 0; overflow-wrap: anywhere; }
+.cal-label-add { margin-top: 0.75rem; }
+.cal-label-add .field-row {
+    align-items: center;
+}
+.cal-label-add input[type="color"] {
+    flex: none;
+    width: 3rem;
+    padding: 0.15rem;
+}
+
+.today-event.has-label {
+    border-color: var(--label);
+    background: color-mix(in srgb, var(--label) 14%, var(--card));
+    color: var(--label);
+}
 
 .report-table table { width: 100%; font-size: 0.9rem; }
 .report-table th, .report-table td { text-align: left; padding: 0.35rem 0.5rem; }

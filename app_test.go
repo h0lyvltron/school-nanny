@@ -1217,6 +1217,7 @@ func TestDeletingAnAdultClearsHerRecords(t *testing.T) {
 		`SELECT COUNT(*) FROM notes WHERE adult_id IS NOT NULL`,
 		`SELECT COUNT(*) FROM adult_cards`,
 		`SELECT COUNT(*) FROM adult_events`,
+		`SELECT COUNT(*) FROM adult_event_labels`,
 	} {
 		var n int
 		if err := ta.store.db().QueryRow(q).Scan(&n); err != nil {
@@ -1463,6 +1464,126 @@ func TestHerCalendarIsHerOwn(t *testing.T) {
 
 	_, his := ta.get("/adults/" + itoa64(dad.ID) + "?month=2026-07")
 	mustNotContain(t, his, "Her appointment", "his calendar")
+}
+
+// Labels are colour tags on her calendar: she can invent them, put them on
+// events, and the month paints those events in that colour.
+func TestSheCanColourCodeEventsWithLabels(t *testing.T) {
+	ta := newTestApp(t)
+	mom := ta.mom()
+	base := "/adults/" + itoa64(mom.ID)
+
+	status, _ := ta.post(base+"/labels", url.Values{
+		"name":  {"Medical"},
+		"color": {"#b03a33"},
+	})
+	if status != http.StatusOK {
+		t.Fatalf("creating a label returned %d", status)
+	}
+	labels, err := ta.store.AdultEventLabels(mom.ID)
+	if err != nil || len(labels) != 1 {
+		t.Fatalf("expected 1 label, got %d (err %v)", len(labels), err)
+	}
+	if labels[0].Name != "Medical" || labels[0].Color != "#b03a33" {
+		t.Errorf("label came back wrong: %+v", labels[0])
+	}
+
+	status, body := ta.get(base + "?month=2026-07&from=2026-07-13&to=2026-07-13")
+	if status != http.StatusOK {
+		t.Fatalf("calendar returned %d", status)
+	}
+	mustContain(t, body, `cal-labels`, "labels section")
+	mustContain(t, body, "Medical", "labels section")
+	mustContain(t, body, `cal-entry-actions`, "remove stays on its own column")
+
+	ta.post(base+"/events", url.Values{
+		"title":     {"Dentist"},
+		"starts_on": {"2026-07-13"},
+		"ends_on":   {"2026-07-13"},
+		"label_id":  {itoa64(labels[0].ID)},
+	})
+	events, err := ta.store.AdultEventsOverlapping(mom.ID, "2026-07-13", "2026-07-13")
+	if err != nil || len(events) != 1 {
+		t.Fatalf("expected 1 event, got %d (err %v)", len(events), err)
+	}
+	if events[0].LabelID != labels[0].ID || events[0].LabelColor != "#b03a33" {
+		t.Errorf("event should wear the label, got %+v", events[0])
+	}
+
+	status, body = ta.get(base + "?month=2026-07&from=2026-07-13&to=2026-07-13")
+	if status != http.StatusOK {
+		t.Fatalf("calendar returned %d", status)
+	}
+	mustContain(t, body, `has-label`, "labelled mark")
+	mustContain(t, body, `--label:#b03a33`, "labelled mark")
+	mustContain(t, body, `class="cal-entry has-label"`, "labelled entry")
+	mustContain(t, body, `class="cal-label-chip">Medical</span>`, "labelled entry")
+
+	// Retagging an existing event, and clearing a label, both keep the event.
+	ta.post(base+"/events/"+itoa64(events[0].ID)+"/label", url.Values{"label_id": {"0"}})
+	cleared, _ := ta.store.AdultEvent(events[0].ID)
+	if cleared.LabelID != 0 {
+		t.Errorf("expected the label cleared, got %d", cleared.LabelID)
+	}
+
+	ta.post(base+"/events/"+itoa64(events[0].ID)+"/label", url.Values{"label_id": {itoa64(labels[0].ID)}})
+	ta.post(base+"/labels/"+itoa64(labels[0].ID)+"/delete", nil)
+	after, _ := ta.store.AdultEvent(events[0].ID)
+	if after.Title != "Dentist" {
+		t.Errorf("deleting a label must not delete the event")
+	}
+	if after.LabelID != 0 {
+		t.Errorf("deleting a label should untag the event, got %d", after.LabelID)
+	}
+	left, _ := ta.store.AdultEventLabels(mom.ID)
+	if len(left) != 0 {
+		t.Errorf("expected no labels left, got %d", len(left))
+	}
+}
+
+// One adult cannot hang her labels on another's events, or invent labels for
+// someone else's profile.
+func TestEventLabelsStayOnTheirCalendar(t *testing.T) {
+	ta := newTestApp(t)
+	mom := ta.mom()
+	if _, err := ta.store.db().Exec(`INSERT INTO adults (name, role, color, sort_order)
+		VALUES ('Dad', 'Dad', '#3f7fae', 2)`); err != nil {
+		t.Fatalf("adding him: %v", err)
+	}
+	adults, _ := ta.store.Adults(false)
+	var dad Adult
+	for _, a := range adults {
+		if a.Name == "Dad" {
+			dad = a
+		}
+	}
+
+	labelID, err := ta.store.CreateAdultEventLabel(AdultEventLabel{
+		AdultID: mom.ID, Name: "Travel", Color: "#2f6ecb",
+	})
+	if err != nil {
+		t.Fatalf("creating her label: %v", err)
+	}
+	eventID, err := ta.store.CreateAdultEvent(AdultEvent{
+		AdultID: dad.ID, StartsOn: "2026-07-13", EndsOn: "2026-07-13", Title: "His thing",
+	})
+	if err != nil {
+		t.Fatalf("creating his event: %v", err)
+	}
+
+	ta.post("/adults/"+itoa64(dad.ID)+"/events/"+itoa64(eventID)+"/label", url.Values{
+		"label_id": {itoa64(labelID)},
+	})
+	got, _ := ta.store.AdultEvent(eventID)
+	if got.LabelID != 0 {
+		t.Errorf("his event should not accept her label, got %d", got.LabelID)
+	}
+
+	ta.post("/adults/"+itoa64(dad.ID)+"/labels/"+itoa64(labelID)+"/delete", nil)
+	still, _ := ta.store.AdultEventLabels(mom.ID)
+	if len(still) != 1 {
+		t.Errorf("he must not be able to delete her label")
+	}
 }
 
 // calendarCell returns the markup of one day's cell, so a test can ask what

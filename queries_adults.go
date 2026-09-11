@@ -139,16 +139,19 @@ func (s *Store) DeleteAdultCard(id int64) error {
 
 // Calendar events --------------------------------------------------------
 
-const adultEventSelect = `SELECT id, adult_id, starts_on, ends_on, title, body, created_at
-	FROM adult_events`
+const adultEventSelect = `SELECT e.id, e.adult_id, COALESCE(e.label_id, 0),
+		e.starts_on, e.ends_on, e.title, e.body, e.created_at,
+		COALESCE(l.name, ''), COALESCE(l.color, '')
+	FROM adult_events e
+	LEFT JOIN adult_event_labels l ON l.id = e.label_id`
 
 func scanAdultEvents(rows *sql.Rows) ([]AdultEvent, error) {
 	defer rows.Close()
 	var events []AdultEvent
 	for rows.Next() {
 		var e AdultEvent
-		if err := rows.Scan(&e.ID, &e.AdultID, &e.StartsOn, &e.EndsOn,
-			&e.Title, &e.Body, &e.CreatedAt); err != nil {
+		if err := rows.Scan(&e.ID, &e.AdultID, &e.LabelID, &e.StartsOn, &e.EndsOn,
+			&e.Title, &e.Body, &e.CreatedAt, &e.LabelName, &e.LabelColor); err != nil {
 			return nil, err
 		}
 		events = append(events, e)
@@ -160,9 +163,9 @@ func scanAdultEvents(rows *sql.Rows) ([]AdultEvent, error) {
 // ones starting inside it: a trip that began last month is still happening
 // during the days this month shows.
 func (s *Store) AdultEventsOverlapping(adultID int64, from, to string) ([]AdultEvent, error) {
-	rows, err := s.db().Query(adultEventSelect+` WHERE adult_id = ?
-		AND starts_on <= ? AND ends_on >= ?
-		ORDER BY starts_on, ends_on, id`, adultID, to, from)
+	rows, err := s.db().Query(adultEventSelect+` WHERE e.adult_id = ?
+		AND e.starts_on <= ? AND e.ends_on >= ?
+		ORDER BY e.starts_on, e.ends_on, e.id`, adultID, to, from)
 	if err != nil {
 		return nil, err
 	}
@@ -171,26 +174,93 @@ func (s *Store) AdultEventsOverlapping(adultID int64, from, to string) ([]AdultE
 
 func (s *Store) AdultEvent(id int64) (AdultEvent, error) {
 	var e AdultEvent
-	err := s.db().QueryRow(adultEventSelect+` WHERE id = ?`, id).
-		Scan(&e.ID, &e.AdultID, &e.StartsOn, &e.EndsOn, &e.Title, &e.Body, &e.CreatedAt)
+	err := s.db().QueryRow(adultEventSelect+` WHERE e.id = ?`, id).
+		Scan(&e.ID, &e.AdultID, &e.LabelID, &e.StartsOn, &e.EndsOn,
+			&e.Title, &e.Body, &e.CreatedAt, &e.LabelName, &e.LabelColor)
 	return e, err
 }
 
 func (s *Store) CreateAdultEvent(e AdultEvent) (int64, error) {
 	res, err := s.db().Exec(`INSERT INTO adult_events
-		(adult_id, starts_on, ends_on, title, body, created_at)
-		VALUES (?, ?, ?, ?, ?, ?)`,
-		e.AdultID, e.StartsOn, e.EndsOn, e.Title, e.Body, time.Now().Format(time.RFC3339))
+		(adult_id, label_id, starts_on, ends_on, title, body, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		e.AdultID, nullableID(e.LabelID), e.StartsOn, e.EndsOn, e.Title, e.Body,
+		time.Now().Format(time.RFC3339))
 	if err != nil {
 		return 0, err
 	}
 	return res.LastInsertId()
 }
 
+// SetAdultEventLabel pins a colour tag onto an event, or clears it when
+// labelID is zero. The adult id keeps one profile from retagging another's.
+func (s *Store) SetAdultEventLabel(adultID, eventID, labelID int64) error {
+	_, err := s.db().Exec(`UPDATE adult_events SET label_id = ?
+		WHERE id = ? AND adult_id = ?`, nullableID(labelID), eventID, adultID)
+	return err
+}
+
 // DeleteAdultEvent names the adult as well as the event so one profile can
 // never delete something off another's calendar.
 func (s *Store) DeleteAdultEvent(adultID, id int64) error {
 	_, err := s.db().Exec(`DELETE FROM adult_events WHERE id = ? AND adult_id = ?`, id, adultID)
+	return err
+}
+
+// Event labels ------------------------------------------------------------
+
+const adultLabelSelect = `SELECT id, adult_id, name, color, sort_order, created_at
+	FROM adult_event_labels`
+
+func scanAdultLabels(rows *sql.Rows) ([]AdultEventLabel, error) {
+	defer rows.Close()
+	var out []AdultEventLabel
+	for rows.Next() {
+		var l AdultEventLabel
+		if err := rows.Scan(&l.ID, &l.AdultID, &l.Name, &l.Color, &l.SortOrder, &l.CreatedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, l)
+	}
+	return out, rows.Err()
+}
+
+func (s *Store) AdultEventLabels(adultID int64) ([]AdultEventLabel, error) {
+	rows, err := s.db().Query(adultLabelSelect+`
+		WHERE adult_id = ? ORDER BY sort_order, id`, adultID)
+	if err != nil {
+		return nil, err
+	}
+	return scanAdultLabels(rows)
+}
+
+func (s *Store) AdultEventLabel(id int64) (AdultEventLabel, error) {
+	var l AdultEventLabel
+	err := s.db().QueryRow(adultLabelSelect+` WHERE id = ?`, id).
+		Scan(&l.ID, &l.AdultID, &l.Name, &l.Color, &l.SortOrder, &l.CreatedAt)
+	return l, err
+}
+
+func (s *Store) CreateAdultEventLabel(l AdultEventLabel) (int64, error) {
+	var next int
+	if err := s.db().QueryRow(`SELECT COALESCE(MAX(sort_order), 0) + 1
+		FROM adult_event_labels WHERE adult_id = ?`, l.AdultID).Scan(&next); err != nil {
+		return 0, err
+	}
+	res, err := s.db().Exec(`INSERT INTO adult_event_labels
+		(adult_id, name, color, sort_order, created_at)
+		VALUES (?, ?, ?, ?, ?)`,
+		l.AdultID, l.Name, l.Color, next, time.Now().Format(time.RFC3339))
+	if err != nil {
+		return 0, err
+	}
+	return res.LastInsertId()
+}
+
+// DeleteAdultEventLabel removes a colour tag. Events that wore it keep their
+// dates and wording; they simply become unlabeled.
+func (s *Store) DeleteAdultEventLabel(adultID, id int64) error {
+	_, err := s.db().Exec(`DELETE FROM adult_event_labels WHERE id = ? AND adult_id = ?`, id, adultID)
 	return err
 }
 

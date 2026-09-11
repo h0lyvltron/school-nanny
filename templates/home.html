@@ -21,8 +21,10 @@
     {{if .TodayEvents}}
     <div class="today-events">
         {{range .TodayEvents}}
-            <article class="today-event{{if .Spans}} is-span{{end}}">
+            <article class="today-event{{if .Spans}} is-span{{end}}{{if .HasLabel}} has-label{{end}}"
+                     {{if .HasLabel}}style="--label:{{color .LabelColor}}"{{end}}>
                 <strong>{{.Title}}</strong>
+                {{if .HasLabel}}<span class="cal-label-chip">{{.LabelName}}</span>{{end}}
                 {{if .Spans}}<span class="muted small">{{.DateLabel}}</span>{{end}}
                 {{if .Body}}<p class="muted small">{{.Body}}</p>{{end}}
             </article>

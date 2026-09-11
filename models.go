@@ -87,19 +87,38 @@ type AdultCard struct {
 	UpdatedAt string
 }
 
+// AdultEventLabel is a colour tag she keeps on her own calendar so appointments
+// of a kind can be told apart at a glance.
+type AdultEventLabel struct {
+	ID        int64
+	AdultID   int64
+	Name      string
+	Color     string
+	SortOrder int
+	CreatedAt string
+}
+
 // AdultEvent is something on her own calendar: an appointment, a trip, a week
 // away. Both dates are inclusive, so a one-day event has the same date twice.
 type AdultEvent struct {
 	ID        int64
 	AdultID   int64
+	LabelID   int64
 	StartsOn  string
 	EndsOn    string
 	Title     string
 	Body      string
 	CreatedAt string
+
+	LabelName  string
+	LabelColor string
 }
 
 func (e AdultEvent) Spans() bool { return e.EndsOn > e.StartsOn }
+
+func (e AdultEvent) HasLabel() bool {
+	return e.LabelID != 0 && hexColor.MatchString(e.LabelColor)
+}
 
 // Covers reports whether a day falls inside the event, which is what puts a
 // mark on every cell of a run rather than only the day it started.
