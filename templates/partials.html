@@ -50,13 +50,13 @@
             {{range .DayEvents}}
                 <article class="cal-entry{{if .HasLabel}} has-label{{end}}"
                          {{if .HasLabel}}style="--label:{{color .LabelColor}}"{{end}}>
-                    <div class="cal-entry-body">
-                        <div class="cal-entry-head">
-                            <strong>{{.Title}}</strong>
-                            {{if .HasLabel}}<span class="cal-label-chip">{{.LabelName}}</span>{{end}}
-                        </div>
-                        <p class="muted small">{{.DateLabel}}</p>
-                        {{if .Body}}<p class="note-body">{{.Body}}</p>{{end}}
+                    <div class="cal-entry-title">
+                        <strong>{{.Title}}</strong>
+                        {{if .HasLabel}}<span class="cal-label-chip">{{.LabelName}}</span>{{end}}
+                    </div>
+                    <p class="muted small">{{.DateLabel}}</p>
+                    {{if .Body}}<p class="note-body">{{.Body}}</p>{{end}}
+                    <div class="cal-entry-foot">
                         {{if $.Labels}}
                             <form method="post" action="/adults/{{.AdultID}}/events/{{.ID}}/label" class="cal-entry-label"
                                   hx-post="/adults/{{.AdultID}}/events/{{.ID}}/label">
@@ -76,18 +76,20 @@
                                     </select>
                                 </label>
                             </form>
+                        {{else}}
+                            <span></span>
                         {{end}}
+                        <form method="post" action="/adults/{{.AdultID}}/events/{{.ID}}/delete" class="cal-entry-actions"
+                              hx-post="/adults/{{.AdultID}}/events/{{.ID}}/delete">
+                            <input type="hidden" name="back" value="{{$back}}">
+                            <input type="hidden" name="view" value="calendar">
+                            <input type="hidden" name="month" value="{{$.Month}}">
+                            <input type="hidden" name="from" value="{{$.SelectedFrom}}">
+                            <input type="hidden" name="to" value="{{$.SelectedTo}}">
+                            <button type="submit" class="link-button danger"
+                                    onclick="return confirm('Remove this event?')">Remove</button>
+                        </form>
                     </div>
-                    <form method="post" action="/adults/{{.AdultID}}/events/{{.ID}}/delete" class="cal-entry-actions"
-                          hx-post="/adults/{{.AdultID}}/events/{{.ID}}/delete">
-                        <input type="hidden" name="back" value="{{$back}}">
-                        <input type="hidden" name="view" value="calendar">
-                        <input type="hidden" name="month" value="{{$.Month}}">
-                        <input type="hidden" name="from" value="{{$.SelectedFrom}}">
-                        <input type="hidden" name="to" value="{{$.SelectedTo}}">
-                        <button type="submit" class="link-button danger"
-                                onclick="return confirm('Remove this event?')">Remove</button>
-                    </form>
                 </article>
             {{else}}
                 <p class="muted small">Nothing written down here yet.</p>
