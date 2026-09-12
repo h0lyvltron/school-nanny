@@ -38,7 +38,10 @@
                     }
                 }
                 if (current === zone) { return; }
-                document.cookie = "sn_tz=" + encodeURIComponent(zone) +
+                // IANA names are letters, slashes, and underscores. Do not
+                // encodeURIComponent them: %2F makes Go's cookie parser keep
+                // the encoded form, LoadLocation fails, and Today stays UTC.
+                document.cookie = "sn_tz=" + zone +
                     "; path=/; max-age=31536000; samesite=lax";
                 if (!sessionStorage.getItem("sn_tz_reloaded")) {
                     sessionStorage.setItem("sn_tz_reloaded", "1");

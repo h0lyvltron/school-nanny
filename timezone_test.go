@@ -23,6 +23,26 @@ func TestResolveLocationPrefersFamilyThenDevice(t *testing.T) {
 	}
 }
 
+func TestEncodedTimezoneCookieStillResolves(t *testing.T) {
+	if todayIn(time.UTC) == todayIn(time.Local) {
+		t.Skip("this instant is the same calendar day in UTC and locally")
+	}
+
+	ta := newTestApp(t)
+	ta.addKid("Mia")
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.AddCookie(&http.Cookie{Name: tzCookie, Value: "America%2FLos_Angeles"})
+	rec := httptest.NewRecorder()
+	ta.Routes().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("home returned %d", rec.Code)
+	}
+	want := formatDate(todayIn(loadLocation("America/Los_Angeles")), "Jan 2")
+	if !strings.Contains(rec.Body.String(), want) {
+		t.Fatalf("encoded cookie did not resolve to %s\n%s", want, rec.Body.String())
+	}
+}
+
 func TestTodayFollowsTheBrowserCookie(t *testing.T) {
 	if todayIn(time.UTC) == todayIn(time.Local) {
 		t.Skip("this instant is the same calendar day in UTC and locally")

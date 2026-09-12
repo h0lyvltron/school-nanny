@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -111,7 +112,14 @@ func cookieTZ(r *http.Request) string {
 	if err != nil {
 		return ""
 	}
-	return strings.TrimSpace(c.Value)
+	value := strings.TrimSpace(c.Value)
+	// document.cookie writers often encodeURIComponent the value, which turns
+	// America/Los_Angeles into America%2FLos_Angeles. LoadLocation will not
+	// accept that, and we would silently fall back to UTC.
+	if decoded, err := url.QueryUnescape(value); err == nil {
+		value = strings.TrimSpace(decoded)
+	}
+	return value
 }
 
 // commonTimezones is the short list offered in Settings. Any other IANA name
