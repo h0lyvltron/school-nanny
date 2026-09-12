@@ -1,0 +1,38 @@
+---
+# Two audiences. The LAN rules are for the people using the app. The bridge
+# rules are for Coolify, which manages this machine by connecting to its own SSH
+# port from inside a container: without them the dashboard reports the server as
+# unreachable even though the key and sshd are both fine.
+
+- name: Check whether ufw is installed
+  ansible.builtin.command:
+    cmd: ufw status
+  register: ufw_status
+  changed_when: false
+  failed_when: false
+
+- name: Allow the LAN in
+  community.general.ufw:
+    rule: allow
+    src: "{{ school_nanny_lan_cidr }}"
+    port: "{{ item.port }}"
+    proto: "{{ item.proto }}"
+    comment: "{{ item.comment }}"
+  loop:
+    - { port: "53", proto: udp, comment: "school-nanny LAN DNS" }
+    - { port: "53", proto: tcp, comment: "school-nanny LAN DNS" }
+    - { port: "80", proto: tcp, comment: "school-nanny http" }
+    - { port: "443", proto: tcp, comment: "school-nanny https" }
+    - { port: "8000", proto: tcp, comment: "coolify UI" }
+    - { port: "22", proto: tcp, comment: "lan ssh" }
+  when: ufw_status.rc == 0
+
+- name: Let Coolify's containers reach this host over SSH
+  community.general.ufw:
+    rule: allow
+    src: "{{ item }}"
+    port: "22"
+    proto: tcp
+    comment: "coolify bridge SSH"
+  loop: "{{ school_nanny_docker_bridges }}"
+  when: ufw_status.rc == 0

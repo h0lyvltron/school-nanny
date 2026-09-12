@@ -1,0 +1,29 @@
+---
+# setup-lan-dns.sh writes the dnsmasq record, the systemd retry drop-in, and the
+# NetworkManager hook, then restarts the service and checks the answer. It is
+# idempotent, so running it every time is fine; it reports changed only when the
+# configuration on disk was not already what it wants.
+
+- name: Read the current dnsmasq configuration
+  ansible.builtin.slurp:
+    src: /etc/dnsmasq.d/school-nanny.conf
+  register: dnsmasq_conf
+  failed_when: false
+
+- name: Configure LAN DNS
+  ansible.builtin.command:
+    cmd: "{{ school_nanny_script_dir }}/setup-lan-dns.sh"
+  environment:
+    LAN_IP: "{{ school_nanny_lan_ip }}"
+    HOSTNAME_LAN: "{{ school_nanny_hostname }}"
+  register: lan_dns_run
+  changed_when: >-
+    dnsmasq_conf.content is not defined
+    or school_nanny_lan_ip not in (dnsmasq_conf.content | b64decode)
+
+- name: Check that the name resolves
+  ansible.builtin.command:
+    cmd: "dig @{{ school_nanny_lan_ip }} {{ school_nanny_hostname }} +short +time=2 +tries=2"
+  register: dns_answer
+  changed_when: false
+  failed_when: school_nanny_lan_ip not in dns_answer.stdout

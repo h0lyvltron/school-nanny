@@ -1,0 +1,28 @@
+---
+# Coolify and the app both restart themselves, but only once dockerd is running.
+# A host where Docker is installed and not enabled looks fine until it reboots.
+
+# Matching on the package manager rather than the distribution: Omarchy reports
+# ID=omarchy, which is not a name anything else recognises, but it is pacman
+# underneath. Coolify's own installer needed the same allowance.
+- name: Install Docker
+  community.general.pacman:
+    name:
+      - docker
+      - docker-compose
+    state: present
+  when: ansible_facts['pkg_mgr'] == 'pacman'
+
+- name: Enable Docker at boot
+  ansible.builtin.systemd_service:
+    name: docker.service
+    enabled: true
+    state: started
+
+- name: Let the admin user run docker without sudo
+  ansible.builtin.user:
+    name: "{{ ansible_user_id }}"
+    groups: docker
+    append: true
+  when: ansible_user_id != 'root'
+  notify: Report group change

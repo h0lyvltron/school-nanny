@@ -1,0 +1,29 @@
+---
+# The other roles run the shell scripts from this repository. Copying them to
+# the target first is what lets the same playbook work against a machine you are
+# not sitting at, and keeps the scripts that reference each other together.
+
+- name: Create the script directory
+  ansible.builtin.file:
+    path: "{{ school_nanny_script_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Copy the host scripts
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../scripts/{{ item }}"
+    dest: "{{ school_nanny_script_dir }}/{{ item }}"
+    owner: root
+    group: root
+    mode: "0755"
+  loop: "{{ school_nanny_host_scripts }}"
+
+- name: Create the data folder owned by the container user
+  ansible.builtin.file:
+    path: "{{ school_nanny_data_dir }}"
+    state: directory
+    owner: "{{ school_nanny_uid }}"
+    group: "{{ school_nanny_gid }}"
+    mode: "0755"

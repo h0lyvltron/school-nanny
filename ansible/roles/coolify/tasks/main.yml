@@ -1,0 +1,35 @@
+---
+# Coolify's installer creates an admin account through a browser and rewrites
+# /data/coolify, so this role checks and reports rather than installing. An
+# unattended re-run against a working instance is not a risk worth automating
+# for the sake of a command you type once per machine.
+
+- name: Look for an existing Coolify installation
+  ansible.builtin.stat:
+    path: /data/coolify/source/.env
+  register: coolify_env
+
+- name: Explain how to install Coolify
+  ansible.builtin.fail:
+    msg: |
+      Coolify is not installed on {{ inventory_hostname }}.
+
+      Install it, then run this playbook again:
+
+        curl -fsSL https://cdn.coollabs.io/coolify/install.sh \
+          | sed 's/^OS_TYPE=.*/OS_TYPE=arch/' | sudo bash
+
+      The sed is for Omarchy: the installer only accepts a fixed list of
+      distributions and ID=omarchy is not on it, though pacman underneath is.
+
+      Afterwards, open http://{{ school_nanny_lan_ip }}:8000, create the admin
+      account, choose "This Machine", and authorise its SSH key for root as
+      described in scripts/RESTORE.md.
+  when: not coolify_env.stat.exists
+
+- name: Check that the Coolify containers are healthy
+  ansible.builtin.command:
+    cmd: docker ps --filter label=coolify.managed=true --format '{{ "{{" }}.Names{{ "}}" }}'
+  register: coolify_containers
+  changed_when: false
+  failed_when: "'coolify-proxy' not in coolify_containers.stdout"

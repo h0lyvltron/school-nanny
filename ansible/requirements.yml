@@ -1,0 +1,9 @@
+---
+# The pacman and ufw modules live outside ansible-core. The distribution's
+# 'ansible' package already bundles this collection; installing ansible-core on
+# its own does not, and the playbook fails to parse without it.
+#
+#   ansible-galaxy collection install -r requirements.yml
+collections:
+  - name: community.general
+    version: ">=8.0.0"

@@ -1,0 +1,144 @@
+---
+# Recreate the Coolify application from its description rather than from memory
+# of which boxes were ticked in the dashboard.
+#
+# Skipped unless a token is supplied: Coolify ships with its API disabled, and
+# the token has to be created by hand under Settings, then Keys & Tokens.
+
+- name: Skip when no Coolify API token is configured
+  ansible.builtin.debug:
+    msg: >-
+      No coolify_api_token set, so the application is not being managed here.
+      Enable the API in Coolify, create a token, and pass it with
+      -e coolify_api_token=... (see ansible/README.md).
+  when: coolify_api_token | length == 0
+
+- name: Manage the application in Coolify
+  when: coolify_api_token | length > 0
+  block:
+
+    - name: List the applications Coolify already knows about
+      ansible.builtin.uri:
+        url: "{{ coolify_api_url }}/applications"
+        headers:
+          Authorization: "Bearer {{ coolify_api_token }}"
+        status_code: [200]
+      register: coolify_applications
+
+    - name: Remember the application if it exists
+      ansible.builtin.set_fact:
+        school_nanny_existing: >-
+          {{ (coolify_applications.json | selectattr('name', 'equalto', coolify_app_name) | list | first)
+             | default({}, true) }}
+
+    # Everything below only runs for a first install. Coolify is the source of
+    # truth for an application that already exists; reapplying the creation
+    # payload over a live app would quietly undo anything changed in the UI.
+    - name: Create the application
+      when: school_nanny_existing.uuid is not defined
+      block:
+
+        - name: Find the project
+          ansible.builtin.uri:
+            url: "{{ coolify_api_url }}/projects"
+            headers:
+              Authorization: "Bearer {{ coolify_api_token }}"
+            status_code: [200]
+          register: coolify_projects
+
+        - name: Find the server
+          ansible.builtin.uri:
+            url: "{{ coolify_api_url }}/servers"
+            headers:
+              Authorization: "Bearer {{ coolify_api_token }}"
+            status_code: [200]
+          register: coolify_servers
+
+        - name: Pick the project and server UUIDs
+          ansible.builtin.set_fact:
+            coolify_project_uuid: >-
+              {{ (coolify_projects.json | selectattr('name', 'equalto', coolify_project_name)
+                  | map(attribute='uuid') | list | first) | default('', true) }}
+            coolify_server_uuid: >-
+              {{ (coolify_servers.json | map(attribute='uuid') | list | first) | default('', true) }}
+
+        - name: Fail clearly when the project or server is missing
+          ansible.builtin.fail:
+            msg: >-
+              Could not find a project named '{{ coolify_project_name }}' or any
+              server in Coolify. Finish the Coolify onboarding first, then run
+              this again.
+          when: coolify_project_uuid | length == 0 or coolify_server_uuid | length == 0
+
+        # The domain carries the container port. Coolify's proxy sends the
+        # hostname to that port inside the container; it does not publish it on
+        # the host, which is why Port Mappings stays empty.
+        - name: Create the application from the public repository
+          ansible.builtin.uri:
+            url: "{{ coolify_api_url }}/applications/public"
+            method: POST
+            headers:
+              Authorization: "Bearer {{ coolify_api_token }}"
+            body_format: json
+            body:
+              project_uuid: "{{ coolify_project_uuid }}"
+              server_uuid: "{{ coolify_server_uuid }}"
+              environment_name: production
+              git_repository: "{{ school_nanny_git_repository }}"
+              git_branch: "{{ school_nanny_git_branch }}"
+              build_pack: dockerfile
+              dockerfile_location: /Dockerfile
+              base_directory: /
+              name: "{{ coolify_app_name }}"
+              domains: "{{ school_nanny_base_url }}"
+              ports_exposes: "{{ school_nanny_port }}"
+              instant_deploy: false
+            status_code: [200, 201]
+          register: coolify_created
+
+        - name: Remember the new application
+          ansible.builtin.set_fact:
+            school_nanny_existing: "{{ coolify_created.json }}"
+
+        # Without this the records live inside the container and disappear with
+        # the next rebuild.
+        - name: Attach the data folder
+          ansible.builtin.uri:
+            url: "{{ coolify_api_url }}/applications/{{ school_nanny_existing.uuid }}/storages"
+            method: POST
+            headers:
+              Authorization: "Bearer {{ coolify_api_token }}"
+            body_format: json
+            body:
+              type: persistent
+              name: school-nanny-data
+              host_path: "{{ school_nanny_data_dir }}"
+              mount_path: /data
+            status_code: [200, 201, 409]
+
+    - name: Set the environment variables
+      ansible.builtin.uri:
+        url: "{{ coolify_api_url }}/applications/{{ school_nanny_existing.uuid }}/envs"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ coolify_api_token }}"
+        body_format: json
+        body:
+          key: "{{ item.key }}"
+          value: "{{ item.value }}"
+          is_preview: false
+        # 409 means it is already set, which is the desired state either way.
+        status_code: [200, 201, 409]
+      loop:
+        - { key: "PORT", value: "{{ school_nanny_port }}" }
+        - { key: "BASE_URL", value: "{{ school_nanny_base_url }}" }
+      loop_control:
+        label: "{{ item.key }}"
+
+    - name: Report the application
+      ansible.builtin.debug:
+        msg: >-
+          {{ coolify_app_name }} is {{ school_nanny_existing.uuid }}.
+          Deploy it from the dashboard, or with:
+          curl -X GET "{{ coolify_api_url }}/deploy?uuid={{ school_nanny_existing.uuid }}"
+          -H "Authorization: Bearer $COOLIFY_TOKEN"

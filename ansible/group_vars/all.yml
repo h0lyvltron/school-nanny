@@ -1,0 +1,48 @@
+---
+# Where the house is on the network. These match scripts/setup-lan-dns.sh; if
+# they diverge, the scripts win, because they are what actually ran.
+school_nanny_lan_ip: "192.168.1.181"
+school_nanny_lan_cidr: "192.168.1.0/24"
+school_nanny_hostname: "school-nanny.home"
+
+# Everything the family owns lives here, on the host, bind-mounted into the
+# container at /data.
+school_nanny_data_dir: "/srv/school-nanny/data"
+school_nanny_archive_root: "/srv/school-nanny/archives"
+school_nanny_keep_days: 7
+
+# The container image runs as distroless nonroot.
+school_nanny_uid: 65532
+school_nanny_gid: 65532
+
+# Coolify reaches its own host over SSH from inside a container, so the bridge
+# networks need to be allowed to port 22 or the server reads as unreachable.
+school_nanny_docker_bridges:
+  - "10.0.0.0/24"
+  - "10.0.1.0/24"
+
+# Where the scripts land on the target. Keeping them off the checkout path means
+# the systemd units do not break when someone moves the repository.
+school_nanny_script_dir: "/usr/local/lib/school-nanny/scripts"
+
+# Listed rather than globbed: scripts/ also holds build and seeding helpers for
+# a developer's machine, which have no reason to exist on a server.
+school_nanny_host_scripts:
+  - backup-school-nanny.sh
+  - install-backup-timer.sh
+  - setup-lan-dns.sh
+  - fix-lan-dns.sh
+  - setup-lan-certs.sh
+  - enable-coolify-on-boot.sh
+  - coolify-host-prep.sh
+
+# Coolify's API is off until you enable it and mint a token, so the app role is
+# skipped unless this is supplied on the command line or from a vault.
+coolify_api_url: "http://127.0.0.1:8000/api/v1"
+coolify_api_token: ""
+coolify_project_name: "my-first-project"
+coolify_app_name: "school-nanny-local"
+school_nanny_git_repository: "https://github.com/h0lyvltron/school-nanny"
+school_nanny_git_branch: "main"
+school_nanny_port: "8080"
+school_nanny_base_url: "https://school-nanny.home"

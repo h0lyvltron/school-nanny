@@ -1,0 +1,30 @@
+---
+# install-backup-timer.sh publishes the backup script to /usr/local/sbin and
+# writes both units, so this role is a wrapper around it rather than a second
+# description of the same service.
+
+- name: Install the nightly backup service and timer
+  ansible.builtin.command:
+    cmd: "{{ school_nanny_script_dir }}/install-backup-timer.sh"
+  environment:
+    DATA_DIR: "{{ school_nanny_data_dir }}"
+    ARCHIVE_ROOT: "{{ school_nanny_archive_root }}"
+    KEEP_DAYS: "{{ school_nanny_keep_days }}"
+  register: backup_timer
+  changed_when: true
+
+- name: Confirm the timer is armed
+  ansible.builtin.systemd_service:
+    name: school-nanny-backup.timer
+    enabled: true
+    state: started
+
+- name: Report when the next backup runs
+  ansible.builtin.command:
+    cmd: systemctl list-timers school-nanny-backup.timer --no-pager
+  register: next_backup
+  changed_when: false
+
+- name: Show it
+  ansible.builtin.debug:
+    var: next_backup.stdout_lines

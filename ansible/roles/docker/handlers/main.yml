@@ -1,0 +1,7 @@
+---
+- name: Report group change
+  ansible.builtin.debug:
+    msg: >-
+      Added {{ ansible_user_id }} to the docker group. Group membership is read
+      at login, so log out and back in (or run 'newgrp docker') before expecting
+      docker commands to work without sudo.

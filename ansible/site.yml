@@ -1,0 +1,20 @@
+---
+- name: Host School Nanny
+  hosts: hosted
+  become: true
+
+  roles:
+    - role: common
+      tags: [always]
+    - role: docker
+      tags: [docker]
+    - role: lan_dns
+      tags: [dns]
+    - role: firewall
+      tags: [firewall]
+    - role: coolify
+      tags: [coolify]
+    - role: backups
+      tags: [backups]
+    - role: school_nanny_app
+      tags: [app, coolify]

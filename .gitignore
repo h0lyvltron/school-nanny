@@ -11,3 +11,7 @@ school-nanny.exe
 tools/toc2yaml/*.exe
 tools/toc2yaml/*.pdb
 
+# Coolify API tokens and anything else Ansible needs but nobody else should see.
+ansible/vault.yml
+ansible/*.retry
+
