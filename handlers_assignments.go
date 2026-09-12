@@ -12,7 +12,7 @@ func (a *App) handleAssignment(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	data, err := a.pageData("")
+	data, err := a.pageData(r, "")
 	if err != nil {
 		a.serverError(w, err)
 		return
@@ -42,7 +42,7 @@ func (a *App) handleAssignment(w http.ResponseWriter, r *http.Request) {
 	data["Weekdays"] = weekdayChoices(asg.Weekdays)
 	data["Lessons"] = planned
 	data["Progress"] = progress
-	data["ResumeOn"] = today()
+	data["ResumeOn"] = requestToday(r)
 	a.render(w, "assignment", data)
 }
 
@@ -81,7 +81,7 @@ func (a *App) handleUpdateAssignment(w http.ResponseWriter, r *http.Request) {
 	if scheduleChanged {
 		existing.Name = name
 		existing.Weekdays = weekdays
-		if err := a.store.RelayoutPlannedFrom(existing, today(), 0); err != nil {
+		if err := a.store.RelayoutPlannedFrom(existing, requestToday(r), 0); err != nil {
 			a.serverError(w, err)
 			return
 		}
@@ -113,7 +113,7 @@ func (a *App) handlePauseAssignment(w http.ResponseWriter, r *http.Request) {
 
 func (a *App) handleStopAssignment(w http.ResponseWriter, r *http.Request) {
 	id := pathID(r, "id")
-	from := today()
+	from := requestToday(r)
 	if err := a.deletePlannedAssignmentFilesByDate(id, from); err != nil {
 		a.serverError(w, err)
 		return
@@ -126,11 +126,15 @@ func (a *App) handleStopAssignment(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) handlePushLesson(w http.ResponseWriter, r *http.Request) {
-	a.shiftAssignmentLesson(w, r, a.store.PushAssignmentLesson)
+	a.shiftAssignmentLesson(w, r, func(lesson Lesson) error {
+		return a.store.PushAssignmentLesson(lesson, requestToday(r))
+	})
 }
 
 func (a *App) handlePullLesson(w http.ResponseWriter, r *http.Request) {
-	a.shiftAssignmentLesson(w, r, a.store.PullAssignmentLesson)
+	a.shiftAssignmentLesson(w, r, func(lesson Lesson) error {
+		return a.store.PullAssignmentLesson(lesson, requestToday(r))
+	})
 }
 
 // shiftAssignmentLesson runs whichever way the plan is being moved and lands

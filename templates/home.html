@@ -25,7 +25,7 @@
                      {{if .HasLabel}}style="--label:{{color .LabelColor}}"{{end}}>
                 <strong>{{if .Icon}}{{.Icon}} {{end}}{{.Title}}</strong>
                 {{if .HasLabel}}<span class="cal-label-chip">{{if .LabelEmoji}}{{.LabelEmoji}} {{end}}{{.LabelName}}</span>{{end}}
-                {{if .Spans}}<span class="muted small">{{.DateLabel}}</span>{{end}}
+                {{if .Spans}}<span class="muted small">{{dateLabel .}}</span>{{end}}
                 {{if .Body}}<p class="muted small">{{.Body}}</p>{{end}}
             </article>
         {{end}}

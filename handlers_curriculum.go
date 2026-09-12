@@ -22,7 +22,7 @@ type ApplyPreview struct {
 }
 
 func (a *App) handleCurriculum(w http.ResponseWriter, r *http.Request) {
-	data, err := a.curriculumPageData()
+	data, err := a.curriculumPageData(r)
 	if err != nil {
 		a.serverError(w, err)
 		return
@@ -33,8 +33,8 @@ func (a *App) handleCurriculum(w http.ResponseWriter, r *http.Request) {
 	a.render(w, "curriculum", data)
 }
 
-func (a *App) curriculumPageData() (map[string]any, error) {
-	data, err := a.pageData("curriculum")
+func (a *App) curriculumPageData(r *http.Request) (map[string]any, error) {
+	data, err := a.pageData(r, "curriculum")
 	if err != nil {
 		return nil, err
 	}
@@ -62,8 +62,8 @@ func (a *App) curriculumPageData() (map[string]any, error) {
 	return data, nil
 }
 
-func (a *App) renderCurriculumImportError(w http.ResponseWriter, msg string) {
-	data, err := a.curriculumPageData()
+func (a *App) renderCurriculumImportError(w http.ResponseWriter, r *http.Request, msg string) {
+	data, err := a.curriculumPageData(r)
 	if err != nil {
 		a.serverError(w, err)
 		return
@@ -83,7 +83,7 @@ func importUploadError(err error) string {
 func (a *App) handleImportCurriculum(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, maxImportBytes+64*1024)
 	if err := r.ParseMultipartForm(maxImportBytes); err != nil {
-		a.renderCurriculumImportError(w, importUploadError(err))
+		a.renderCurriculumImportError(w, r, importUploadError(err))
 		return
 	}
 	if r.MultipartForm != nil {
@@ -92,24 +92,24 @@ func (a *App) handleImportCurriculum(w http.ResponseWriter, r *http.Request) {
 
 	files := r.MultipartForm.File["file"]
 	if len(files) == 0 {
-		a.renderCurriculumImportError(w, "Choose a YAML or CSV file to import.")
+		a.renderCurriculumImportError(w, r, "Choose a YAML or CSV file to import.")
 		return
 	}
 	header := files[0]
 	src, err := header.Open()
 	if err != nil {
-		a.renderCurriculumImportError(w, "Could not read that file.")
+		a.renderCurriculumImportError(w, r, "Could not read that file.")
 		return
 	}
 	defer src.Close()
 
 	body, err := io.ReadAll(io.LimitReader(src, int64(maxImportBytes)+1))
 	if err != nil {
-		a.renderCurriculumImportError(w, "Could not read that file.")
+		a.renderCurriculumImportError(w, r, "Could not read that file.")
 		return
 	}
 	if len(body) > maxImportBytes {
-		a.renderCurriculumImportError(w, "That file is too large. Keep imports under 1 MB.")
+		a.renderCurriculumImportError(w, r, "That file is too large. Keep imports under 1 MB.")
 		return
 	}
 
@@ -120,7 +120,7 @@ func (a *App) handleImportCurriculum(w http.ResponseWriter, r *http.Request) {
 	}
 	plans, err := parseCurriculumImport(header.Filename, body, subjects)
 	if err != nil {
-		a.renderCurriculumImportError(w, err.Error())
+		a.renderCurriculumImportError(w, r, err.Error())
 		return
 	}
 	n, err := a.store.ImportCurriculum(plans)
@@ -159,7 +159,7 @@ func (a *App) handleCurriculumPlan(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	data, err := a.pageData("curriculum")
+	data, err := a.pageData(r, "curriculum")
 	if err != nil {
 		a.serverError(w, err)
 		return
@@ -185,7 +185,7 @@ func (a *App) handleCurriculumPlan(w http.ResponseWriter, r *http.Request) {
 	data["Kids"] = kids
 	data["Assignments"] = assignments
 	data["Weekdays"] = weekdayChoices(defaultWeekdays())
-	data["Start"] = today()
+	data["Start"] = requestToday(r)
 	a.render(w, "curriculum_plan", data)
 }
 
@@ -297,7 +297,7 @@ func (a *App) handleApplyCurriculumForm(w http.ResponseWriter, r *http.Request) 
 	if !ok {
 		return
 	}
-	data, err := a.pageData("curriculum")
+	data, err := a.pageData(r, "curriculum")
 	if err != nil {
 		a.serverError(w, err)
 		return
@@ -314,7 +314,7 @@ func (a *App) handleApplyCurriculumForm(w http.ResponseWriter, r *http.Request) 
 	}
 	start := strings.TrimSpace(r.URL.Query().Get("start"))
 	if _, err := time.Parse(dateLayout, start); err != nil {
-		start = today()
+		start = requestToday(r)
 	}
 	weekdays := formWeekdays(r.URL.Query()["weekday"])
 	if weekdays == "" {

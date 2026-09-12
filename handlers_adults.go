@@ -31,13 +31,13 @@ func (a *App) handleAdult(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	data, err := a.pageData("adults")
+	data, err := a.pageData(r, "adults")
 	if err != nil {
 		a.serverError(w, err)
 		return
 	}
 
-	start := weekStart(time.Now()).Format(dateLayout)
+	start := weekStart(requestNow(r)).Format(dateLayout)
 	end := addDays(start, 6)
 
 	cards, err := a.store.AdultCards(adult.ID)
@@ -85,11 +85,11 @@ func (a *App) handleAdultCalendar(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	a.renderAdultCalendar(w, adult, r.URL.Query())
+	a.renderAdultCalendar(w, r, adult, r.URL.Query())
 }
 
-func (a *App) renderAdultCalendar(w http.ResponseWriter, adult Adult, query url.Values) {
-	data := map[string]any{"Adult": adult}
+func (a *App) renderAdultCalendar(w http.ResponseWriter, r *http.Request, adult Adult, query url.Values) {
+	data := map[string]any{"Adult": adult, "Today": requestToday(r)}
 	if err := a.populateAdultCalendar(data, adult, query); err != nil {
 		a.serverError(w, err)
 		return
@@ -112,14 +112,23 @@ type AdultCalendarDay struct {
 // dragged across the grid - a trip, a week of appointments - is one event, not
 // several, and a single day is simply both ends landing together.
 func (a *App) populateAdultCalendar(data map[string]any, adult Adult, query url.Values) error {
+	asOf := today()
+	if t, ok := data["Today"].(string); ok && t != "" {
+		asOf = t
+	} else {
+		data["Today"] = asOf
+	}
 	month := parseMonthQuery(query.Get("month"))
+	if query.Get("month") == "" {
+		month = monthFirst(asOf)
+	}
 
 	// The grid pads out to whole weeks, so it reaches a little into the months
 	// on either side. Everything below works in those outer dates.
 	gridFrom := weekStart(parseDate(monthFirst(month))).Format(dateLayout)
 	gridTo := addDays(gridFrom, len(monthGridDates(month))-1)
 
-	from, to := selectedRange(query.Get("from"), query.Get("to"), month, gridFrom, gridTo)
+	from, to := selectedRange(query.Get("from"), query.Get("to"), month, gridFrom, gridTo, asOf)
 
 	events, err := a.store.AdultEventsOverlapping(adult.ID, gridFrom, gridTo)
 	if err != nil {
@@ -179,11 +188,11 @@ func (a *App) populateAdultCalendar(data map[string]any, adult Adult, query url.
 	data["MonthLabel"] = formatDate(month, "January 2006")
 	data["PrevMonth"] = addMonths(month, -1)
 	data["NextMonth"] = addMonths(month, 1)
-	data["ThisMonth"] = monthFirst(today())
+	data["ThisMonth"] = monthFirst(asOf)
 	data["Weeks"] = weeks
 	data["SelectedFrom"] = from
 	data["SelectedTo"] = to
-	data["SelectionLabel"] = rangeLabel(from, to)
+	data["SelectionLabel"] = rangeLabel(from, to, asOf)
 	data["DayEvents"] = selectedEvents
 	data["DayHolidays"] = selectedHolidays
 	data["SuggestedEmojis"] = calendarEmojis()
@@ -238,15 +247,15 @@ func monthGridDates(month string) []string {
 // backwards across the grid is the same selection as dragging forwards, and
 // anything outside the visible weeks is ignored rather than obeyed, so a
 // hand-edited URL cannot select days that are not on screen.
-func selectedRange(rawFrom, rawTo, month, gridFrom, gridTo string) (string, string) {
+func selectedRange(rawFrom, rawTo, month, gridFrom, gridTo, asOf string) (string, string) {
 	from := dateInRange(rawFrom, gridFrom, gridTo)
 	to := dateInRange(rawTo, gridFrom, gridTo)
 	switch {
 	case from == "" && to == "":
 		// Nothing asked for: start on today when she is looking at this month,
 		// and at the first of the month when she has paged away from it.
-		if today() >= monthFirst(month) && today() <= monthLast(month) {
-			return today(), today()
+		if asOf >= monthFirst(month) && asOf <= monthLast(month) {
+			return asOf, asOf
 		}
 		return monthFirst(month), monthFirst(month)
 	case from == "":
@@ -271,11 +280,11 @@ func dateInRange(raw, from, to string) string {
 	return raw
 }
 
-func rangeLabel(from, to string) string {
+func rangeLabel(from, to, today string) string {
 	if from == to {
-		return prettyDate(from)
+		return prettyDateOn(from, today)
 	}
-	return prettyDate(from) + " - " + prettyDate(to)
+	return prettyDateOn(from, today) + " - " + prettyDateOn(to, today)
 }
 
 // handleCreateAdultEvent writes something onto her calendar. The end date is
@@ -323,7 +332,7 @@ func (a *App) handleCreateAdultEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if a.wantsCalendar(r) {
-		a.renderAdultCalendar(w, adult, r.Form)
+		a.renderAdultCalendar(w, r, adult, r.Form)
 		return
 	}
 	a.redirect(w, r, a.backToAdult(r, adult))
@@ -371,7 +380,7 @@ func (a *App) handleUpdateAdultEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if a.wantsCalendar(r) {
-		a.renderAdultCalendar(w, adult, r.Form)
+		a.renderAdultCalendar(w, r, adult, r.Form)
 		return
 	}
 	a.redirect(w, r, a.backToAdult(r, adult))
@@ -396,7 +405,7 @@ func (a *App) handleSetAdultEventLabel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if a.wantsCalendar(r) {
-		a.renderAdultCalendar(w, adult, r.Form)
+		a.renderAdultCalendar(w, r, adult, r.Form)
 		return
 	}
 	a.redirect(w, r, a.backToAdult(r, adult))
@@ -416,7 +425,7 @@ func (a *App) handleDeleteAdultEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if a.wantsCalendar(r) {
-		a.renderAdultCalendar(w, adult, r.Form)
+		a.renderAdultCalendar(w, r, adult, r.Form)
 		return
 	}
 	a.redirect(w, r, a.backToAdult(r, adult))
@@ -469,7 +478,7 @@ func (a *App) handleCreateAdultEventLabel(w http.ResponseWriter, r *http.Request
 		return
 	}
 	if a.wantsCalendar(r) {
-		a.renderAdultCalendar(w, adult, r.Form)
+		a.renderAdultCalendar(w, r, adult, r.Form)
 		return
 	}
 	a.redirect(w, r, a.backToAdult(r, adult))
@@ -499,7 +508,7 @@ func (a *App) handleUpdateAdultEventLabel(w http.ResponseWriter, r *http.Request
 		return
 	}
 	if a.wantsCalendar(r) {
-		a.renderAdultCalendar(w, adult, r.Form)
+		a.renderAdultCalendar(w, r, adult, r.Form)
 		return
 	}
 	a.redirect(w, r, a.backToAdult(r, adult))
@@ -519,7 +528,7 @@ func (a *App) handleDeleteAdultEventLabel(w http.ResponseWriter, r *http.Request
 		return
 	}
 	if a.wantsCalendar(r) {
-		a.renderAdultCalendar(w, adult, r.Form)
+		a.renderAdultCalendar(w, r, adult, r.Form)
 		return
 	}
 	a.redirect(w, r, a.backToAdult(r, adult))
@@ -560,7 +569,7 @@ func (a *App) handleUpsertHolidayNote(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if a.wantsCalendar(r) {
-		a.renderAdultCalendar(w, adult, r.Form)
+		a.renderAdultCalendar(w, r, adult, r.Form)
 		return
 	}
 	a.redirect(w, r, a.backToAdult(r, adult))
@@ -579,13 +588,13 @@ func (a *App) handleAdultSchedule(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	data, err := a.pageData("adults")
+	data, err := a.pageData(r, "adults")
 	if err != nil {
 		a.serverError(w, err)
 		return
 	}
 
-	start := weekStart(parseDate(r.URL.Query().Get("week"))).Format(dateLayout)
+	start := weekStart(parseDateIn(r.URL.Query().Get("week"), requestLocation(r))).Format(dateLayout)
 	end := addDays(start, 6)
 
 	lessons, err := a.store.AdultLessonsBetween(start, end, adult.ID)
@@ -616,13 +625,13 @@ func (a *App) handleAdultSchedule(w http.ResponseWriter, r *http.Request) {
 	data["WeekEnd"] = end
 	data["PrevWeek"] = addDays(start, -7)
 	data["NextWeek"] = addDays(start, 7)
-	data["ThisWeek"] = weekStart(time.Now()).Format(dateLayout)
+	data["ThisWeek"] = weekStart(requestNow(r)).Format(dateLayout)
 	a.render(w, "adult_schedule", data)
 }
 
 // renderAdultDay re-renders one day of her week after it changed, the same way
 // the planner does for the children.
-func (a *App) renderAdultDay(w http.ResponseWriter, adult Adult, dates ...string) {
+func (a *App) renderAdultDay(w http.ResponseWriter, r *http.Request, adult Adult, dates ...string) {
 	subjects, err := a.store.Subjects(false)
 	if err != nil {
 		a.serverError(w, err)
@@ -644,6 +653,7 @@ func (a *App) renderAdultDay(w http.ResponseWriter, adult Adult, dates ...string
 			"Day":      PlannerDay{Date: date, Lessons: lessons},
 			"Adult":    adult,
 			"Subjects": subjects,
+			"Today":    requestToday(r),
 			"OOB":      i > 0,
 		})
 	}
@@ -683,11 +693,11 @@ func (a *App) handleCreateAdultLesson(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if r.Header.Get("HX-Request") == "true" && r.FormValue("view") == "adult" {
-		a.renderAdultDay(w, adult, item.ScheduledOn)
+		a.renderAdultDay(w, r, adult, item.ScheduledOn)
 		return
 	}
 	if r.Header.Get("HX-Request") == "true" && r.FormValue("view") == "planner" {
-		a.renderPlannerDay(w, item.ScheduledOn, formID(r, "kid_filter"), adult.ID)
+		a.renderPlannerDay(w, r, item.ScheduledOn, formID(r, "kid_filter"), adult.ID)
 		return
 	}
 	a.redirect(w, r, safeRedirect(r.FormValue("back"), "/adults/"+r.PathValue("id")+"/schedule"))

@@ -12,7 +12,7 @@ func (a *App) handleSeries(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	data, err := a.pageData("")
+	data, err := a.pageData(r, "")
 	if err != nil {
 		a.serverError(w, err)
 		return
@@ -91,7 +91,7 @@ func (a *App) handleUpdateSeries(w http.ResponseWriter, r *http.Request) {
 	}
 	series.ID = id
 
-	from := today()
+	from := requestToday(r)
 	if err := a.store.UpdateFutureSeriesLessons(id, series, from); err != nil {
 		a.serverError(w, err)
 		return
@@ -115,7 +115,7 @@ func (a *App) handleUpdateSeries(w http.ResponseWriter, r *http.Request) {
 
 func (a *App) handleStopSeries(w http.ResponseWriter, r *http.Request) {
 	id := pathID(r, "id")
-	from := today()
+	from := requestToday(r)
 	if err := a.deletePlannedSeriesFiles(id, from); err != nil {
 		a.serverError(w, err)
 		return

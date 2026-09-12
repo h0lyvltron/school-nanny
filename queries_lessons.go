@@ -213,12 +213,15 @@ func (s *Store) ProgressBySubject(from, to string, kidID int64) (map[int64]Progr
 
 // LessonsForKidByStatus splits a child's subject work into what is still
 // coming up and what has already happened.
-func (s *Store) LessonsForKidSubjectSplit(kidID, subjectID int64, limit int) (upcoming, past []Lesson, err error) {
+func (s *Store) LessonsForKidSubjectSplit(kidID, subjectID int64, limit int, today string) (upcoming, past []Lesson, err error) {
 	lessons, err := s.LessonsForSubject(kidID, subjectID, limit)
 	if err != nil {
 		return nil, nil, err
 	}
-	now := today()
+	if today == "" {
+		today = time.Now().Format(dateLayout)
+	}
+	now := today
 	for _, l := range lessons {
 		if l.Status == StatusPlanned && l.ScheduledOn >= now {
 			upcoming = append(upcoming, l)

@@ -16,6 +16,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -194,12 +195,29 @@ func (a *App) Routes() http.Handler {
 	mux.HandleFunc("POST /settings/years", a.handleSaveSchoolYear)
 	mux.HandleFunc("POST /settings/years/{id}/delete", a.handleDeleteSchoolYear)
 	mux.HandleFunc("POST /settings/password", a.handleSavePassword)
+	mux.HandleFunc("POST /settings/timezone", a.handleSaveTimezone)
 	mux.HandleFunc("POST /settings/backups", a.handleMakeBackup)
 	mux.HandleFunc("GET /settings/backups/{name}", a.handleDownloadBackup)
 	mux.HandleFunc("POST /settings/backups/{name}/restore", a.handleRestoreBackup)
 	mux.HandleFunc("POST /settings/backups/{name}/delete", a.handleDeleteBackup)
 
-	return a.recoverPanic(a.sameSiteOnly(a.requireLogin(mux)))
+	return a.recoverPanic(a.sameSiteOnly(a.withTimezone(a.requireLogin(mux))))
+}
+
+// withTimezone hangs the reader's calendar zone on the request so every
+// handler and template for that request answers "today" the same way.
+func (a *App) withTimezone(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/static/") {
+			next.ServeHTTP(w, r)
+			return
+		}
+		family, err := a.store.Setting(settingTimezone)
+		if err != nil {
+			family = ""
+		}
+		next.ServeHTTP(w, r.WithContext(withLocation(r.Context(), resolveLocation(family, cookieTZ(r)))))
+	})
 }
 
 // requireLogin gates the app behind the family password, when one is set.
@@ -261,8 +279,8 @@ func (a *App) recoverPanic(next http.Handler) http.Handler {
 }
 
 // pageData assembles what every page needs: the child list for navigation,
-// today's date, and which nav item is active.
-func (a *App) pageData(active string) (map[string]any, error) {
+// today's date in the reader's zone, and which nav item is active.
+func (a *App) pageData(r *http.Request, active string) (map[string]any, error) {
 	kids, err := a.store.Kids(false)
 	if err != nil {
 		return nil, err
@@ -275,17 +293,94 @@ func (a *App) pageData(active string) (map[string]any, error) {
 	if err != nil {
 		return nil, err
 	}
+	family, err := a.store.Setting(settingTimezone)
+	if err != nil {
+		return nil, err
+	}
+	familyListed := false
+	for _, z := range commonTimezones {
+		if z == family {
+			familyListed = true
+			break
+		}
+	}
 	return map[string]any{
-		"Active":      active,
-		"NavKids":     kids,
-		"NavAdults":   adults,
-		"Today":       today(),
-		"HasPassword": hasPassword != "",
+		"Active":                active,
+		"NavKids":               kids,
+		"NavAdults":             adults,
+		"Today":                 requestToday(r),
+		"HasPassword":           hasPassword != "",
+		"FamilyTimezone":        family,
+		"FamilyTimezoneListed":  familyListed,
+		"DeviceTimezone":        cookieTZ(r),
+		"CommonTimezones":       commonTimezones,
 	}, nil
 }
 
+// templatesFor returns the parsed templates whose date helpers are fixed to
+// one calendar day. html/template will not let a template be cloned once it
+// has been executed, so each distinct "today" gets its own set.
+func (a *App) templatesFor(day string) (*templateSet, error) {
+	if day == "" {
+		day = today()
+	}
+	a.tmplMu.Lock()
+	defer a.tmplMu.Unlock()
+	if set, ok := a.tmplSet[day]; ok {
+		return set, nil
+	}
+	set, err := parseTemplateSet(day)
+	if err != nil {
+		return nil, err
+	}
+	// Households live on one or two dates at a time. Drop an older set rather
+	// than keep every day someone once travelled through.
+	if len(a.tmplSet) >= 8 {
+		for k := range a.tmplSet {
+			if k != day {
+				delete(a.tmplSet, k)
+				break
+			}
+		}
+	}
+	a.tmplSet[day] = set
+	return set, nil
+}
+
+func parseTemplateSet(day string) (*templateSet, error) {
+	set := &templateSet{pages: map[string]*template.Template{}}
+	for _, name := range pageNames {
+		t, err := template.New(name).Funcs(templateFuncs(day)).ParseFS(templateFS,
+			"templates/layout.html", "templates/partials.html", "templates/"+name+".html")
+		if err != nil {
+			return nil, fmt.Errorf("parsing template %s: %w", name, err)
+		}
+		set.pages[name] = t
+	}
+	partials, err := template.New("partials").Funcs(templateFuncs(day)).ParseFS(templateFS, "templates/partials.html")
+	if err != nil {
+		return nil, fmt.Errorf("parsing partials: %w", err)
+	}
+	set.partials = partials
+	return set, nil
+}
+
+func todayFromData(data map[string]any) string {
+	if data != nil {
+		if day, ok := data["Today"].(string); ok && day != "" {
+			return day
+		}
+	}
+	return today()
+}
+
 func (a *App) render(w http.ResponseWriter, page string, data map[string]any) {
-	t, ok := a.pages[page]
+	set, err := a.templatesFor(todayFromData(data))
+	if err != nil {
+		a.serverError(w, err)
+		return
+	}
+	t, ok := set.pages[page]
 	if !ok {
 		a.serverError(w, fmt.Errorf("unknown page template %q", page))
 		return
@@ -300,8 +395,17 @@ func (a *App) render(w http.ResponseWriter, page string, data map[string]any) {
 }
 
 func (a *App) renderPartial(w http.ResponseWriter, name string, data any) {
+	day := today()
+	if m, ok := data.(map[string]any); ok {
+		day = todayFromData(m)
+	}
+	set, err := a.templatesFor(day)
+	if err != nil {
+		a.serverError(w, err)
+		return
+	}
 	var buf strings.Builder
-	if err := a.partials.ExecuteTemplate(&buf, name, data); err != nil {
+	if err := set.partials.ExecuteTemplate(&buf, name, data); err != nil {
 		a.serverError(w, err)
 		return
 	}
@@ -386,7 +490,7 @@ func formFloat(r *http.Request, name string) *float64 {
 func formDate(r *http.Request, name string) string {
 	raw := strings.TrimSpace(r.FormValue(name))
 	if _, err := time.Parse(dateLayout, raw); err != nil {
-		return today()
+		return requestToday(r)
 	}
 	return raw
 }

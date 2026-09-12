@@ -181,6 +181,29 @@
 </section>
 
 <section class="panel">
+    <h2>School day timezone</h2>
+    <p class="muted small">
+        Today follows each device by default, so a phone in another state shows
+        the day that phone is living in. Set a family zone only if everyone
+        should share one school day.
+        {{if .DeviceTimezone}} This device: <code>{{.DeviceTimezone}}</code>.{{end}}
+    </p>
+    <form method="post" action="/settings/timezone" class="settings-row new">
+        <select name="preset" aria-label="Family timezone">
+            <option value="" {{if not .FamilyTimezone}}selected{{end}}>Use each device</option>
+            {{range .CommonTimezones}}
+                <option value="{{.}}" {{if eq $.FamilyTimezone .}}selected{{end}}>{{.}}</option>
+            {{end}}
+            {{if and .FamilyTimezone (not .FamilyTimezoneListed)}}
+                <option value="{{.FamilyTimezone}}" selected>{{.FamilyTimezone}}</option>
+            {{end}}
+        </select>
+        <input type="text" name="timezone" placeholder="Or type an IANA name" aria-label="Custom timezone">
+        <button type="submit">Save timezone</button>
+    </form>
+</section>
+
+<section class="panel">
     <h2>Lock this app</h2>
     {{if .HasPassword}}
         <p class="muted small">A password is set. Type a new one to change it, or save it empty to remove the lock.</p>

@@ -5,7 +5,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"strings"
-	"time"
 )
 
 // Lesson statuses. A lesson is the single record for both "we plan to do this"

@@ -114,7 +114,7 @@
                         <strong>{{.Title}}</strong>
                         {{if .HasLabel}}<span class="cal-label-chip">{{if .LabelEmoji}}{{.LabelEmoji}} {{end}}{{.LabelName}}</span>{{end}}
                     </div>
-                    <p class="muted small">{{.DateLabel}}</p>
+                    <p class="muted small">{{dateLabel .}}</p>
                     {{if .Body}}<p class="note-body">{{.Body}}</p>{{end}}
                     <div class="cal-entry-foot">
                         <details class="cal-edit">
@@ -267,7 +267,7 @@
 {{end}}
 
 {{define "lesson_row"}}
-<article class="lesson status-{{.Lesson.Status}}{{if .Lesson.Overdue}} is-overdue{{end}}" id="lesson-{{.Lesson.ID}}"
+<article class="lesson status-{{.Lesson.Status}}{{if isOverdue .Lesson}} is-overdue{{end}}" id="lesson-{{.Lesson.ID}}"
          {{if .Lesson.SubjectColor}}style="--subject:{{color .Lesson.SubjectColor}}"{{end}}
          {{if .Draggable}}draggable="true" data-lesson-id="{{.Lesson.ID}}" data-kid-id="{{.Lesson.KidID}}" data-date="{{.Lesson.ScheduledOn}}"
          {{if .Lesson.HasAssignment}}data-assignment-id="{{.Lesson.AssignmentID}}" data-sequence="{{.Lesson.Sequence}}"{{end}}{{end}}>
@@ -280,7 +280,7 @@
             {{if .ShowSubject}}<span class="lesson-subject">{{.Lesson.SubjectName}}</span> &middot; {{end}}{{prettyDate .Lesson.ScheduledOn}}
             {{if .Lesson.Minutes}} &middot; {{.Lesson.Minutes}} min{{end}}
             {{if .Lesson.IsSkipped}} &middot; skipped{{end}}
-            {{if .Lesson.Overdue}} &middot; <span class="overdue-flag">not marked done</span>{{end}}
+            {{if isOverdue .Lesson}} &middot; <span class="overdue-flag">not marked done</span>{{end}}
         </p>
         {{if .Lesson.Notes}}<p class="lesson-notes">{{.Lesson.Notes}}</p>{{end}}
     </div>
@@ -303,7 +303,7 @@
                         <button class="pill ghost" type="submit"
                                 onclick="return confirm('Move this lesson and every later planned lesson in this plan to the next school days?')">Push</button>
                     </form>
-                    {{if .Lesson.Ahead}}
+                    {{if isAhead .Lesson}}
                         <form method="post" action="/lessons/{{.Lesson.ID}}/pull" class="inline-form">
                             <input type="hidden" name="back" value="{{.Back}}">
                             <button class="pill ghost" type="submit"

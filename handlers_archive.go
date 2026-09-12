@@ -6,7 +6,7 @@ import (
 )
 
 func (a *App) handleArchive(w http.ResponseWriter, r *http.Request) {
-	data, err := a.pageData("archive")
+	data, err := a.pageData(r, "archive")
 	if err != nil {
 		a.serverError(w, err)
 		return

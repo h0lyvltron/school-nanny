@@ -27,13 +27,16 @@ type KidAttendanceReport struct {
 }
 
 func (a *App) handleAttendance(w http.ResponseWriter, r *http.Request) {
-	data, err := a.pageData("attendance")
+	data, err := a.pageData(r, "attendance")
 	if err != nil {
 		a.serverError(w, err)
 		return
 	}
 
 	month := parseMonthQuery(r.URL.Query().Get("month"))
+	if strings.TrimSpace(r.URL.Query().Get("month")) == "" {
+		month = monthFirst(requestToday(r))
+	}
 	kidFilter := parseInt64(r.URL.Query().Get("kid"))
 
 	if err := a.populateAttendance(data, month, kidFilter); err != nil {
@@ -140,7 +143,11 @@ func (a *App) populateAttendance(data map[string]any, month string, kidFilter in
 	from := month
 	to := monthLast(month)
 
-	yearFrom, yearTo, yearName, err := a.yearRange()
+	asOf := today()
+	if t, ok := data["Today"].(string); ok && t != "" {
+		asOf = t
+	}
+	yearFrom, yearTo, yearName, err := a.yearBounds(asOf)
 	if err != nil {
 		return err
 	}
@@ -211,7 +218,9 @@ func (a *App) populateAttendance(data map[string]any, month string, kidFilter in
 	data["Reports"] = reports
 	data["ShowKids"] = showKids
 	data["NavKids"] = kids
-	data["Today"] = today()
+	if _, ok := data["Today"]; !ok {
+		data["Today"] = today()
+	}
 	return nil
 }
 

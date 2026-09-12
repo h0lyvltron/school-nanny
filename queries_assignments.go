@@ -202,7 +202,7 @@ func (s *Store) relayoutLessons(asg PlanAssignment, resumeOn string, planned []L
 	return tx.Commit()
 }
 
-func (s *Store) PushAssignmentLesson(lesson Lesson) error {
+func (s *Store) PushAssignmentLesson(lesson Lesson, today string) error {
 	if lesson.AssignmentID == 0 {
 		return fmt.Errorf("that lesson is not part of a scheduled plan")
 	}
@@ -213,7 +213,10 @@ func (s *Store) PushAssignmentLesson(lesson Lesson) error {
 	if err != nil {
 		return err
 	}
-	resume := pushResumeOn(today(), lesson.ScheduledOn, asg.Weekdays)
+	if today == "" {
+		today = time.Now().Format(dateLayout)
+	}
+	resume := pushResumeOn(today, lesson.ScheduledOn, asg.Weekdays)
 	return s.RelayoutPlannedFrom(asg, resume, lesson.Sequence)
 }
 
@@ -221,7 +224,7 @@ func (s *Store) PushAssignmentLesson(lesson Lesson) error {
 // so tomorrow's lesson is brought onto today and the rest of the plan closes
 // up behind it. Unlike Push there is no floor beyond today, because moving
 // work earlier is the whole point.
-func (s *Store) PullAssignmentLesson(lesson Lesson) error {
+func (s *Store) PullAssignmentLesson(lesson Lesson, today string) error {
 	if lesson.AssignmentID == 0 {
 		return fmt.Errorf("that lesson is not part of a scheduled plan")
 	}
@@ -232,7 +235,10 @@ func (s *Store) PullAssignmentLesson(lesson Lesson) error {
 	if err != nil {
 		return err
 	}
-	return s.RelayoutPlannedFrom(asg, today(), lesson.Sequence)
+	if today == "" {
+		today = time.Now().Format(dateLayout)
+	}
+	return s.RelayoutPlannedFrom(asg, today, lesson.Sequence)
 }
 
 // RescheduleAssignmentLesson moves one lesson onto the day it was dropped on

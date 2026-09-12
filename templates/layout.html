@@ -20,6 +20,33 @@
             document.documentElement.setAttribute("data-theme-mode", mode);
         })();
     </script>
+    <script>
+        // Tell the server which calendar day this device is living in. The
+        // cookie is what "Today" is measured against when the family has not
+        // pinned a shared zone in Settings. Reload once if we just learned it,
+        // so the first paint is not a day early.
+        (function () {
+            try {
+                var zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+                if (!zone) { return; }
+                var current = "";
+                var parts = document.cookie.split("; ");
+                for (var i = 0; i < parts.length; i++) {
+                    if (parts[i].indexOf("sn_tz=") === 0) {
+                        current = decodeURIComponent(parts[i].slice(6));
+                        break;
+                    }
+                }
+                if (current === zone) { return; }
+                document.cookie = "sn_tz=" + encodeURIComponent(zone) +
+                    "; path=/; max-age=31536000; samesite=lax";
+                if (!sessionStorage.getItem("sn_tz_reloaded")) {
+                    sessionStorage.setItem("sn_tz_reloaded", "1");
+                    location.reload();
+                }
+            } catch (e) { /* private browsing: stay on the server's day */ }
+        })();
+    </script>
     <link rel="stylesheet" href="/static/pico.min.css">
     <link rel="stylesheet" href="/static/app.css">
     <script src="/static/htmx.min.js" defer></script>

@@ -53,7 +53,7 @@ func (a *App) handleCreateLesson(w http.ResponseWriter, r *http.Request) {
 
 	// The planner swaps just the day that changed; everywhere else reloads.
 	if r.Header.Get("HX-Request") == "true" && r.FormValue("view") == "planner" && r.FormValue("repeat") != "on" {
-		a.renderPlannerDay(w, lesson.ScheduledOn, formID(r, "kid_filter"), formID(r, "adult_filter"))
+		a.renderPlannerDay(w, r, lesson.ScheduledOn, formID(r, "kid_filter"), formID(r, "adult_filter"))
 		return
 	}
 	a.redirect(w, r, safeRedirect(r.FormValue("back"), "/"))
@@ -142,6 +142,7 @@ func (a *App) handleLessonStatus(w http.ResponseWriter, r *http.Request) {
 		"ShowKid":     r.FormValue("show_kid") == "true",
 		"ShowSubject": r.FormValue("show_subject") != "false",
 		"Back":        safeRedirect(r.FormValue("back"), "/"),
+		"Today":       requestToday(r),
 	})
 }
 
@@ -175,7 +176,7 @@ func (a *App) handleRescheduleLesson(w http.ResponseWriter, r *http.Request) {
 		if cascaded {
 			days = append(days, weekDates(date)...)
 		}
-		a.renderPlannerDays(w, formID(r, "kid_filter"), formID(r, "adult_filter"), days...)
+		a.renderPlannerDays(w, r, formID(r, "kid_filter"), formID(r, "adult_filter"), days...)
 		return
 	}
 	a.redirect(w, r, safeRedirect(r.FormValue("back"), "/planner"))
@@ -219,7 +220,7 @@ func (a *App) handleCloneLesson(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if r.Header.Get("HX-Request") == "true" && r.FormValue("view") == "planner" {
-		a.renderPlannerDays(w, formID(r, "kid_filter"), formID(r, "adult_filter"), clone.ScheduledOn)
+		a.renderPlannerDays(w, r, formID(r, "kid_filter"), formID(r, "adult_filter"), clone.ScheduledOn)
 		return
 	}
 	a.redirect(w, r, safeRedirect(r.FormValue("back"), "/planner"))
@@ -242,21 +243,21 @@ func (a *App) handleDeleteLesson(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if r.Header.Get("HX-Request") == "true" && r.FormValue("view") == "planner" {
-		a.renderPlannerDay(w, lesson.ScheduledOn, formID(r, "kid_filter"), formID(r, "adult_filter"))
+		a.renderPlannerDay(w, r, lesson.ScheduledOn, formID(r, "kid_filter"), formID(r, "adult_filter"))
 		return
 	}
 	a.redirect(w, r, safeRedirect(r.FormValue("back"), "/planner"))
 }
 
 // renderPlannerDay re-renders one day of the week grid after it changed.
-func (a *App) renderPlannerDay(w http.ResponseWriter, date string, kidFilter, adultFilter int64) {
-	a.renderPlannerDays(w, kidFilter, adultFilter, date)
+func (a *App) renderPlannerDay(w http.ResponseWriter, r *http.Request, date string, kidFilter, adultFilter int64) {
+	a.renderPlannerDays(w, r, kidFilter, adultFilter, date)
 }
 
 // renderPlannerDays re-renders one or more days of the week grid. The first
 // day goes into whatever the request targeted; the rest ride along as
 // out-of-band swaps, which is how a dragged lesson updates both ends at once.
-func (a *App) renderPlannerDays(w http.ResponseWriter, kidFilter, adultFilter int64, dates ...string) {
+func (a *App) renderPlannerDays(w http.ResponseWriter, r *http.Request, kidFilter, adultFilter int64, dates ...string) {
 	kids, err := a.store.Kids(false)
 	if err != nil {
 		a.serverError(w, err)
@@ -310,7 +311,7 @@ func (a *App) renderPlannerDays(w http.ResponseWriter, kidFilter, adultFilter in
 			"KidFilter":   kidFilter,
 			"AdultFilter": adultFilter,
 			"Adult":       filterAdult,
-			"Today":       today(),
+			"Today":       requestToday(r),
 			"Back":        plannerFilterURL(weekStart(parseDate(date)).Format(dateLayout), kidFilter, adultFilter),
 			"OOB":         i > 0,
 		})

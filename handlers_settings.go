@@ -9,7 +9,7 @@ import (
 )
 
 func (a *App) handleSettings(w http.ResponseWriter, r *http.Request) {
-	data, err := a.pageData("settings")
+	data, err := a.pageData(r, "settings")
 	if err != nil {
 		a.serverError(w, err)
 		return
@@ -219,6 +219,34 @@ func (a *App) handleSavePassword(w http.ResponseWriter, r *http.Request) {
 	}
 	a.issueSession(w)
 	a.redirect(w, r, "/settings?saved=password")
+}
+
+func (a *App) handleSaveTimezone(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "Could not read that form.", http.StatusBadRequest)
+		return
+	}
+	raw := strings.TrimSpace(r.FormValue("timezone"))
+	if raw == "" {
+		raw = strings.TrimSpace(r.FormValue("preset"))
+	}
+	if raw == "" {
+		if err := a.store.DeleteSetting(settingTimezone); err != nil {
+			a.serverError(w, err)
+			return
+		}
+		a.redirect(w, r, "/settings?saved=timezone")
+		return
+	}
+	if loadLocation(raw) == nil {
+		http.Error(w, "That timezone is not recognised.", http.StatusBadRequest)
+		return
+	}
+	if err := a.store.SetSetting(settingTimezone, raw); err != nil {
+		a.serverError(w, err)
+		return
+	}
+	a.redirect(w, r, "/settings?saved=timezone")
 }
 
 // Backups --------------------------------------------------------------------

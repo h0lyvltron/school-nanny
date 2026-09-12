@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
-	"time"
 )
 
 // KidToday is one child's slice of the family home page.
@@ -19,15 +18,15 @@ type KidToday struct {
 }
 
 func (a *App) handleHome(w http.ResponseWriter, r *http.Request) {
-	data, err := a.pageData("home")
+	data, err := a.pageData(r, "home")
 	if err != nil {
 		a.serverError(w, err)
 		return
 	}
 
 	kids, _ := data["NavKids"].([]Kid)
-	now := today()
-	start := weekStart(time.Now()).Format(dateLayout)
+	now := requestToday(r)
+	start := weekStart(requestNow(r)).Format(dateLayout)
 	end := addDays(start, 6)
 
 	weekLessons, err := a.store.LessonsBetween(start, end, 0)
@@ -110,13 +109,13 @@ type PlannerDay struct {
 }
 
 func (a *App) handlePlanner(w http.ResponseWriter, r *http.Request) {
-	data, err := a.pageData("planner")
+	data, err := a.pageData(r, "planner")
 	if err != nil {
 		a.serverError(w, err)
 		return
 	}
 
-	start := weekStart(parseDate(r.URL.Query().Get("week"))).Format(dateLayout)
+	start := weekStart(parseDateIn(r.URL.Query().Get("week"), requestLocation(r))).Format(dateLayout)
 	end := addDays(start, 6)
 	kidFilter, adultFilter := plannerPersonFilter(r.URL.Query())
 
@@ -184,7 +183,7 @@ func (a *App) handlePlanner(w http.ResponseWriter, r *http.Request) {
 	data["WeekEnd"] = end
 	data["PrevWeek"] = addDays(start, -7)
 	data["NextWeek"] = addDays(start, 7)
-	data["ThisWeek"] = weekStart(time.Now()).Format(dateLayout)
+	data["ThisWeek"] = weekStart(requestNow(r)).Format(dateLayout)
 	data["Progress"] = progress
 	a.render(w, "planner", data)
 }
@@ -252,7 +251,7 @@ func (a *App) handleKid(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	data, err := a.pageData("kids")
+	data, err := a.pageData(r, "kids")
 	if err != nil {
 		a.serverError(w, err)
 		return
@@ -264,9 +263,9 @@ func (a *App) handleKid(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	weekFrom := weekStart(time.Now()).Format(dateLayout)
+	weekFrom := weekStart(requestNow(r)).Format(dateLayout)
 	weekTo := addDays(weekFrom, 6)
-	yearFrom, yearTo, yearName, err := a.yearRange()
+	yearFrom, yearTo, yearName, err := a.yearBounds(requestToday(r))
 	if err != nil {
 		a.serverError(w, err)
 		return
@@ -295,7 +294,7 @@ func (a *App) handleKid(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	upcoming, err := a.store.LessonsBetween(today(), addDays(today(), 30), kid.ID)
+	upcoming, err := a.store.LessonsBetween(requestToday(r), addDays(requestToday(r), 30), kid.ID)
 	if err != nil {
 		a.serverError(w, err)
 		return
@@ -368,13 +367,13 @@ func (a *App) handleSubject(w http.ResponseWriter, r *http.Request) {
 		a.serverError(w, err)
 		return
 	}
-	data, err := a.pageData("kids")
+	data, err := a.pageData(r, "kids")
 	if err != nil {
 		a.serverError(w, err)
 		return
 	}
 
-	upcoming, past, err := a.store.LessonsForKidSubjectSplit(kid.ID, subject.ID, 200)
+	upcoming, past, err := a.store.LessonsForKidSubjectSplit(kid.ID, subject.ID, 200, requestToday(r))
 	if err != nil {
 		a.serverError(w, err)
 		return
@@ -395,9 +394,9 @@ func (a *App) handleSubject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	weekFrom := weekStart(time.Now()).Format(dateLayout)
+	weekFrom := weekStart(requestNow(r)).Format(dateLayout)
 	weekTo := addDays(weekFrom, 6)
-	yearFrom, yearTo, yearName, err := a.yearRange()
+	yearFrom, yearTo, yearName, err := a.yearBounds(requestToday(r))
 	if err != nil {
 		a.serverError(w, err)
 		return
@@ -436,7 +435,7 @@ func (a *App) handleLesson(w http.ResponseWriter, r *http.Request) {
 		a.serverError(w, err)
 		return
 	}
-	data, err := a.pageData("")
+	data, err := a.pageData(r, "")
 	if err != nil {
 		a.serverError(w, err)
 		return
@@ -550,7 +549,7 @@ func (a *App) handleTests(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	data, err := a.pageData("kids")
+	data, err := a.pageData(r, "kids")
 	if err != nil {
 		a.serverError(w, err)
 		return
@@ -597,7 +596,7 @@ func (a *App) lookupKid(w http.ResponseWriter, r *http.Request) (Kid, bool) {
 
 // yearRange returns the current school year's bounds, falling back to the last
 // twelve months when no year has been set up yet.
-func (a *App) yearRange() (from, to, name string, err error) {
+func (a *App) yearBounds(asOf string) (from, to, name string, err error) {
 	year, err := a.store.CurrentSchoolYear()
 	if err != nil {
 		return "", "", "", err
@@ -605,7 +604,10 @@ func (a *App) yearRange() (from, to, name string, err error) {
 	if year.ID != 0 {
 		return year.StartsOn, year.EndsOn, year.Name, nil
 	}
-	return addDays(today(), -365), addDays(today(), 365), "All time", nil
+	if asOf == "" {
+		asOf = today()
+	}
+	return addDays(asOf, -365), addDays(asOf, 365), "All time", nil
 }
 
 func firstN[T any](items []T, n int) []T {

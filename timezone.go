@@ -103,6 +103,30 @@ func requestNow(r *http.Request) time.Time {
 	return nowIn(requestLocation(r))
 }
 
+func cookieTZ(r *http.Request) string {
+	if r == nil {
+		return ""
+	}
+	c, err := r.Cookie(tzCookie)
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(c.Value)
+}
+
+// commonTimezones is the short list offered in Settings. Any other IANA name
+// can be typed in; these are just the ones a US household is likely to want.
+var commonTimezones = []string{
+	"America/Los_Angeles",
+	"America/Denver",
+	"America/Phoenix",
+	"America/Chicago",
+	"America/New_York",
+	"America/Anchorage",
+	"Pacific/Honolulu",
+	"UTC",
+}
+
 // today is the process zone's date. It stays for the desktop build and for
 // things measured against the server's own clock, such as naming a backup
 // file. Anything the calendar shows should use requestToday instead.
