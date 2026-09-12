@@ -1,12 +1,25 @@
 {{define "content"}}
 <section class="login">
     <h1>School Nanny</h1>
-    <p class="muted">This app is locked.</p>
-    {{if .Error}}<p class="form-error">{{.Error}}</p>{{end}}
-    <form method="post" action="/login">
-        <input type="password" name="password" placeholder="Family password"
-               autocomplete="current-password" autofocus required>
-        <button type="submit">Unlock</button>
-    </form>
+    {{if .Hosted}}
+        <p class="muted">Sign in with your parent account.</p>
+        {{if .Error}}<p class="form-error">{{.Error}}</p>{{end}}
+        <form method="post" action="/login">
+            <input type="email" name="email" placeholder="Email"
+                   autocomplete="username" autofocus required>
+            <input type="password" name="password" placeholder="Password"
+                   autocomplete="current-password" required>
+            <button type="submit">Sign in</button>
+        </form>
+        <p class="muted small"><a href="/signup">Create a family account</a></p>
+    {{else}}
+        <p class="muted">This app is locked.</p>
+        {{if .Error}}<p class="form-error">{{.Error}}</p>{{end}}
+        <form method="post" action="/login">
+            <input type="password" name="password" placeholder="Family password"
+                   autocomplete="current-password" autofocus required>
+            <button type="submit">Unlock</button>
+        </form>
+    {{end}}
 </section>
 {{end}}

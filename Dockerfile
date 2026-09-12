@@ -1,5 +1,6 @@
-# Multi-stage image for Coolify / Compose (Phase A PoC).
+# Multi-stage image for Coolify / Compose.
 # Binds all interfaces when PORT is set; data lives on a volume at /data.
+# Optional SCHOOL_NANNY_MODE=hosted — see docs/HOSTED.md.
 
 FROM golang:1.25-bookworm AS build
 WORKDIR /src

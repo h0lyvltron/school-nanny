@@ -20,6 +20,10 @@
             Photo removed.
         {{else if eq .Saved "adult"}}
             Saved.
+        {{else if eq .Saved "imported"}}
+            Family archive imported. A backup of the previous records was kept.
+        {{else if eq .Saved "account-password"}}
+            Account password updated.
         {{else}}
             Saved.
         {{end}}
@@ -204,6 +208,16 @@
 </section>
 
 <section class="panel">
+    {{if .Hosted}}
+    <h2>Account password</h2>
+    <p class="muted small">
+        Signed in as <strong>{{.AccountEmail}}</strong>. Change the password for this parent account.
+    </p>
+    <form method="post" action="/settings/account-password" class="settings-row new">
+        <input type="password" name="password" placeholder="New password" autocomplete="new-password" required>
+        <button type="submit">Save password</button>
+    </form>
+    {{else}}
     <h2>Lock this app</h2>
     {{if .HasPassword}}
         <p class="muted small">A password is set. Type a new one to change it, or save it empty to remove the lock.</p>
@@ -213,6 +227,23 @@
     <form method="post" action="/settings/password" class="settings-row new">
         <input type="password" name="password" placeholder="Family password" autocomplete="new-password">
         <button type="submit">Save password</button>
+    </form>
+    {{end}}
+</section>
+
+<section class="panel" id="family-export">
+    <h2>Family export / import</h2>
+    <p class="muted small">
+        Download this family's records and attached files as one zip, or restore
+        from a zip into <em>this</em> family only.
+    </p>
+    <p class="settings-row new">
+        <a href="/settings/export">Download family archive</a>
+    </p>
+    <form method="post" action="/settings/import" enctype="multipart/form-data" class="settings-row new"
+          onsubmit="return confirm('Replace this family’s records and files with the archive? A backup of the current records is saved first.')">
+        <input type="file" name="archive" accept=".zip,application/zip" required>
+        <button type="submit">Import archive</button>
     </form>
 </section>
 
@@ -256,8 +287,8 @@
 
     <p class="muted small">
         A backup holds the lessons, tests, and notes, but not the files you have
-        attached. Copying the whole folder above to a USB stick or a cloud folder
-        is what saves those too, and is the backup worth having off this computer.
+        attached. Use <a href="#family-export">Family export / import</a> for a zip
+        that includes attachments, or copy the whole folder above off this computer.
     </p>
 </section>
 {{end}}

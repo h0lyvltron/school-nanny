@@ -1,0 +1,20 @@
+{{define "content"}}
+<section class="login">
+    <h1>Create a family</h1>
+    <p class="muted">One parent account unlocks the planner for your household.</p>
+    {{if .Error}}<p class="form-error">{{.Error}}</p>{{end}}
+    <form method="post" action="/signup">
+        <input type="text" name="family_name" placeholder="Family name"
+               value="{{.FamilyName}}" autocomplete="organization" required>
+        <input type="email" name="email" placeholder="Email"
+               value="{{.Email}}" autocomplete="username" required>
+        <input type="password" name="password" placeholder="Password"
+               autocomplete="new-password" required>
+        {{if .InviteRequired}}
+            <input type="text" name="invite_code" placeholder="Invite code" required>
+        {{end}}
+        <button type="submit">Create account</button>
+    </form>
+    <p class="muted small"><a href="/login">Already have an account? Sign in</a></p>
+</section>
+{{end}}

@@ -132,8 +132,11 @@
       loop:
         - { key: "PORT", value: "{{ school_nanny_port }}" }
         - { key: "BASE_URL", value: "{{ school_nanny_base_url }}" }
+        - { key: "SCHOOL_NANNY_MODE", value: "{{ school_nanny_mode }}" }
+        - { key: "INVITE_CODE", value: "{{ school_nanny_invite_code }}" }
       loop_control:
         label: "{{ item.key }}"
+      when: item.value | length > 0 or item.key in ["PORT", "BASE_URL"]
 
     - name: Report the application
       ansible.builtin.debug:

@@ -48,6 +48,17 @@ type App struct {
 	uploadDir string
 	secret    []byte
 
+	// Hosted multi-tenant fields. Local (desktop) mode leaves these zero.
+	hosted       bool
+	control      *ControlStore
+	host         *App // tenant apps point at the hosted root
+	dataRoot     string
+	baseURL      string
+	inviteCode   string
+	cookieSecure bool
+	tenantsMu    sync.Mutex
+	tenants      map[string]*App
+
 	// Templates are parsed per calendar date, because helpers like isToday and
 	// prettyDate have to be fixed to a day and html/template will not let a
 	// template be cloned once it has been executed. Households span one or two
@@ -59,17 +70,20 @@ type App struct {
 // pageNames are the full-page templates; each one defines a "content" block
 // that the shared layout renders.
 var pageNames = []string{
-	"home", "planner", "kid", "subject", "lesson", "tests", "settings", "login",
+	"home", "planner", "kid", "subject", "lesson", "tests", "settings", "login", "signup",
 	"attendance", "curriculum", "curriculum_plan", "curriculum_apply", "archive", "series", "assignment",
 	"adult", "adult_schedule",
 }
 
 func NewApp(store *Store, dataDir string) (*App, error) {
+	cfg := loadHostedConfig(dataDir)
 	app := &App{
-		store:     store,
-		dataDir:   dataDir,
-		uploadDir: filepath.Join(dataDir, uploadsFolderName),
-		tmplSet:   map[string]*templateSet{},
+		store:        store,
+		dataDir:      dataDir,
+		uploadDir:    filepath.Join(dataDir, uploadsFolderName),
+		tmplSet:      map[string]*templateSet{},
+		baseURL:      cfg.BaseURL,
+		cookieSecure: cfg.CookieSecure,
 	}
 
 	// Build one set now so a broken template is a startup error rather than a
@@ -99,109 +113,126 @@ func NewApp(store *Store, dataDir string) (*App, error) {
 
 func (a *App) Routes() http.Handler {
 	mux := http.NewServeMux()
+	h := func(fn func(*App, http.ResponseWriter, *http.Request)) http.HandlerFunc {
+		return func(w http.ResponseWriter, r *http.Request) {
+			fn(appFrom(r), w, r)
+		}
+	}
 
 	mux.Handle("GET /static/", http.FileServerFS(staticFS))
 
-	mux.HandleFunc("GET /login", a.handleLoginForm)
-	mux.HandleFunc("POST /login", a.handleLogin)
-	mux.HandleFunc("POST /logout", a.handleLogout)
+	mux.HandleFunc("GET /healthz", h((*App).handleHealthz))
+	mux.HandleFunc("GET /login", h((*App).handleLoginForm))
+	mux.HandleFunc("POST /login", h((*App).handleLogin))
+	mux.HandleFunc("GET /signup", h((*App).handleSignupForm))
+	mux.HandleFunc("POST /signup", h((*App).handleSignup))
+	mux.HandleFunc("POST /logout", h((*App).handleLogout))
 
-	mux.HandleFunc("GET /{$}", a.handleHome)
-	mux.HandleFunc("GET /planner", a.handlePlanner)
+	mux.HandleFunc("GET /{$}", h((*App).handleHome))
+	mux.HandleFunc("GET /planner", h((*App).handlePlanner))
 
-	mux.HandleFunc("GET /attendance", a.handleAttendance)
-	mux.HandleFunc("POST /attendance", a.handleSaveAttendance)
+	mux.HandleFunc("GET /attendance", h((*App).handleAttendance))
+	mux.HandleFunc("POST /attendance", h((*App).handleSaveAttendance))
 
-	mux.HandleFunc("GET /curriculum", a.handleCurriculum)
-	mux.HandleFunc("POST /curriculum", a.handleCreateCurriculumPlan)
-	mux.HandleFunc("POST /curriculum/import", a.handleImportCurriculum)
-	mux.HandleFunc("GET /curriculum/{id}", a.handleCurriculumPlan)
-	mux.HandleFunc("POST /curriculum/{id}", a.handleUpdateCurriculumPlan)
-	mux.HandleFunc("POST /curriculum/{id}/delete", a.handleDeleteCurriculumPlan)
-	mux.HandleFunc("POST /curriculum/{id}/items", a.handleCreateCurriculumItem)
-	mux.HandleFunc("POST /curriculum/{id}/items/{itemID}", a.handleUpdateCurriculumItem)
-	mux.HandleFunc("POST /curriculum/{id}/items/{itemID}/delete", a.handleDeleteCurriculumItem)
-	mux.HandleFunc("POST /curriculum/{id}/items/{itemID}/move", a.handleMoveCurriculumItem)
-	mux.HandleFunc("GET /curriculum/{id}/apply", a.handleApplyCurriculumForm)
-	mux.HandleFunc("POST /curriculum/{id}/apply", a.handleApplyCurriculum)
+	mux.HandleFunc("GET /curriculum", h((*App).handleCurriculum))
+	mux.HandleFunc("POST /curriculum", h((*App).handleCreateCurriculumPlan))
+	mux.HandleFunc("POST /curriculum/import", h((*App).handleImportCurriculum))
+	mux.HandleFunc("GET /curriculum/{id}", h((*App).handleCurriculumPlan))
+	mux.HandleFunc("POST /curriculum/{id}", h((*App).handleUpdateCurriculumPlan))
+	mux.HandleFunc("POST /curriculum/{id}/delete", h((*App).handleDeleteCurriculumPlan))
+	mux.HandleFunc("POST /curriculum/{id}/items", h((*App).handleCreateCurriculumItem))
+	mux.HandleFunc("POST /curriculum/{id}/items/{itemID}", h((*App).handleUpdateCurriculumItem))
+	mux.HandleFunc("POST /curriculum/{id}/items/{itemID}/delete", h((*App).handleDeleteCurriculumItem))
+	mux.HandleFunc("POST /curriculum/{id}/items/{itemID}/move", h((*App).handleMoveCurriculumItem))
+	mux.HandleFunc("GET /curriculum/{id}/apply", h((*App).handleApplyCurriculumForm))
+	mux.HandleFunc("POST /curriculum/{id}/apply", h((*App).handleApplyCurriculum))
 
-	mux.HandleFunc("GET /archive", a.handleArchive)
-	mux.HandleFunc("POST /archive/export", a.handleArchiveExport)
+	mux.HandleFunc("GET /archive", h((*App).handleArchive))
+	mux.HandleFunc("POST /archive/export", h((*App).handleArchiveExport))
 
-	mux.HandleFunc("POST /lessons", a.handleCreateLesson)
-	mux.HandleFunc("GET /lessons/{id}", a.handleLesson)
-	mux.HandleFunc("POST /lessons/{id}", a.handleUpdateLesson)
-	mux.HandleFunc("POST /lessons/{id}/status", a.handleLessonStatus)
-	mux.HandleFunc("POST /lessons/{id}/reschedule", a.handleRescheduleLesson)
-	mux.HandleFunc("POST /lessons/{id}/clone", a.handleCloneLesson)
-	mux.HandleFunc("POST /lessons/{id}/delete", a.handleDeleteLesson)
-	mux.HandleFunc("POST /lessons/{id}/delete-future", a.handleDeleteSeriesFuture)
+	mux.HandleFunc("POST /lessons", h((*App).handleCreateLesson))
+	mux.HandleFunc("GET /lessons/{id}", h((*App).handleLesson))
+	mux.HandleFunc("POST /lessons/{id}", h((*App).handleUpdateLesson))
+	mux.HandleFunc("POST /lessons/{id}/status", h((*App).handleLessonStatus))
+	mux.HandleFunc("POST /lessons/{id}/reschedule", h((*App).handleRescheduleLesson))
+	mux.HandleFunc("POST /lessons/{id}/clone", h((*App).handleCloneLesson))
+	mux.HandleFunc("POST /lessons/{id}/delete", h((*App).handleDeleteLesson))
+	mux.HandleFunc("POST /lessons/{id}/delete-future", h((*App).handleDeleteSeriesFuture))
 
-	mux.HandleFunc("GET /series/{id}", a.handleSeries)
-	mux.HandleFunc("POST /series/{id}", a.handleUpdateSeries)
-	mux.HandleFunc("POST /series/{id}/stop", a.handleStopSeries)
+	mux.HandleFunc("GET /series/{id}", h((*App).handleSeries))
+	mux.HandleFunc("POST /series/{id}", h((*App).handleUpdateSeries))
+	mux.HandleFunc("POST /series/{id}/stop", h((*App).handleStopSeries))
 
-	mux.HandleFunc("GET /assignments/{id}", a.handleAssignment)
-	mux.HandleFunc("POST /assignments/{id}", a.handleUpdateAssignment)
-	mux.HandleFunc("POST /assignments/{id}/stop", a.handleStopAssignment)
-	mux.HandleFunc("POST /assignments/{id}/pause", a.handlePauseAssignment)
-	mux.HandleFunc("POST /lessons/{id}/push", a.handlePushLesson)
-	mux.HandleFunc("POST /lessons/{id}/pull", a.handlePullLesson)
+	mux.HandleFunc("GET /assignments/{id}", h((*App).handleAssignment))
+	mux.HandleFunc("POST /assignments/{id}", h((*App).handleUpdateAssignment))
+	mux.HandleFunc("POST /assignments/{id}/stop", h((*App).handleStopAssignment))
+	mux.HandleFunc("POST /assignments/{id}/pause", h((*App).handlePauseAssignment))
+	mux.HandleFunc("POST /lessons/{id}/push", h((*App).handlePushLesson))
+	mux.HandleFunc("POST /lessons/{id}/pull", h((*App).handlePullLesson))
 
-	mux.HandleFunc("GET /adults/{id}", a.handleAdult)
-	mux.HandleFunc("GET /adults/{id}/schedule", a.handleAdultSchedule)
-	mux.HandleFunc("POST /adults/{id}/schedule", a.handleCreateAdultLesson)
-	mux.HandleFunc("GET /adults/{id}/calendar", a.handleAdultCalendar)
-	mux.HandleFunc("POST /adults/{id}/events", a.handleCreateAdultEvent)
-	mux.HandleFunc("POST /adults/{id}/events/{eventID}", a.handleUpdateAdultEvent)
-	mux.HandleFunc("POST /adults/{id}/events/{eventID}/label", a.handleSetAdultEventLabel)
-	mux.HandleFunc("POST /adults/{id}/events/{eventID}/delete", a.handleDeleteAdultEvent)
-	mux.HandleFunc("POST /adults/{id}/labels", a.handleCreateAdultEventLabel)
-	mux.HandleFunc("POST /adults/{id}/labels/{labelID}", a.handleUpdateAdultEventLabel)
-	mux.HandleFunc("POST /adults/{id}/labels/{labelID}/delete", a.handleDeleteAdultEventLabel)
-	mux.HandleFunc("POST /adults/{id}/holidays", a.handleUpsertHolidayNote)
-	mux.HandleFunc("POST /adults/{id}/cards", a.handleCreateAdultCard)
-	mux.HandleFunc("POST /adults/{id}/cards/{cardID}", a.handleUpdateAdultCard)
-	mux.HandleFunc("POST /adults/{id}/cards/{cardID}/move", a.handleMoveAdultCard)
-	mux.HandleFunc("POST /adults/{id}/cards/{cardID}/delete", a.handleDeleteAdultCard)
+	mux.HandleFunc("GET /adults/{id}", h((*App).handleAdult))
+	mux.HandleFunc("GET /adults/{id}/schedule", h((*App).handleAdultSchedule))
+	mux.HandleFunc("POST /adults/{id}/schedule", h((*App).handleCreateAdultLesson))
+	mux.HandleFunc("GET /adults/{id}/calendar", h((*App).handleAdultCalendar))
+	mux.HandleFunc("POST /adults/{id}/events", h((*App).handleCreateAdultEvent))
+	mux.HandleFunc("POST /adults/{id}/events/{eventID}", h((*App).handleUpdateAdultEvent))
+	mux.HandleFunc("POST /adults/{id}/events/{eventID}/label", h((*App).handleSetAdultEventLabel))
+	mux.HandleFunc("POST /adults/{id}/events/{eventID}/delete", h((*App).handleDeleteAdultEvent))
+	mux.HandleFunc("POST /adults/{id}/labels", h((*App).handleCreateAdultEventLabel))
+	mux.HandleFunc("POST /adults/{id}/labels/{labelID}", h((*App).handleUpdateAdultEventLabel))
+	mux.HandleFunc("POST /adults/{id}/labels/{labelID}/delete", h((*App).handleDeleteAdultEventLabel))
+	mux.HandleFunc("POST /adults/{id}/holidays", h((*App).handleUpsertHolidayNote))
+	mux.HandleFunc("POST /adults/{id}/cards", h((*App).handleCreateAdultCard))
+	mux.HandleFunc("POST /adults/{id}/cards/{cardID}", h((*App).handleUpdateAdultCard))
+	mux.HandleFunc("POST /adults/{id}/cards/{cardID}/move", h((*App).handleMoveAdultCard))
+	mux.HandleFunc("POST /adults/{id}/cards/{cardID}/delete", h((*App).handleDeleteAdultCard))
 
-	mux.HandleFunc("GET /kids/{id}", a.handleKid)
-	mux.HandleFunc("GET /kids/{id}/subjects/{subjectID}", a.handleSubject)
-	mux.HandleFunc("GET /kids/{id}/tests", a.handleTests)
+	mux.HandleFunc("GET /kids/{id}", h((*App).handleKid))
+	mux.HandleFunc("GET /kids/{id}/subjects/{subjectID}", h((*App).handleSubject))
+	mux.HandleFunc("GET /kids/{id}/tests", h((*App).handleTests))
 
-	mux.HandleFunc("POST /assessments", a.handleCreateAssessment)
-	mux.HandleFunc("POST /assessments/{id}/delete", a.handleDeleteAssessment)
+	mux.HandleFunc("POST /assessments", h((*App).handleCreateAssessment))
+	mux.HandleFunc("POST /assessments/{id}/delete", h((*App).handleDeleteAssessment))
 
-	mux.HandleFunc("POST /notes", a.handleCreateNote)
-	mux.HandleFunc("POST /notes/{id}/delete", a.handleDeleteNote)
+	mux.HandleFunc("POST /notes", h((*App).handleCreateNote))
+	mux.HandleFunc("POST /notes/{id}/delete", h((*App).handleDeleteNote))
 
-	mux.HandleFunc("GET /avatars/kids/{id}", a.handleKidAvatarImage)
-	mux.HandleFunc("GET /avatars/adults/{id}", a.handleAdultAvatarImage)
+	mux.HandleFunc("GET /avatars/kids/{id}", h((*App).handleKidAvatarImage))
+	mux.HandleFunc("GET /avatars/adults/{id}", h((*App).handleAdultAvatarImage))
 
-	mux.HandleFunc("POST /files", a.handleUpload)
-	mux.HandleFunc("GET /files/{id}", a.handleDownload)
-	mux.HandleFunc("POST /files/{id}/delete", a.handleDeleteFile)
+	mux.HandleFunc("POST /files", h((*App).handleUpload))
+	mux.HandleFunc("GET /files/{id}", h((*App).handleDownload))
+	mux.HandleFunc("POST /files/{id}/delete", h((*App).handleDeleteFile))
 
-	mux.HandleFunc("GET /settings", a.handleSettings)
-	mux.HandleFunc("POST /settings/kids", a.handleSaveKid)
-	mux.HandleFunc("POST /settings/kids/{id}/delete", a.handleDeleteKid)
-	mux.HandleFunc("POST /settings/kids/{id}/avatar", a.handleKidAvatarUpload)
-	mux.HandleFunc("POST /settings/kids/{id}/avatar/delete", a.handleKidAvatarDelete)
-	mux.HandleFunc("POST /settings/adults", a.handleSaveAdult)
-	mux.HandleFunc("POST /settings/adults/{id}/avatar", a.handleAdultAvatarUpload)
-	mux.HandleFunc("POST /settings/adults/{id}/avatar/delete", a.handleAdultAvatarDelete)
-	mux.HandleFunc("POST /settings/subjects", a.handleSaveSubject)
-	mux.HandleFunc("POST /settings/subjects/{id}/delete", a.handleDeleteSubject)
-	mux.HandleFunc("POST /settings/years", a.handleSaveSchoolYear)
-	mux.HandleFunc("POST /settings/years/{id}/delete", a.handleDeleteSchoolYear)
-	mux.HandleFunc("POST /settings/password", a.handleSavePassword)
-	mux.HandleFunc("POST /settings/timezone", a.handleSaveTimezone)
-	mux.HandleFunc("POST /settings/backups", a.handleMakeBackup)
-	mux.HandleFunc("GET /settings/backups/{name}", a.handleDownloadBackup)
-	mux.HandleFunc("POST /settings/backups/{name}/restore", a.handleRestoreBackup)
-	mux.HandleFunc("POST /settings/backups/{name}/delete", a.handleDeleteBackup)
+	mux.HandleFunc("GET /settings", h((*App).handleSettings))
+	mux.HandleFunc("POST /settings/kids", h((*App).handleSaveKid))
+	mux.HandleFunc("POST /settings/kids/{id}/delete", h((*App).handleDeleteKid))
+	mux.HandleFunc("POST /settings/kids/{id}/avatar", h((*App).handleKidAvatarUpload))
+	mux.HandleFunc("POST /settings/kids/{id}/avatar/delete", h((*App).handleKidAvatarDelete))
+	mux.HandleFunc("POST /settings/adults", h((*App).handleSaveAdult))
+	mux.HandleFunc("POST /settings/adults/{id}/avatar", h((*App).handleAdultAvatarUpload))
+	mux.HandleFunc("POST /settings/adults/{id}/avatar/delete", h((*App).handleAdultAvatarDelete))
+	mux.HandleFunc("POST /settings/subjects", h((*App).handleSaveSubject))
+	mux.HandleFunc("POST /settings/subjects/{id}/delete", h((*App).handleDeleteSubject))
+	mux.HandleFunc("POST /settings/years", h((*App).handleSaveSchoolYear))
+	mux.HandleFunc("POST /settings/years/{id}/delete", h((*App).handleDeleteSchoolYear))
+	mux.HandleFunc("POST /settings/password", h((*App).handleSavePassword))
+	mux.HandleFunc("POST /settings/account-password", h((*App).handleChangeAccountPassword))
+	mux.HandleFunc("POST /settings/timezone", h((*App).handleSaveTimezone))
+	mux.HandleFunc("POST /settings/backups", h((*App).handleMakeBackup))
+	mux.HandleFunc("GET /settings/backups/{name}", h((*App).handleDownloadBackup))
+	mux.HandleFunc("POST /settings/backups/{name}/restore", h((*App).handleRestoreBackup))
+	mux.HandleFunc("POST /settings/backups/{name}/delete", h((*App).handleDeleteBackup))
+	mux.HandleFunc("GET /settings/export", h((*App).handleFamilyExport))
+	mux.HandleFunc("POST /settings/import", h((*App).handleFamilyImport))
 
-	return a.recoverPanic(a.sameSiteOnly(a.withTimezone(a.requireLogin(mux))))
+	stack := a.withTimezone(mux)
+	if a.hosted {
+		stack = a.hostedGate(stack)
+	} else {
+		stack = a.bindApp(a.requireLogin(stack))
+	}
+	return a.recoverPanic(a.sameSiteOnly(stack))
 }
 
 // withTimezone hangs the reader's calendar zone on the request so every
@@ -212,18 +243,30 @@ func (a *App) withTimezone(next http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 			return
 		}
-		family, err := a.store.Setting(settingTimezone)
-		if err != nil {
-			family = ""
+		app := a
+		if v, ok := r.Context().Value(ctxKeyApp).(*App); ok && v != nil {
+			app = v
+		}
+		family := ""
+		if app.store != nil {
+			var err error
+			family, err = app.store.Setting(settingTimezone)
+			if err != nil {
+				family = ""
+			}
 		}
 		next.ServeHTTP(w, r.WithContext(withLocation(r.Context(), resolveLocation(family, cookieTZ(r)))))
 	})
 }
 
 // requireLogin gates the app behind the family password, when one is set.
+// Hosted mode uses hostedGate instead.
 func (a *App) requireLogin(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.HasPrefix(r.URL.Path, "/static/") || strings.HasPrefix(r.URL.Path, "/login") {
+		if strings.HasPrefix(r.URL.Path, "/static/") ||
+			strings.HasPrefix(r.URL.Path, "/login") ||
+			r.URL.Path == "/healthz" ||
+			r.URL.Path == "/signup" {
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -257,7 +300,7 @@ func (a *App) sameSiteOnly(next http.Handler) http.Handler {
 				return
 			}
 			if origin := r.Header.Get("Origin"); origin != "" {
-				if !strings.HasSuffix(origin, "//"+r.Host) {
+				if !a.originAllowed(origin, r) {
 					http.Error(w, "cross-site requests are not allowed", http.StatusForbidden)
 					return
 				}
@@ -265,6 +308,16 @@ func (a *App) sameSiteOnly(next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+func (a *App) originAllowed(origin string, r *http.Request) bool {
+	if strings.HasSuffix(origin, "//"+r.Host) {
+		return true
+	}
+	if a.baseURL != "" && origin == a.baseURL {
+		return true
+	}
+	return false
 }
 
 func (a *App) recoverPanic(next http.Handler) http.Handler {
@@ -304,23 +357,35 @@ func (a *App) pageData(r *http.Request, active string) (map[string]any, error) {
 			break
 		}
 	}
-	return map[string]any{
-		"Active":                active,
-		"NavKids":               kids,
-		"NavAdults":             adults,
-		"Today":                 requestToday(r),
-		"HasPassword":           hasPassword != "",
-		"FamilyTimezone":        family,
-		"FamilyTimezoneListed":  familyListed,
-		"DeviceTimezone":        cookieTZ(r),
-		"CommonTimezones":       commonTimezones,
-	}, nil
+	data := map[string]any{
+		"Active":               active,
+		"NavKids":              kids,
+		"NavAdults":            adults,
+		"Today":                requestToday(r),
+		"HasPassword":          hasPassword != "",
+		"FamilyTimezone":       family,
+		"FamilyTimezoneListed": familyListed,
+		"DeviceTimezone":       cookieTZ(r),
+		"CommonTimezones":      commonTimezones,
+		"Hosted":               a.hosted,
+	}
+	if a.hosted {
+		if sess := sessionFrom(r); sess != nil {
+			if u, err := a.control.User(sess.UserID); err == nil {
+				data["AccountEmail"] = u.Email
+			}
+		}
+	}
+	return data, nil
 }
 
 // templatesFor returns the parsed templates whose date helpers are fixed to
 // one calendar day. html/template will not let a template be cloned once it
 // has been executed, so each distinct "today" gets its own set.
 func (a *App) templatesFor(day string) (*templateSet, error) {
+	if a.host != nil {
+		return a.host.templatesFor(day)
+	}
 	if day == "" {
 		day = today()
 	}
@@ -514,6 +579,7 @@ func (a *App) issueSession(w http.ResponseWriter) {
 		Value:    value,
 		Path:     "/",
 		HttpOnly: true,
+		Secure:   a.cookieSecure,
 		SameSite: http.SameSiteLaxMode,
 		Expires:  time.Unix(expiry, 0),
 	})
@@ -525,6 +591,7 @@ func (a *App) clearSession(w http.ResponseWriter) {
 		Value:    "",
 		Path:     "/",
 		HttpOnly: true,
+		Secure:   a.cookieSecure,
 		SameSite: http.SameSiteLaxMode,
 		MaxAge:   -1,
 	})

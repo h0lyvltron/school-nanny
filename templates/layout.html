@@ -79,7 +79,11 @@
                 </a>
             {{end}}
             <a href="/settings" class="{{if eq .Active "settings"}}current{{end}}">Settings</a>
-            {{if .HasPassword}}
+            {{if .Hosted}}
+                <form method="post" action="/logout" class="inline-form">
+                    <button class="link-button" type="submit">Sign out</button>
+                </form>
+            {{else if .HasPassword}}
                 <form method="post" action="/logout" class="inline-form">
                     <button class="link-button" type="submit">Lock</button>
                 </form>

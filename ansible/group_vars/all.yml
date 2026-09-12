@@ -46,3 +46,8 @@ school_nanny_git_repository: "https://github.com/h0lyvltron/school-nanny"
 school_nanny_git_branch: "main"
 school_nanny_port: "8080"
 school_nanny_base_url: "https://school-nanny.home"
+
+# Hosted multi-tenant mode (see docs/HOSTED.md). Leave mode empty for the
+# single-family Phase A layout still used on the live box until you flip it.
+school_nanny_mode: ""
+school_nanny_invite_code: ""

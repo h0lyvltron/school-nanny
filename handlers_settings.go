@@ -192,6 +192,10 @@ func (a *App) handleDeleteSchoolYear(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) handleSavePassword(w http.ResponseWriter, r *http.Request) {
+	if a.hosted {
+		http.NotFound(w, r)
+		return
+	}
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "Could not read that form.", http.StatusBadRequest)
 		return

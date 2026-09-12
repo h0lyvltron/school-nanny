@@ -11,6 +11,9 @@ services:
     environment:
       PORT: "8080"
       BASE_URL: "https://school-nanny.home"
+      # Uncomment for multi-tenant accounts (see docs/HOSTED.md):
+      # SCHOOL_NANNY_MODE: "hosted"
+      # INVITE_CODE: "change-me"
     volumes:
       - school_nanny_data:/data
     restart: unless-stopped

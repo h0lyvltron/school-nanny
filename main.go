@@ -57,25 +57,36 @@ func run(addr, dataDir string, open, lan bool) error {
 		return err
 	}
 
-	store, err := OpenStore(filepath.Join(dataDir, dbFileName))
-	if err != nil {
-		return err
-	}
-	defer store.Close()
+	var app *App
+	if hostedModeEnabled() {
+		cfg := loadHostedConfig(dataDir)
+		app, err = NewHostedApp(cfg)
+		if err != nil {
+			return err
+		}
+		defer app.closeTenants()
+		log.Printf("mode: hosted (control db + per-family data under %s)", dataDir)
+	} else {
+		store, err := OpenStore(filepath.Join(dataDir, dbFileName))
+		if err != nil {
+			return err
+		}
+		defer store.Close()
 
-	if err := store.Migrate(); err != nil {
-		return fmt.Errorf("applying migrations: %w", err)
-	}
+		if err := store.Migrate(); err != nil {
+			return fmt.Errorf("applying migrations: %w", err)
+		}
 
-	app, err := NewApp(store, dataDir)
-	if err != nil {
-		return err
-	}
+		app, err = NewApp(store, dataDir)
+		if err != nil {
+			return err
+		}
 
-	// Best effort: not being able to write a backup is worth saying out loud,
-	// but it is no reason to refuse to open the app.
-	if err := app.backupOnStartup(); err != nil {
-		log.Printf("could not save a backup: %v", err)
+		// Best effort: not being able to write a backup is worth saying out loud,
+		// but it is no reason to refuse to open the app.
+		if err := app.backupOnStartup(); err != nil {
+			log.Printf("could not save a backup: %v", err)
+		}
 	}
 
 	listener, err := net.Listen("tcp", addr)
@@ -91,15 +102,18 @@ func run(addr, dataDir string, open, lan bool) error {
 
 	url := browserURL(listener.Addr())
 	log.Printf("School Nanny is running at %s", url)
-	if lan {
+	if lan && !app.hosted {
 		announceLAN(listener.Addr())
-		password, err := store.Setting(settingPassword)
+		password, err := app.store.Setting(settingPassword)
 		if err != nil {
 			log.Printf("could not check the family password: %v", err)
 		} else if password == "" {
 			log.Printf("warning: no family password is set")
 			log.Printf("anyone on this Wi-Fi can open the app until you set one in Settings")
 		}
+	}
+	if app.hosted && app.baseURL != "" {
+		log.Printf("public URL: %s", app.baseURL)
 	}
 	log.Printf("data folder: %s", dataDir)
 	if adopted != "" {

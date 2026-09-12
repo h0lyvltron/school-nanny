@@ -30,7 +30,10 @@ parse.
 
 Against this machine it is a local connection, so nothing needs SSH. Adding the
 Ryzen box later means filling in its entry in [`inventory.ini`](inventory.ini)
-and running the same playbook with `-l ryzen`.
+and running the same playbook with `-l ryzen`. Cutover steps:
+[`docs/RYZEN_CUTOVER.md`](../docs/RYZEN_CUTOVER.md). Public VPS notes:
+[`docs/PUBLIC_VPS.md`](../docs/PUBLIC_VPS.md). Hosted app mode:
+[`docs/HOSTED.md`](../docs/HOSTED.md).
 
 Useful selections:
 
