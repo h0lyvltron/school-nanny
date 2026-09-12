@@ -136,12 +136,13 @@ func (e AdultEvent) Covers(date string) bool {
 	return date >= e.StartsOn && date <= e.EndsOn
 }
 
-// DateLabel names the stretch the way she would say it out loud.
-func (e AdultEvent) DateLabel() string {
+// DateLabelOn names the stretch the way she would say it out loud, relative to
+// the reader's own today so "Tomorrow" means theirs.
+func (e AdultEvent) DateLabelOn(today string) string {
 	if !e.Spans() {
-		return prettyDate(e.StartsOn)
+		return prettyDateOn(e.StartsOn, today)
 	}
-	return prettyDate(e.StartsOn) + " - " + prettyDate(e.EndsOn)
+	return prettyDateOn(e.StartsOn, today) + " - " + prettyDateOn(e.EndsOn, today)
 }
 
 // Holiday is a day the family keeps that nobody has to enter: the classic US
@@ -254,14 +255,16 @@ func (l Lesson) IsSkipped() bool     { return l.Status == StatusSkipped }
 func (l Lesson) HasAssignment() bool { return l.AssignmentID != 0 }
 func (l Lesson) HasSeries() bool     { return l.SeriesID != 0 }
 
-// Overdue reports a lesson still planned on a day that has already passed.
-func (l Lesson) Overdue() bool {
-	return l.Status == StatusPlanned && l.ScheduledOn < today()
+// OverdueOn reports a lesson still planned on a day that has already passed.
+// The day is passed in rather than read from the clock because "already
+// passed" depends on which timezone the person reading is in.
+func (l Lesson) OverdueOn(today string) bool {
+	return l.Status == StatusPlanned && l.ScheduledOn < today
 }
 
-// Ahead reports a lesson sitting on a later day, which is the only kind there
-// is anything to gain by pulling forward.
-func (l Lesson) Ahead() bool { return l.ScheduledOn > today() }
+// AheadOf reports a lesson sitting on a later day, which is the only kind
+// there is anything to gain by pulling forward.
+func (l Lesson) AheadOf(today string) bool { return l.ScheduledOn > today }
 
 type Assessment struct {
 	ID           int64
@@ -490,10 +493,6 @@ type LessonSeries struct {
 	KidName     string
 	KidColor    string
 	SubjectName string
-}
-
-func today() string {
-	return time.Now().Format(dateLayout)
 }
 
 // shortHash turns a stored path into a stable cache-busting token, so a

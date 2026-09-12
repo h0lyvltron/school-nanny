@@ -30,16 +30,29 @@ const (
 	sessionLifetime = 30 * 24 * time.Hour
 	settingPassword = "family_password"
 	settingSecret   = "session_secret"
+	settingTimezone = "family_timezone"
 )
+
+// templateSet is every template, with its date-aware helpers fixed to one
+// calendar day.
+type templateSet struct {
+	pages    map[string]*template.Template
+	partials *template.Template
+}
 
 // App wires the store, the data folder, and the parsed templates together.
 type App struct {
 	store     *Store
 	dataDir   string
 	uploadDir string
-	pages     map[string]*template.Template
-	partials  *template.Template
 	secret    []byte
+
+	// Templates are parsed per calendar date, because helpers like isToday and
+	// prettyDate have to be fixed to a day and html/template will not let a
+	// template be cloned once it has been executed. Households span one or two
+	// dates at a time, so this parses about as often as the day changes.
+	tmplMu  sync.Mutex
+	tmplSet map[string]*templateSet
 }
 
 // pageNames are the full-page templates; each one defines a "content" block
@@ -55,23 +68,14 @@ func NewApp(store *Store, dataDir string) (*App, error) {
 		store:     store,
 		dataDir:   dataDir,
 		uploadDir: filepath.Join(dataDir, uploadsFolderName),
-		pages:     map[string]*template.Template{},
+		tmplSet:   map[string]*templateSet{},
 	}
 
-	for _, name := range pageNames {
-		t, err := template.New(name).Funcs(templateFuncs()).ParseFS(templateFS,
-			"templates/layout.html", "templates/partials.html", "templates/"+name+".html")
-		if err != nil {
-			return nil, fmt.Errorf("parsing template %s: %w", name, err)
-		}
-		app.pages[name] = t
+	// Build one set now so a broken template is a startup error rather than a
+	// surprise on the first page someone opens.
+	if _, err := app.templatesFor(today()); err != nil {
+		return nil, err
 	}
-
-	partials, err := template.New("partials").Funcs(templateFuncs()).ParseFS(templateFS, "templates/partials.html")
-	if err != nil {
-		return nil, fmt.Errorf("parsing partials: %w", err)
-	}
-	app.partials = partials
 
 	secret, err := store.Setting(settingSecret)
 	if err != nil {

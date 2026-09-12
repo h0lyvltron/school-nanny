@@ -9,14 +9,22 @@ import (
 	"time"
 )
 
-func templateFuncs() template.FuncMap {
+// templateFuncs builds the helpers for one calendar day. Anything that means
+// "today", "past", or "tomorrow" is baked in here rather than read from the
+// clock, because the answer depends on the timezone of whoever is reading and
+// a template function cannot see the request. Templates are parsed once per
+// distinct date in use; see templatesFor in server.go.
+func templateFuncs(today string) template.FuncMap {
 	return template.FuncMap{
-		"prettyDate":       prettyDate,
+		"prettyDate":       func(d string) string { return prettyDateOn(d, today) },
 		"dayName":          func(d string) string { return formatDate(d, "Monday") },
 		"dayShort":         func(d string) string { return formatDate(d, "Mon") },
 		"monthDay":         func(d string) string { return formatDate(d, "Jan 2") },
-		"isToday":          func(d string) bool { return d == today() },
-		"isPast":           func(d string) bool { return d < today() },
+		"isToday":          func(d string) bool { return d == today },
+		"isPast":           func(d string) bool { return d < today },
+		"isOverdue":        func(l Lesson) bool { return l.OverdueOn(today) },
+		"isAhead":          func(l Lesson) bool { return l.AheadOf(today) },
+		"dateLabel":        func(e AdultEvent) string { return e.DateLabelOn(today) },
 		"monthYear":        func(d string) string { return formatDate(d, "January 2006") },
 		"dayNum":           func(d string) string { return formatDate(d, "2") },
 		"addDays":          addDays,
@@ -49,18 +57,19 @@ func formatDate(value, layout string) string {
 	return t.Format(layout)
 }
 
-// prettyDate keeps the calendar readable by naming the days people think in.
-func prettyDate(value string) string {
+// prettyDateOn keeps the calendar readable by naming the days people think in,
+// measured against the reader's today rather than the server's.
+func prettyDateOn(value, today string) string {
 	t, err := time.Parse(dateLayout, value)
 	if err != nil {
 		return value
 	}
 	switch value {
-	case today():
+	case today:
 		return "Today"
-	case addDays(today(), -1):
+	case addDays(today, -1):
 		return "Yesterday"
-	case addDays(today(), 1):
+	case addDays(today, 1):
 		return "Tomorrow"
 	}
 	return t.Format("Mon, Jan 2")
