@@ -50,8 +50,33 @@ bogus-priv
 EOF
 
 # Do not add After=network-online.target — on some hosts it creates an ordering cycle with NM.
+# Instead: retry on failure + NM dispatcher (Wi-Fi often comes up after dnsmasq first starts).
 rm -f /etc/systemd/system/dnsmasq.service.d/wait-network.conf
-rmdir /etc/systemd/system/dnsmasq.service.d 2>/dev/null || true
+mkdir -p /etc/systemd/system/dnsmasq.service.d
+cat > /etc/systemd/system/dnsmasq.service.d/retry-on-boot.conf <<'EOF'
+[Unit]
+StartLimitIntervalSec=0
+
+[Service]
+Restart=on-failure
+RestartSec=5
+EOF
+
+cat > /etc/NetworkManager/dispatcher.d/99-school-nanny-dnsmasq <<EOF
+#!/bin/bash
+IFACE="\$1"
+STATUS="\$2"
+case "\$STATUS" in
+  up|dhcp4-change|connectivity-change) ;;
+  *) exit 0 ;;
+esac
+if ip -4 -o addr show dev "\$IFACE" 2>/dev/null | grep -q " ${LAN_IP}/"; then
+  systemctl reset-failed dnsmasq.service 2>/dev/null || true
+  systemctl restart dnsmasq.service 2>/dev/null || true
+fi
+EOF
+chmod 755 /etc/NetworkManager/dispatcher.d/99-school-nanny-dnsmasq
+
 systemctl daemon-reload
 
 echo "==> Port 53 on ${LAN_IP}..."
