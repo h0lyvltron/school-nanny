@@ -110,11 +110,31 @@ func (a *App) handleFamilyImport(w http.ResponseWriter, r *http.Request) {
 	}
 	_ = header
 
-	if err := a.importFamilyArchive(tmpName); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
+	mode := strings.TrimSpace(r.FormValue("mode"))
+	if mode == "" {
+		mode = "replace"
 	}
-	a.redirect(w, r, "/settings?saved=imported")
+	switch mode {
+	case "replace":
+		if strings.TrimSpace(r.FormValue("confirm_replace")) != "REPLACE" {
+			http.Error(w, `Type REPLACE to confirm replacing this family's records.`, http.StatusBadRequest)
+			return
+		}
+		if err := a.importFamilyArchive(tmpName); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		a.redirect(w, r, "/settings?saved=imported")
+	case "merge":
+		n, err := a.mergeFamilyArchive(tmpName)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		a.redirect(w, r, fmt.Sprintf("/settings?saved=merged&plans=%d", n))
+	default:
+		http.Error(w, "Choose Replace or Merge.", http.StatusBadRequest)
+	}
 }
 
 func (a *App) importFamilyArchive(zipPath string) error {
@@ -199,6 +219,109 @@ func (a *App) importFamilyArchive(zipPath string) error {
 	}
 	_ = os.RemoveAll(backupUploads)
 	return nil
+}
+
+// mergeFamilyArchive keeps the live school.db and adds curriculum YAML plus
+// missing upload files from the archive. It never replaces family records.
+func (a *App) mergeFamilyArchive(zipPath string) (int, error) {
+	zr, err := zip.OpenReader(zipPath)
+	if err != nil {
+		return 0, fmt.Errorf("That file is not a readable zip.")
+	}
+	defer zr.Close()
+
+	if _, err := a.MakeBackup(); err != nil {
+		return 0, err
+	}
+
+	subjects, err := a.store.Subjects(true)
+	if err != nil {
+		return 0, err
+	}
+
+	var imported int
+	var yamlFiles []*zip.File
+	var allYAML *zip.File
+	for _, f := range zr.File {
+		if f.FileInfo().IsDir() {
+			continue
+		}
+		name := filepath.ToSlash(f.Name)
+		if !strings.Contains(name, "curriculum/") {
+			continue
+		}
+		lower := strings.ToLower(name)
+		if !strings.HasSuffix(lower, ".yaml") && !strings.HasSuffix(lower, ".yml") {
+			continue
+		}
+		base := filepath.Base(name)
+		if strings.EqualFold(base, "all.yaml") || strings.EqualFold(base, "all.yml") {
+			allYAML = f
+			continue
+		}
+		yamlFiles = append(yamlFiles, f)
+	}
+	toImport := yamlFiles
+	if allYAML != nil {
+		toImport = []*zip.File{allYAML}
+	}
+	for _, f := range toImport {
+		body, err := readZipFile(f)
+		if err != nil {
+			return imported, err
+		}
+		plans, err := parseCurriculumImport(filepath.Base(f.Name), body, subjects)
+		if err != nil {
+			return imported, fmt.Errorf("curriculum %s: %v", filepath.Base(f.Name), err)
+		}
+		n, err := a.store.ImportCurriculum(plans)
+		if err != nil {
+			return imported, err
+		}
+		imported += n
+	}
+
+	liveUploads := filepath.Join(a.dataDir, uploadsFolderName)
+	if err := os.MkdirAll(liveUploads, 0o755); err != nil {
+		return imported, err
+	}
+	for _, f := range zr.File {
+		name := filepath.ToSlash(f.Name)
+		if f.FileInfo().IsDir() {
+			continue
+		}
+		rel := ""
+		if i := strings.Index(name, uploadsFolderName+"/"); i >= 0 {
+			rel = name[i+len(uploadsFolderName)+1:]
+		} else if strings.HasPrefix(name, uploadsFolderName+"/") {
+			rel = strings.TrimPrefix(name, uploadsFolderName+"/")
+		} else {
+			continue
+		}
+		if rel == "" || strings.Contains(rel, "..") {
+			continue
+		}
+		out := filepath.Join(liveUploads, filepath.FromSlash(rel))
+		if _, err := os.Stat(out); err == nil {
+			continue // keep existing file
+		}
+		if err := os.MkdirAll(filepath.Dir(out), 0o755); err != nil {
+			return imported, err
+		}
+		if err := unzipFile(f, out); err != nil {
+			return imported, err
+		}
+	}
+	return imported, nil
+}
+
+func readZipFile(f *zip.File) ([]byte, error) {
+	rc, err := f.Open()
+	if err != nil {
+		return nil, err
+	}
+	defer rc.Close()
+	return io.ReadAll(io.LimitReader(rc, maxImportBytes+1))
 }
 
 func zipAddFile(zw *zip.Writer, src, name string) error {

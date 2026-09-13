@@ -140,9 +140,19 @@ func (s *Store) UpdateLesson(id int64, l Lesson) error {
 // SetLessonStatus moves a lesson between planned, done, and skipped, stamping
 // or clearing the completion time to match.
 func (s *Store) SetLessonStatus(id int64, status string) error {
+	return s.SetLessonStatusMinutes(id, status, -1)
+}
+
+// SetLessonStatusMinutes updates status and, when minutes >= 0, the logged minutes.
+func (s *Store) SetLessonStatusMinutes(id int64, status string, minutes int) error {
 	var completedAt any
 	if status == StatusDone {
 		completedAt = time.Now().Format(time.RFC3339)
+	}
+	if minutes >= 0 {
+		_, err := s.db().Exec(`UPDATE lessons SET status = ?, completed_at = ?, minutes = ? WHERE id = ?`,
+			status, completedAt, minutes, id)
+		return err
 	}
 	_, err := s.db().Exec(`UPDATE lessons SET status = ?, completed_at = ? WHERE id = ?`,
 		status, completedAt, id)

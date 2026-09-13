@@ -179,11 +179,14 @@ func TestHostedFamilyExportImport(t *testing.T) {
 		"color": {"#445566"},
 	})
 
-	code, _ := ta.postFile("/settings/import", "archive", "family.zip", zipBytes)
+	code, body := ta.postFile("/settings/import", "archive", "family.zip", zipBytes, url.Values{
+		"mode":             {"replace"},
+		"confirm_replace":  {"REPLACE"},
+	})
 	if code != 200 {
-		t.Fatalf("import status %d", code)
+		t.Fatalf("import status %d body=%s", code, body)
 	}
-	_, body := ta.get("/settings")
+	_, body = ta.get("/settings")
 	if !strings.Contains(body, "Eve") {
 		t.Fatal("import did not restore Eve")
 	}

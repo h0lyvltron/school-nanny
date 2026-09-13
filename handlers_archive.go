@@ -105,6 +105,7 @@ func (a *App) handleArchive(w http.ResponseWriter, r *http.Request) {
 	type subjectYear struct {
 		Subject Subject
 		Year    Progress
+		Grade   CourseGrade
 	}
 	cards := make([]subjectYear, 0, len(subjects))
 	activeSubjects, err := a.store.Subjects(false)
@@ -112,12 +113,17 @@ func (a *App) handleArchive(w http.ResponseWriter, r *http.Request) {
 		a.serverError(w, err)
 		return
 	}
+	testsBySubject := map[int64][]Assessment{}
+	for _, t := range tests {
+		testsBySubject[t.SubjectID] = append(testsBySubject[t.SubjectID], t)
+	}
 	for _, sub := range activeSubjects {
 		p := bySubject[sub.ID]
-		if p.Total() == 0 {
+		grade := CourseGradeFromAssessments(testsBySubject[sub.ID])
+		if p.Total() == 0 && !grade.HasGrade() {
 			continue
 		}
-		cards = append(cards, subjectYear{Subject: sub, Year: p})
+		cards = append(cards, subjectYear{Subject: sub, Year: p, Grade: grade})
 	}
 
 	data["Kid"] = kid
@@ -129,6 +135,7 @@ func (a *App) handleArchive(w http.ResponseWriter, r *http.Request) {
 	data["Notes"] = notes
 	data["Cards"] = cards
 	data["HasYear"] = true
+	data["TranscriptURL"] = "/kids/" + itoa(kid.ID) + "/transcript?year=" + itoa(year.ID)
 	a.render(w, "archive", data)
 }
 

@@ -480,6 +480,7 @@ func (a *App) handleSubject(w http.ResponseWriter, r *http.Request) {
 	data["Week"] = week
 	data["Year"] = year
 	data["YearName"] = yearName
+	data["CourseGrade"] = CourseGradeFromAssessments(tests)
 	a.render(w, "subject", data)
 }
 

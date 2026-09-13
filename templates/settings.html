@@ -22,6 +22,8 @@
             Saved.
         {{else if eq .Saved "imported"}}
             Family archive imported. A backup of the previous records was kept.
+        {{else if eq .Saved "merged"}}
+            Archive merged: curriculum plans and missing files were added. School records were not replaced.
         {{else if eq .Saved "account-password"}}
             Account password updated.
         {{else if eq .Saved "pin-created"}}
@@ -312,19 +314,35 @@
 <section class="panel" id="family-export">
     <h2>Family export / import</h2>
     <p class="muted small">
-        Download this family's records and attached files as one zip, or restore
-        from a zip into <em>this</em> family only. Archives include
-        <code>school.db</code>, <code>uploads/</code>, and readable
-        <code>curriculum/*.yaml</code> copies of your plans. On import, the
-        database is authoritative — the YAML files are for humans and other
-        tools, not a second source of truth when restoring.
+        Download this family's records and attached files as one zip, or bring an
+        archive back in. Archives include <code>school.db</code>,
+        <code>uploads/</code>, and readable <code>curriculum/*.yaml</code>
+        copies of your plans. On a full replace, the database is authoritative —
+        the YAML files are for humans and other tools, not a second source of
+        truth when restoring. Merge adds curriculum YAML and missing files only.
     </p>
     <p class="settings-row new">
         <a href="/settings/export">Download family archive</a>
     </p>
-    <form method="post" action="/settings/import" enctype="multipart/form-data" class="settings-row new"
-          onsubmit="return confirm('Replace this family’s records and files with the archive? A backup of the current records is saved first.')">
+    <form method="post" action="/settings/import" enctype="multipart/form-data" class="stack">
         <input type="file" name="archive" accept=".zip,application/zip" required>
+        <fieldset class="import-modes">
+            <legend class="muted small">Import mode</legend>
+            <label class="check">
+                <input type="radio" name="mode" value="merge" checked>
+                <strong>Merge</strong> — add curriculum YAML and any missing files; keep current records
+            </label>
+            <label class="check">
+                <input type="radio" name="mode" value="replace">
+                <strong>Replace</strong> — wipe this family's records and files with the archive
+            </label>
+        </fieldset>
+        <p class="muted small">
+            Replace requires typing <code>REPLACE</code> below. A backup of the
+            current records is saved first either way.
+        </p>
+        <input type="text" name="confirm_replace" placeholder="Type REPLACE only for replace"
+               autocomplete="off" aria-label="Confirm replace">
         <button type="submit">Import archive</button>
     </form>
 </section>

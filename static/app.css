@@ -1553,4 +1553,77 @@ a.plan-row:hover .muted { color: var(--ink-soft); }
     margin-bottom: 1rem;
 }
 
+.minutes-inline {
+    width: 4.5rem;
+    min-width: 4.5rem;
+    padding: 0.2rem 0.35rem;
+    margin: 0;
+    font-size: 0.85rem;
+}
+
+.records-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.95rem;
+}
+
+.records-table th,
+.records-table td {
+    text-align: left;
+    padding: 0.45rem 0.6rem;
+    border-bottom: 1px solid var(--line);
+    vertical-align: top;
+}
+
+.records-table th {
+    font-weight: 600;
+}
+
+.records-table tfoot th,
+.records-table tfoot td {
+    border-bottom: none;
+    border-top: 2px solid var(--line);
+    padding-top: 0.65rem;
+}
+
+.transcript-panel {
+    max-width: 48rem;
+}
+
+.transcript-banner h2 {
+    margin-bottom: 0.15rem;
+}
+
+.import-modes {
+    border: none;
+    margin: 0.5rem 0;
+    padding: 0;
+}
+
+.import-modes .check {
+    display: block;
+    margin: 0.35rem 0;
+}
+
+@media print {
+    .no-print {
+        display: none !important;
+    }
+
+    .transcript-panel,
+    .records-table {
+        border: none !important;
+        box-shadow: none !important;
+    }
+
+    .records-table th,
+    .records-table td {
+        border-color: #000 !important;
+    }
+
+    .transcript-panel .lesson::before {
+        content: none !important;
+    }
+}
+
 

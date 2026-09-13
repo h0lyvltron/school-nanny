@@ -1,0 +1,79 @@
+{{define "content"}}
+<div class="page-head transcript-head">
+    <div>
+        <p class="crumbs no-print"><a href="/kids/{{.Kid.ID}}">{{.Kid.Name}}</a></p>
+        <h1>Year report</h1>
+        <p class="muted">{{.Kid.Name}}{{if .Kid.Grade}} · {{.Kid.Grade}}{{end}}</p>
+    </div>
+    {{if .Years}}
+    <form method="get" action="/kids/{{.Kid.ID}}/transcript" class="planner-controls no-print">
+        <select name="year" aria-label="School year" onchange="this.form.submit()">
+            {{$yearID := .YearID}}
+            {{range .Years}}
+                <option value="{{.ID}}" {{if eq $yearID .ID}}selected{{end}}>{{.Name}}</option>
+            {{end}}
+        </select>
+        <noscript><button type="submit">Show</button></noscript>
+        <button type="button" class="secondary" onclick="window.print()">Print</button>
+    </form>
+    {{end}}
+</div>
+
+{{if .NeedsYear}}
+    <p class="muted">Set a school year in <a href="/settings#years">Settings</a> before printing a report.</p>
+{{else}}
+<section class="panel transcript-panel">
+    <header class="transcript-banner">
+        <h2>{{.Year.Name}}</h2>
+        <p class="muted">{{prettyDate .Year.StartsOn}} – {{prettyDate .Year.EndsOn}}</p>
+    </header>
+
+    <div class="week-summary transcript-summary">
+        <span><strong>{{.Total.DecimalHours}}</strong> hours logged</span>
+        <span><strong>{{.Total.Done}}</strong> lessons done</span>
+        <span><strong>{{.Attendance.Present}}</strong> days present</span>
+        <span>{{.Attendance.Absent}} absent · {{.Attendance.Excused}} excused</span>
+        {{if .TestCount}}<span><strong>{{.TestCount}}</strong> tests</span>{{end}}
+    </div>
+
+    {{if .Courses}}
+    <table class="records-table">
+        <thead>
+            <tr>
+                <th>Course</th>
+                <th>Hours</th>
+                <th>Lessons done</th>
+                <th>Course grade</th>
+                <th>Tests</th>
+            </tr>
+        </thead>
+        <tbody>
+            {{range .Courses}}
+            <tr>
+                <td>{{.Subject.Name}}</td>
+                <td>{{if .Hours.Minutes}}{{.Hours.HoursLabel}} <span class="muted small">({{.Hours.DecimalHours}}h)</span>{{else}}—{{end}}</td>
+                <td>{{.Hours.Done}}</td>
+                <td>{{if .Grade.HasGrade}}{{.Grade.Label}}{{else}}—{{end}}</td>
+                <td>{{if .Tests}}{{.Tests}}{{else}}—{{end}}</td>
+            </tr>
+            {{end}}
+        </tbody>
+        <tfoot>
+            <tr>
+                <th>Total</th>
+                <th>{{.Total.HoursLabel}} ({{.Total.DecimalHours}}h)</th>
+                <th>{{.Total.Done}}</th>
+                <th></th>
+                <th>{{if .TestCount}}{{.TestCount}}{{end}}</th>
+            </tr>
+        </tfoot>
+    </table>
+    <p class="muted small no-print">
+        Course grades average scored tests equally (score ÷ out-of). Tests without both numbers are listed but not averaged.
+    </p>
+    {{else}}
+    <p class="muted">Nothing recorded for this year yet.</p>
+    {{end}}
+</section>
+{{end}}
+{{end}}

@@ -292,8 +292,12 @@
                     hx-target="#lesson-{{.Lesson.ID}}" hx-swap="outerHTML"
                     title="Undo">Done</button>
         {{else}}
+            <input type="number" name="minutes" min="0" step="5"
+                   value="{{if .Lesson.Minutes}}{{.Lesson.Minutes}}{{end}}"
+                   placeholder="min" aria-label="Minutes" class="minutes-inline">
             <button class="pill"
                     hx-post="/lessons/{{.Lesson.ID}}/status"
+                    hx-include="closest .lesson-actions"
                     hx-vals='{"status":"done","show_kid":"{{.ShowKid}}","show_subject":"{{.ShowSubject}}","back":"{{.Back}}"}'
                     hx-target="#lesson-{{.Lesson.ID}}" hx-swap="outerHTML">Mark done</button>
             {{if not .Lesson.IsSkipped}}

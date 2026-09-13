@@ -72,7 +72,7 @@ type App struct {
 var pageNames = []string{
 	"home", "planner", "kid", "subject", "lesson", "tests", "settings", "login", "signup",
 	"attendance", "curriculum", "curriculum_plan", "curriculum_apply", "archive", "series", "assignment",
-	"adult", "adult_schedule",
+	"adult", "adult_schedule", "transcript",
 }
 
 func NewApp(store *Store, dataDir string) (*App, error) {
@@ -196,6 +196,7 @@ func (a *App) Routes() http.Handler {
 	mux.HandleFunc("GET /kids/{id}", h((*App).handleKid))
 	mux.HandleFunc("GET /kids/{id}/subjects/{subjectID}", h((*App).handleSubject))
 	mux.HandleFunc("GET /kids/{id}/tests", h((*App).handleTests))
+	mux.HandleFunc("GET /kids/{id}/transcript", h((*App).handleTranscript))
 
 	mux.HandleFunc("POST /assessments", h((*App).handleCreateAssessment))
 	mux.HandleFunc("POST /assessments/{id}/delete", h((*App).handleDeleteAssessment))

@@ -39,31 +39,55 @@
     <div class="week-summary">
         <span><strong>{{.Progress.Done}}</strong> done</span>
         <span><strong>{{.Progress.Skipped}}</strong> skipped</span>
-        {{if .Progress.Minutes}}<span><strong>{{.Progress.HoursLabel}}</strong> logged</span>{{end}}
+        {{if .Progress.Minutes}}<span><strong>{{.Progress.HoursLabel}}</strong> logged ({{.Progress.DecimalHours}}h)</span>{{end}}
         <span><strong>{{.Attendance.Present}}</strong> days present</span>
         <span>{{.Attendance.Absent}} absent &middot; {{.Attendance.Excused}} excused</span>
+        <a href="{{.TranscriptURL}}" role="button" class="secondary no-print">Year report</a>
     </div>
 
     {{if .Cards}}
         <section class="panel">
-            <h2>By subject</h2>
-            <div class="subject-grid">
-                {{$kid := .Kid}}
-                {{$year := .Year}}
-                {{range .Cards}}
-                    <div class="subject-card">
-                        <h3>{{.Subject.Name}}</h3>
-                        {{template "progress_bar" .Year}}
-                        <p class="muted small">{{.Year.Done}} of {{.Year.Total}} done</p>
-                        <form method="post" action="/archive/export">
-                            <input type="hidden" name="kid_id" value="{{$kid.ID}}">
-                            <input type="hidden" name="year_id" value="{{$year.ID}}">
-                            <input type="hidden" name="subject_id" value="{{.Subject.ID}}">
-                            <button type="submit" class="secondary">Save as curriculum template</button>
-                        </form>
-                    </div>
-                {{end}}
-            </div>
+            <h2>Hours by subject</h2>
+            <table class="records-table">
+                <thead>
+                    <tr>
+                        <th>Subject</th>
+                        <th>Hours</th>
+                        <th>Done</th>
+                        <th>Course grade</th>
+                        <th class="no-print"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {{$kid := .Kid}}
+                    {{$year := .Year}}
+                    {{range .Cards}}
+                    <tr>
+                        <td>{{.Subject.Name}}</td>
+                        <td>{{if .Year.Minutes}}{{.Year.HoursLabel}} <span class="muted small">({{.Year.DecimalHours}}h)</span>{{else}}—{{end}}</td>
+                        <td>{{.Year.Done}} of {{.Year.Total}}</td>
+                        <td>{{if .Grade.HasGrade}}{{.Grade.Label}}{{else}}—{{end}}</td>
+                        <td class="no-print">
+                            <form method="post" action="/archive/export" class="inline-form">
+                                <input type="hidden" name="kid_id" value="{{$kid.ID}}">
+                                <input type="hidden" name="year_id" value="{{$year.ID}}">
+                                <input type="hidden" name="subject_id" value="{{.Subject.ID}}">
+                                <button type="submit" class="link-button">Save as curriculum template</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {{end}}
+                </tbody>
+                <tfoot>
+                    <tr>
+                        <th>Total</th>
+                        <th>{{.Progress.HoursLabel}} ({{.Progress.DecimalHours}}h)</th>
+                        <th>{{.Progress.Done}}</th>
+                        <th></th>
+                        <th class="no-print"></th>
+                    </tr>
+                </tfoot>
+            </table>
         </section>
     {{end}}
 

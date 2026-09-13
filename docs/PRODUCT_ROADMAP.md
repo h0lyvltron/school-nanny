@@ -174,48 +174,36 @@ owner-only export/import/backups; kid Today scoped to `kid_id`.
 
 ## Wave 3 — Credible records (high school / oversight)
 
-Attendance exists; tests/scores exist. Forum + Tracker/OSS still demand packaged
-**hours, course grades, transcripts**.
+**Status: implemented on `main`.** Hours packaging, equal-weight course grades,
+printable year report, and import merge vs replace.
 
 ### W3.1 — Hours alongside attendance
 
-**Foundation we already have:** lessons store **minutes**; progress already
-exposes hour-style labels in places. Wave 3 is packaging for oversight—not a
-new time field from scratch.
-
-**Behavior:**
-
-- Ensure minutes are easy to enter on complete / log-unplanned flows.
-- Year/term report: hours by subject and total (with attendance).
-
-**Acceptance:** Parent can show “X hours of Math this year” from the app.
+| Done | Behavior |
+| --- | --- |
+| Minutes on mark-done | Inline minutes field when marking a lesson done |
+| Hours table | Archive shows hours by subject (+ decimal hours) with attendance |
 
 ### W3.2 — Course-level gradebook
 
-**Behavior:**
-
-- Subject (or course) aggregates test scores with simple weights (equal or custom).
-- Term and year letter/percent; keep existing per-test attachments.
-
-**Acceptance:** Kid subject page shows course grade, not only individual tests.
+| Done | Behavior |
+| --- | --- |
+| Equal-weight average | Scored tests (score ÷ out-of) average to % + letter |
+| Surfaces | Subject page, archive table, year report |
 
 ### W3.3 — Transcript / report card export
 
-**Behavior:**
-
-- HTML (print) and/or PDF: student, year, courses, grades, attendance/hours summary.
-- Plain, official-looking; no playful chrome.
-
-**Acceptance:** Export opens cleanly and is usable for a portfolio or cover-school packet.
+| Done | Behavior |
+| --- | --- |
+| Year report | `GET /kids/{id}/transcript` — courses, hours, grades, attendance |
+| Print | Browser print; chrome hidden via print CSS |
 
 ### W3.4 — Family import: merge vs replace
 
-**Behavior:**
-
-- On zip restore/import: explicit **Replace family data** vs **Merge** (where merge is safe) with warnings.
-- Aligns with OurSchool backup semantics as *behavior*, not their code.
-
-**Acceptance:** Docs + UI make destructive replace impossible to do by accident.
+| Done | Behavior |
+| --- | --- |
+| Merge (default) | Add curriculum YAML + missing uploads; keep live `school.db` |
+| Replace | Requires typing `REPLACE`; full wipe with prior backup |
 
 **Research:** Tracker/Scholaric/Planet records marketing; OurSchool/Hero transcripts; WTM high-school threads.
 
@@ -240,13 +228,12 @@ new time field from scratch.
 Wave 0  Adult-neutral → TOC/YAML/export → (auth design already done)
 Wave 1  Bump policies + vacation shift → print Today/week → light onboarding
 Wave 2  PIN RBAC → kid Today → secondary adult day-run  ← shipped
-Wave 3  Hours → course grades → transcript export → import merge/replace
+Wave 3  Hours → course grades → transcript → import merge/replace  ← shipped
 Wave 4  Calendar glance / ICS / PWA / mailer as demand appears
 ```
 
 Wave 2 auth open questions that remain are polish (teacher kid scope, adult
-row linking, co_parent PIN upgrade). Do **not** let Wave 4 life-OS features jump
-the queue ahead of records (Wave 3).
+row linking, co_parent PIN upgrade). Wave 4 is demand-driven polish only.
 
 ## Mapping cheat sheet (research desire → feature ID)
 

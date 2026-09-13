@@ -379,6 +379,67 @@ func (p Progress) HoursLabel() string {
 	return fmt.Sprintf("%dh %dm", h, m)
 }
 
+// DecimalHours is the oversight-friendly hours figure (one decimal place).
+func (p Progress) DecimalHours() string {
+	return fmt.Sprintf("%.1f", float64(p.Minutes)/60.0)
+}
+
+// CourseGrade is the equal-weight average of scored tests in one subject.
+type CourseGrade struct {
+	Count   int
+	Percent float64
+	Letter  string
+}
+
+func (g CourseGrade) HasGrade() bool { return g.Count > 0 }
+
+func (g CourseGrade) PercentLabel() string {
+	if !g.HasGrade() {
+		return ""
+	}
+	return fmt.Sprintf("%.0f%%", g.Percent)
+}
+
+func (g CourseGrade) Label() string {
+	if !g.HasGrade() {
+		return ""
+	}
+	return fmt.Sprintf("%s (%s)", g.PercentLabel(), g.Letter)
+}
+
+// CourseGradeFromAssessments averages assessments that have score/out-of.
+func CourseGradeFromAssessments(tests []Assessment) CourseGrade {
+	var sum float64
+	var n int
+	for _, a := range tests {
+		if !a.HasPercent() {
+			continue
+		}
+		sum += (*a.Score / *a.MaxScore) * 100
+		n++
+	}
+	if n == 0 {
+		return CourseGrade{}
+	}
+	pct := sum / float64(n)
+	return CourseGrade{Count: n, Percent: pct, Letter: letterFromPercent(pct)}
+}
+
+func letterFromPercent(pct float64) string {
+	switch {
+	case pct >= 89.5:
+		return "A"
+	case pct >= 79.5:
+		return "B"
+	case pct >= 69.5:
+		return "C"
+	case pct >= 59.5:
+		return "D"
+	default:
+		return "F"
+	}
+}
+
 type Attendance struct {
 	ID         int64
 	KidID      int64

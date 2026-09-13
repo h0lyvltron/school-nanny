@@ -79,7 +79,7 @@ func (ta *testApp) get(path string) (int, string) {
 	return resp.StatusCode, string(body)
 }
 
-func (ta *testApp) postFile(path, field, filename string, content []byte) (int, string) {
+func (ta *testApp) postFile(path, field, filename string, content []byte, extra ...url.Values) (int, string) {
 	ta.t.Helper()
 	var buf bytes.Buffer
 	writer := multipart.NewWriter(&buf)
@@ -89,6 +89,15 @@ func (ta *testApp) postFile(path, field, filename string, content []byte) (int, 
 	}
 	if _, err := part.Write(content); err != nil {
 		ta.t.Fatalf("writing upload: %v", err)
+	}
+	if len(extra) > 0 {
+		for k, vs := range extra[0] {
+			for _, v := range vs {
+				if err := writer.WriteField(k, v); err != nil {
+					ta.t.Fatalf("form field %s: %v", k, err)
+				}
+			}
+		}
 	}
 	if err := writer.Close(); err != nil {
 		ta.t.Fatalf("closing upload: %v", err)
@@ -1919,6 +1928,99 @@ func TestProgressIgnoresSkippedWork(t *testing.T) {
 	}
 	if got := (Progress{Minutes: 95}).HoursLabel(); got != "1h 35m" {
 		t.Errorf("expected 1h 35m, got %q", got)
+	}
+	if got := (Progress{Minutes: 90}).DecimalHours(); got != "1.5" {
+		t.Errorf("expected 1.5 decimal hours, got %q", got)
+	}
+}
+
+func TestCourseGradeFromAssessments(t *testing.T) {
+	score := func(s, max float64) Assessment {
+		return Assessment{Score: &s, MaxScore: &max}
+	}
+	g := CourseGradeFromAssessments([]Assessment{
+		score(9, 10),  // 90
+		score(8, 10),  // 80
+		{Letter: "A"}, // ignored
+	})
+	if !g.HasGrade() || g.Count != 2 {
+		t.Fatalf("expected 2 scored tests, got %+v", g)
+	}
+	if g.Percent < 84.9 || g.Percent > 85.1 {
+		t.Errorf("expected ~85%%, got %v", g.Percent)
+	}
+	if g.Letter != "B" {
+		t.Errorf("expected B, got %q", g.Letter)
+	}
+}
+
+func TestHoursReportAndTranscript(t *testing.T) {
+	ta := newTestApp(t)
+	kid := ta.addKid("Nora")
+	subject := ta.mathSubjectID()
+	if _, err := ta.store.CreateSchoolYear("2026–2027", "2026-08-01", "2027-05-31", true); err != nil {
+		t.Fatal(err)
+	}
+	_, err := ta.store.CreateLesson(Lesson{
+		KidID: kid, SubjectID: subject, ScheduledOn: "2026-09-01",
+		Title: "Fractions", Minutes: 60, Status: StatusDone,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	s, m := 18.0, 20.0
+	if _, err := ta.store.CreateAssessment(Assessment{
+		KidID: kid, SubjectID: subject, GivenOn: "2026-09-02", Name: "Quiz",
+		Score: &s, MaxScore: &m,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	code, body := ta.get("/archive?kid=" + itoa64(kid))
+	if code != 200 {
+		t.Fatalf("archive: %d", code)
+	}
+	mustContain(t, body, "Hours by subject", "archive hours table")
+	mustContain(t, body, "1h", "archive hours")
+	mustContain(t, body, "90%", "course grade on archive")
+	mustContain(t, body, "Year report", "transcript link")
+
+	code, body = ta.get("/kids/" + itoa64(kid) + "/transcript")
+	if code != 200 {
+		t.Fatalf("transcript: %d", code)
+	}
+	mustContain(t, body, "Year report", "transcript title")
+	mustContain(t, body, "Math", "course row")
+	mustContain(t, body, "1.0h", "decimal hours")
+	mustContain(t, body, "90%", "transcript grade")
+
+	code, body = ta.get("/kids/" + itoa64(kid) + "/subjects/" + itoa64(subject))
+	if code != 200 {
+		t.Fatalf("subject: %d", code)
+	}
+	mustContain(t, body, "course grade", "subject grade label")
+}
+
+func TestFamilyImportRequiresReplaceConfirm(t *testing.T) {
+	ta := newTestApp(t)
+	ta.addKid("Keep")
+	// Build a tiny zip with school.db by exporting after signup isn't available in local mode —
+	// use MakeBackup snapshot path via export handler.
+	resp, err := ta.client.Get(ta.server.URL + "/settings/export")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		t.Fatalf("export %d", resp.StatusCode)
+	}
+	zipBytes, _ := io.ReadAll(resp.Body)
+
+	code, body := ta.postFile("/settings/import", "archive", "family.zip", zipBytes, url.Values{
+		"mode": {"replace"},
+	})
+	if code != 400 || !strings.Contains(body, "REPLACE") {
+		t.Fatalf("expected REPLACE confirm failure, got %d %q", code, body)
 	}
 }
 

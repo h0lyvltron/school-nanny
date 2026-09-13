@@ -122,7 +122,15 @@ func (a *App) handleLessonStatus(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Could not read that form.", http.StatusBadRequest)
 		return
 	}
-	if err := a.store.SetLessonStatus(id, normalizeStatus(r.FormValue("status"))); err != nil {
+	status := normalizeStatus(r.FormValue("status"))
+	minutes := -1
+	if raw := strings.TrimSpace(r.FormValue("minutes")); raw != "" {
+		minutes = formInt(r, "minutes")
+		if minutes < 0 {
+			minutes = 0
+		}
+	}
+	if err := a.store.SetLessonStatusMinutes(id, status, minutes); err != nil {
 		a.serverError(w, err)
 		return
 	}

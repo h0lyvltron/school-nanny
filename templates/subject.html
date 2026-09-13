@@ -10,6 +10,7 @@
         <span><strong>{{.Week.Done}}</strong> done this week</span>
         <span><strong>{{.Year.Done}}</strong> done this year</span>
         {{if .Year.Minutes}}<span><strong>{{.Year.HoursLabel}}</strong> logged</span>{{end}}
+        {{if .CourseGrade.HasGrade}}<span><strong>{{.CourseGrade.Label}}</strong> course grade</span>{{end}}
     </div>
 </div>
 
