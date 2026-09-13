@@ -8,6 +8,7 @@
         <span><strong>{{.Progress.Done}}</strong> done</span>
         <span><strong>{{.Progress.Planned}}</strong> planned</span>
         {{if .Progress.Minutes}}<span><strong>{{.Progress.HoursLabel}}</strong> logged</span>{{end}}
+        <button type="button" class="secondary" onclick="window.print()">Print week</button>
     </div>
 </div>
 

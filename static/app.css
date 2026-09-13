@@ -1430,3 +1430,127 @@ a.plan-row:hover .muted { color: var(--ink-soft); }
     .cal-mark .dot { display: none; }
 }
 
+/* Fridge / binder printables: hide chrome, keep checklists readable in B&W. */
+@media print {
+    :root, [data-theme="light"], [data-theme="dark"] {
+        --paper: #ffffff;
+        --card: #ffffff;
+        --ink: #000000;
+        --ink-soft: #333333;
+        --line: #000000;
+        --accent: #000000;
+        --muted-surface: #ffffff;
+        color-scheme: light;
+    }
+
+    body {
+        background: #fff !important;
+        color: #000 !important;
+        font-size: 11pt;
+    }
+
+    .app-bar,
+    .theme-toggle,
+    .planner-controls,
+    .lesson-actions,
+    .add-box,
+    .drop-kids,
+    .attendance-mark,
+    .setup-banner,
+    .welcome,
+    button,
+    .week-summary a,
+    .week-summary button,
+    .page-head .week-summary .secondary {
+        display: none !important;
+    }
+
+    .page {
+        max-width: none;
+        margin: 0;
+        padding: 0;
+    }
+
+    .page-head {
+        margin-bottom: 0.75rem;
+    }
+
+    .kid-card,
+    .panel,
+    .day,
+    .lesson {
+        break-inside: avoid;
+        box-shadow: none !important;
+        border: 1px solid #000 !important;
+        background: #fff !important;
+    }
+
+    .lesson {
+        display: flex;
+        align-items: flex-start;
+        gap: 0.5rem;
+        padding: 0.35rem 0.5rem;
+        margin: 0.25rem 0;
+    }
+
+    .lesson::before {
+        content: "☐";
+        font-size: 1.1rem;
+        line-height: 1.2;
+        flex: 0 0 auto;
+    }
+
+    .lesson.status-done::before {
+        content: "☑";
+    }
+
+    .lesson.status-skipped::before {
+        content: "☒";
+    }
+
+    .chip,
+    .avatar {
+        display: none !important;
+    }
+
+    .setup-checklist {
+        margin: 0.75rem 0 1.25rem;
+        padding-left: 1.25rem;
+    }
+
+    .setup-checklist li {
+        margin: 0.35rem 0;
+    }
+
+    .setup-checklist li.done {
+        text-decoration: line-through;
+        color: var(--ink-soft);
+    }
+
+    .setup-checklist li.optional {
+        list-style-type: circle;
+    }
+}
+
+.setup-checklist {
+    margin: 0.75rem 0 1.25rem;
+    padding-left: 1.25rem;
+}
+
+.setup-checklist li {
+    margin: 0.35rem 0;
+}
+
+.setup-checklist li.done {
+    color: var(--ink-soft);
+}
+
+.setup-checklist li.done::marker {
+    content: "✓ ";
+}
+
+.setup-banner {
+    margin-bottom: 1rem;
+}
+
+

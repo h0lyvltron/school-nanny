@@ -29,6 +29,19 @@
         </div>
         <button type="submit">Pause and shift remaining</button>
     </form>
+    <form method="post" action="/assignments/{{.Assignment.ID}}/vacation" class="danger-zone">
+        <input type="hidden" name="back" value="/assignments/{{.Assignment.ID}}">
+        <p class="muted small">No school for a range: planned work on or after the start moves onto school days after the end.</p>
+        <div class="field-row">
+            <label>From
+                <input type="date" name="from" value="{{.ResumeOn}}" required>
+            </label>
+            <label>To
+                <input type="date" name="to" value="{{.ResumeOn}}" required>
+            </label>
+        </div>
+        <button type="submit">Shift around vacation</button>
+    </form>
     <form method="post" action="/assignments/{{.Assignment.ID}}/stop" class="danger-zone">
         <input type="hidden" name="back" value="/planner">
         <button type="submit" class="link-button danger"

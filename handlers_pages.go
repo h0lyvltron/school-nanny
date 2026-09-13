@@ -98,7 +98,38 @@ func (a *App) handleHome(w http.ResponseWriter, r *http.Request) {
 	data["Subjects"] = subjects
 	data["TodayEvents"] = todayEvents
 	data["NeedsSetup"] = len(kids) == 0
+
+	years, err := a.store.SchoolYears()
+	if err != nil {
+		a.serverError(w, err)
+		return
+	}
+	plans, err := a.store.CurriculumPlans()
+	if err != nil {
+		a.serverError(w, err)
+		return
+	}
+	setup := SetupChecklist{
+		HasKids:       len(kids) > 0,
+		HasYear:       len(years) > 0,
+		HasSubjects:   len(subjects) > 0,
+		HasCurriculum: len(plans) > 0,
+	}
+	data["Setup"] = setup
+	data["ShowSetup"] = !setup.Complete()
 	a.render(w, "home", data)
+}
+
+// SetupChecklist is the light first-run guidance on Today.
+type SetupChecklist struct {
+	HasKids       bool
+	HasYear       bool
+	HasSubjects   bool
+	HasCurriculum bool
+}
+
+func (s SetupChecklist) Complete() bool {
+	return s.HasKids && s.HasYear && s.HasSubjects
 }
 
 // PlannerDay is one column of the week grid.

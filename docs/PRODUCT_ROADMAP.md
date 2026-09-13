@@ -78,6 +78,9 @@ later waves (curriculum portability, honest adult language, auth implementabilit
 
 ## Wave 1 — Survive the messy week (highest forum temperature)
 
+Status: **implemented** on branch work after Wave 0 (Double up / Shift / Drop,
+vacation shift, print CSS, setup checklist).
+
 Highest emotional parity with Planet/Scholaric/Syllabird *and* the #1 WTM ask
 (“bump two ways”). Builds on series we already have.
 

@@ -170,8 +170,11 @@ func (a *App) Routes() http.Handler {
 	mux.HandleFunc("POST /assignments/{id}", h((*App).handleUpdateAssignment))
 	mux.HandleFunc("POST /assignments/{id}/stop", h((*App).handleStopAssignment))
 	mux.HandleFunc("POST /assignments/{id}/pause", h((*App).handlePauseAssignment))
+	mux.HandleFunc("POST /assignments/{id}/vacation", h((*App).handleVacationAssignment))
 	mux.HandleFunc("POST /lessons/{id}/push", h((*App).handlePushLesson))
 	mux.HandleFunc("POST /lessons/{id}/pull", h((*App).handlePullLesson))
+	mux.HandleFunc("POST /lessons/{id}/double-up", h((*App).handleDoubleUpLesson))
+	mux.HandleFunc("POST /lessons/{id}/shift", h((*App).handleShiftLesson))
 
 	mux.HandleFunc("GET /adults/{id}", h((*App).handleAdult))
 	mux.HandleFunc("GET /adults/{id}/schedule", h((*App).handleAdultSchedule))

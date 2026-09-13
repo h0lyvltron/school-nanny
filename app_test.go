@@ -2686,6 +2686,107 @@ func TestSkipDoesNotShiftLaterLessons(t *testing.T) {
 	}
 }
 
+func TestDoubleUpStacksWithoutMovingSiblings(t *testing.T) {
+	ta := newTestApp(t)
+	kid, subject, lessons := ta.applyThreeMathLessons()
+
+	status, page := ta.get("/")
+	if status != http.StatusOK {
+		t.Fatalf("home returned %d", status)
+	}
+	mustContain(t, page, "Double up", "double-up action")
+	mustContain(t, page, ">Drop<", "drop action")
+	mustContain(t, page, "Print Today", "print today")
+
+	// Someone else already has work on Thursday; double-up should stack there.
+	status, _ = ta.post("/lessons/"+itoa64(lessons[0].ID)+"/double-up", url.Values{"back": {"/"}})
+	if status != http.StatusOK {
+		t.Fatalf("double-up returned %d", status)
+	}
+
+	first, _ := ta.store.Lesson(lessons[0].ID)
+	second, _ := ta.store.Lesson(lessons[1].ID)
+	third, _ := ta.store.Lesson(lessons[2].ID)
+	want := nextMatchingWeekdayOnOrAfter(addDays(today(), 1), parseWeekdays(schoolWeekdays))
+	if first.ScheduledOn != want {
+		t.Errorf("doubled-up lesson landed on %s, want %s", first.ScheduledOn, want)
+	}
+	if second.ScheduledOn != "2026-08-27" || third.ScheduledOn != "2026-08-28" {
+		t.Errorf("siblings should stay put: %s, %s", second.ScheduledOn, third.ScheduledOn)
+	}
+	_ = kid
+	_ = subject
+}
+
+func TestShiftForwardMovesThisAndLaterOneSchoolDay(t *testing.T) {
+	ta := newTestApp(t)
+	_, _, lessons := ta.applyThreeMathLessons()
+
+	status, _ := ta.post("/lessons/"+itoa64(lessons[0].ID)+"/shift", url.Values{
+		"back":  {"/"},
+		"scope": {"later"},
+	})
+	if status != http.StatusOK {
+		t.Fatalf("shift returned %d", status)
+	}
+
+	first, _ := ta.store.Lesson(lessons[0].ID)
+	second, _ := ta.store.Lesson(lessons[1].ID)
+	third, _ := ta.store.Lesson(lessons[2].ID)
+	if first.ScheduledOn != "2026-08-27" || second.ScheduledOn != "2026-08-28" || third.ScheduledOn != "2026-08-31" {
+		t.Errorf("shifted dates %s, %s, %s; want Wed/Thu/Mon",
+			first.ScheduledOn, second.ScheduledOn, third.ScheduledOn)
+	}
+}
+
+func TestVacationShiftsWorkPastTheGap(t *testing.T) {
+	ta := newTestApp(t)
+	_, _, lessons := ta.applyThreeMathLessons()
+	asgID := lessons[0].AssignmentID
+
+	status, _ := ta.post("/assignments/"+itoa64(asgID)+"/vacation", url.Values{
+		"from": {"2026-08-27"},
+		"to":   {"2026-08-28"},
+		"back": {"/assignments/" + itoa64(asgID)},
+	})
+	if status != http.StatusOK {
+		t.Fatalf("vacation returned %d", status)
+	}
+
+	first, _ := ta.store.Lesson(lessons[0].ID)
+	second, _ := ta.store.Lesson(lessons[1].ID)
+	third, _ := ta.store.Lesson(lessons[2].ID)
+	if first.ScheduledOn != "2026-08-26" {
+		t.Errorf("lesson before vacation should stay: %s", first.ScheduledOn)
+	}
+	// Wed+Thu work moves onto Mon/Tue after the weekend gap ending Friday.
+	if second.ScheduledOn != "2026-08-31" || third.ScheduledOn != "2026-09-01" {
+		t.Errorf("vacation shift dates %s, %s; want 2026-08-31, 2026-09-01",
+			second.ScheduledOn, third.ScheduledOn)
+	}
+}
+
+func TestSetupChecklistOnEmptyFamily(t *testing.T) {
+	ta := newTestApp(t)
+	status, page := ta.get("/")
+	if status != http.StatusOK {
+		t.Fatalf("home returned %d", status)
+	}
+	mustContain(t, page, "Welcome to School Nanny", "welcome")
+	mustContain(t, page, "Set the school year dates", "year step")
+	mustContain(t, page, "Add the kids", "kids step")
+}
+
+func TestPlannerOffersPrintWeek(t *testing.T) {
+	ta := newTestApp(t)
+	ta.addKid("Mia")
+	status, page := ta.get("/planner")
+	if status != http.StatusOK {
+		t.Fatalf("planner returned %d", status)
+	}
+	mustContain(t, page, "Print week", "print week")
+}
+
 func TestPushMovesThisAndLaterPlanned(t *testing.T) {
 	ta := newTestApp(t)
 	kid, subject, lessons := ta.applyThreeMathLessons()
