@@ -141,44 +141,34 @@ checklist parents would put on the fridge.
 
 ## Wave 2 — Household principals (auth implement + day handoff)
 
-Design is in [`AUTH_ROADMAP.md`](AUTH_ROADMAP.md). This wave **implements** the
-subset that matches forum “spouse / grandma teaches Tuesday” and OSS parent/student models.
+**Status: implemented on `main`.** Hosted multi-principal RBAC: owner email+password,
+family slug + username/PIN for co_parent / teacher / caregiver / kid; soft revoke;
+owner-only export/import/backups; kid Today scoped to `kid_id`.
 
 ### W2.1 — Owner email + family PIN principals
 
-**Behavior:**
-
-- Owner: email+password (confirm/reset when mailer lands).
-- Owner issues **username+PIN** for `co_parent` / `teacher` / `caregiver` / `kid`.
-- Family login entry → chooser (owner email path + PIN faces).
-- Owner resets any PIN; optional `can_manage_kid_logins` for kid PINs only.
-- Sensitive Settings remain owner-only.
-
-**Acceptance:** Second adult logs in with PIN and can run Today for granted kids;
-kid PIN sees only own work; revoke PIN ends sessions.
+| Done | Behavior |
+| --- | --- |
+| Control schema | `accounts`, `memberships`, `pin_credentials`; `families.slug`; migrate from `users` |
+| Login | Email path + PIN path (family code / username / PIN) |
+| Settings | Owner household logins panel: create / reset / revoke |
 
 ### W2.2 — Kid check-off surface
 
-**Behavior:**
-
-- Kid session lands on **own Today** (and own week read/check-off).
-- Mark done / not done; no sibling data, no Settings, no curriculum admin.
-- Large tap targets (tablet).
-
-**Acceptance:** Child completes the day without seeing another child’s lessons.
+| Done | Behavior |
+| --- | --- |
+| Scope | Kid session sees own Today / Week / kid page only |
+| Nav | No Settings, Curriculum, Attendance, Archive |
 
 ### W2.3 — Caregiver / co_parent day-run mode
 
-**Behavior:**
+| Done | Behavior |
+| --- | --- |
+| Caregiver | Today + Week; no Settings / Curriculum / Attendance / Archive |
+| Co-parent / teacher | Day planning + Settings (kids/subjects); no sensitive export/backups unless owner |
+| Capability | `can_manage_kid_logins` on co_parent for kid PIN create/reset |
 
-- Secondary adult sees granted kids’ Today + enough lesson detail/notes/files to teach.
-- Default: planning edits for co_parent; caregiver check-off / light edit (per roadmap matrix).
-
-**Acceptance:** A written lesson note + attachment is enough for someone else to teach Tuesday without owner password.
-
-**Research:** Planet-era student email lists + “plans detailed enough for spouse”; Homeschool Hero / OurSchool RBAC; our PIN design.
-
-**Depends on:** Wave 0 auth design lock-in of remaining open questions (PIN length, teacher scope default, family slug vs hostname).
+**Research link:** “spouse / grandma runs the day”; tablet kid check-off; no second full admin.
 
 ---
 
@@ -249,14 +239,14 @@ new time field from scratch.
 ```text
 Wave 0  Adult-neutral → TOC/YAML/export → (auth design already done)
 Wave 1  Bump policies + vacation shift → print Today/week → light onboarding
-Wave 2  Implement PIN RBAC → kid Today → secondary adult day-run
+Wave 2  PIN RBAC → kid Today → secondary adult day-run  ← shipped
 Wave 3  Hours → course grades → transcript export → import merge/replace
 Wave 4  Calendar glance / ICS / PWA / mailer as demand appears
 ```
 
-Do **not** start Wave 2 implementation until remaining AUTH_ROADMAP open questions
-are locked. Do **not** let Wave 4 life-OS features jump the queue ahead of bump +
-print + records.
+Wave 2 auth open questions that remain are polish (teacher kid scope, adult
+row linking, co_parent PIN upgrade). Do **not** let Wave 4 life-OS features jump
+the queue ahead of records (Wave 3).
 
 ## Mapping cheat sheet (research desire → feature ID)
 

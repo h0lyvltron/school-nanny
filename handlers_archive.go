@@ -6,6 +6,9 @@ import (
 )
 
 func (a *App) handleArchive(w http.ResponseWriter, r *http.Request) {
+	if !a.requirePlanningAccess(w, r) {
+		return
+	}
 	data, err := a.pageData(r, "archive")
 	if err != nil {
 		a.serverError(w, err)

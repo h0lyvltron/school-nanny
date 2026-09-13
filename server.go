@@ -231,6 +231,9 @@ func (a *App) Routes() http.Handler {
 	mux.HandleFunc("POST /settings/backups/{name}/delete", h((*App).handleDeleteBackup))
 	mux.HandleFunc("GET /settings/export", h((*App).handleFamilyExport))
 	mux.HandleFunc("POST /settings/import", h((*App).handleFamilyImport))
+	mux.HandleFunc("POST /settings/pins", h((*App).handleCreatePIN))
+	mux.HandleFunc("POST /settings/pins/{id}/reset", h((*App).handleResetPIN))
+	mux.HandleFunc("POST /settings/pins/{id}/revoke", h((*App).handleRevokePIN))
 
 	stack := a.withTimezone(mux)
 	if a.hosted {
@@ -374,11 +377,31 @@ func (a *App) pageData(r *http.Request, active string) (map[string]any, error) {
 		"DeviceTimezone":       cookieTZ(r),
 		"CommonTimezones":      commonTimezones,
 		"Hosted":               a.hosted,
+		"IsOwner":              true,
+		"Role":                 roleOwner,
 	}
 	if a.hosted {
 		if sess := sessionFrom(r); sess != nil {
-			if u, err := a.control.User(sess.UserID); err == nil {
-				data["AccountEmail"] = u.Email
+			data["AccountEmail"] = sess.Email
+			data["AuthDisplayName"] = sess.DisplayName
+			data["IsOwner"] = sess.IsOwner()
+			data["Role"] = sess.Role
+			data["ScopedKidID"] = sess.KidID
+			data["CanManageKidLogins"] = sess.CanManageKidLogins
+			if f, err := a.control.Family(sess.FamilyID); err == nil {
+				data["FamilySlug"] = f.Slug
+			}
+			if sess.IsKid() {
+				data["NavAdults"] = []Adult{}
+				filtered := make([]Kid, 0, 1)
+				for _, k := range kids {
+					if k.ID == sess.KidID {
+						filtered = append(filtered, k)
+					}
+				}
+				data["NavKids"] = filtered
+			} else if sess.Role == roleCaregiver {
+				data["NavAdults"] = []Adult{}
 			}
 		}
 	}

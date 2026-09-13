@@ -1,7 +1,8 @@
-# Auth roadmap (design only)
+# Auth roadmap (design + Wave 2 implementation)
 
-Status: design discussion artifact. No product implementation in this phase
-beyond what already ships (hosted email+password, one user ↔ one family).
+Status: **Wave 2 shipped** on hosted control plane — accounts, memberships,
+family slug, PIN credentials, owner-gated sensitive Settings. Local house
+password unchanged. Remaining open questions below are polish, not blockers.
 
 ## Goals
 
@@ -259,15 +260,16 @@ type Mailer interface {
 - Cross-family co-op orgs (multiple families under one “school”) — multi-family
   membership is enough of a wedge later
 
-## Open questions (remaining)
+## Open questions (remaining / polished)
 
-1. **PIN alphabet/length** — digits-only 4–6 for kids vs longer alphanumeric for adults? Same rules for both?
-2. **Teacher default scope** — all kids, or must assign kid IDs when issuing the PIN?
-3. **Revoke** — soft `revoked` + kill sessions, or hard delete PIN row? (Lean: soft revoke + session kill.)
-4. **Domain adult link** — auto-create/link `adults` row when issuing co_parent/teacher PIN?
-5. **Family login entry** — single-deploy login with family code/slug, or one hostname per family?
-6. **co_parent without flag** — can they see kid usernames (but not reset), or is kid-login UI hidden entirely?
-7. **Escape hatch** — when (if ever) may a co_parent upgrade from PIN to email+password without becoming owner?
+Locked for Wave 2: **digits-only PIN 4–8**, **soft revoke + kill sessions**,
+**family slug** on the shared login page, **adults see all kids** (caregiver
+hides adult nav; kid scoped to `kid_id`). Still open for later polish:
+
+1. **Teacher default scope** — all kids (current), or assign kid IDs at issue?
+2. **Domain adult link** — auto-create/link `adults` row when issuing co_parent/teacher PIN?
+3. **co_parent without flag** — can they see kid usernames (but not reset), or hide kid-login UI?
+4. **Escape hatch** — when (if ever) may a co_parent upgrade from PIN to email+password without becoming owner?
 
 ## Working answers already leaned
 

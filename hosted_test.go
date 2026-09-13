@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -240,4 +241,172 @@ func TestHostedAdoptsLegacySchoolDB(t *testing.T) {
 	if !found {
 		t.Fatal("legacy setting not found in family db")
 	}
+}
+
+func TestHostedPINLoginAndOwnerGates(t *testing.T) {
+	ta := newHostedTestApp(t, "")
+	code, _, path := ta.postForm("/signup", url.Values{
+		"email":       {"owner@example.com"},
+		"password":    {"owner-pass-word"},
+		"family_name": {"Pin Family"},
+	})
+	if code != 200 || path != "/" {
+		t.Fatalf("signup: status=%d path=%s", code, path)
+	}
+
+	fams := mustListFamilies(t, ta)
+	if len(fams) != 1 {
+		t.Fatalf("expected 1 family, got %d", len(fams))
+	}
+	fam := &fams[0]
+
+	code, _ = ta.post("/settings/kids", url.Values{
+		"name":  {"Sam"},
+		"grade": {"3"},
+		"color": {"#aabbcc"},
+	})
+	if code != 200 {
+		t.Fatalf("add kid: %d", code)
+	}
+	_, settingsBody := ta.get("/settings")
+	if !strings.Contains(settingsBody, "Household logins") {
+		t.Fatalf("settings missing household panel")
+	}
+	kidID := firstKidID(t, ta)
+
+	code, body, path := ta.postForm("/settings/pins", url.Values{
+		"display_name": {"Sam"},
+		"username":     {"sam"},
+		"pin":          {"1234"},
+		"role":         {"kid"},
+		"kid_id":       {strconv.FormatInt(kidID, 10)},
+	})
+	if code != 200 || path != "/settings" || !strings.Contains(body, "PIN shown once") {
+		t.Fatalf("create kid pin: status=%d path=%s", code, path)
+	}
+
+	code, body, path = ta.postForm("/settings/pins", url.Values{
+		"display_name": {"Helper"},
+		"username":     {"helper"},
+		"pin":          {"5678"},
+		"role":         {"caregiver"},
+	})
+	if code != 200 || !strings.Contains(body, "PIN shown once") {
+		t.Fatalf("create caregiver pin: status=%d path=%s", code, path)
+	}
+
+	ta.post("/logout", url.Values{})
+
+	code, _, path = ta.postForm("/login", url.Values{
+		"method":      {"pin"},
+		"family_slug": {fam.Slug},
+		"username":    {"sam"},
+		"pin":         {"1234"},
+	})
+	if path != "/" {
+		t.Fatalf("kid pin login path=%s code=%d", path, code)
+	}
+	code, body = ta.get("/")
+	if code != 200 || !strings.Contains(body, "Sam") {
+		t.Fatalf("kid today missing Sam: %d", code)
+	}
+	code, _ = ta.get("/settings")
+	if code != 403 {
+		t.Fatalf("kid settings want 403 got %d", code)
+	}
+	code, _ = ta.get("/settings/export")
+	if code != 403 {
+		t.Fatalf("kid export want 403 got %d", code)
+	}
+
+	ta.post("/logout", url.Values{})
+	code, _, path = ta.postForm("/login", url.Values{
+		"method":      {"pin"},
+		"family_slug": {fam.Slug},
+		"username":    {"helper"},
+		"pin":         {"5678"},
+	})
+	if path != "/" {
+		t.Fatalf("caregiver login path=%s code=%d", path, code)
+	}
+	code, _ = ta.get("/settings")
+	if code != 403 {
+		t.Fatalf("caregiver settings want 403 got %d", code)
+	}
+	code, _ = ta.get("/curriculum")
+	if code != 403 {
+		t.Fatalf("caregiver curriculum want 403 got %d", code)
+	}
+
+	ta.post("/logout", url.Values{})
+	ta.postForm("/login", url.Values{
+		"email":    {"owner@example.com"},
+		"password": {"owner-pass-word"},
+	})
+	members, err := ta.control.ListMemberships(fam.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var kidMemID int64
+	for _, m := range members {
+		if m.Role == roleKid {
+			kidMemID = m.ID
+			break
+		}
+	}
+	if kidMemID == 0 {
+		t.Fatal("kid membership missing")
+	}
+	code, _, _ = ta.postForm("/settings/pins/"+strconv.FormatInt(kidMemID, 10)+"/revoke", url.Values{})
+	if code != 200 {
+		t.Fatalf("revoke: %d", code)
+	}
+
+	ta.post("/logout", url.Values{})
+	code, body, path = ta.postForm("/login", url.Values{
+		"method":      {"pin"},
+		"family_slug": {fam.Slug},
+		"username":    {"sam"},
+		"pin":         {"1234"},
+	})
+	if path == "/" {
+		t.Fatalf("revoked kid should not land on home; code=%d body=%q", code, body)
+	}
+}
+
+func mustListFamilies(t *testing.T, ta *testApp) []Family {
+	t.Helper()
+	rows, err := ta.control.pool.Query(`SELECT id, name, slug, created_at FROM families`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	var out []Family
+	for rows.Next() {
+		var f Family
+		var created string
+		if err := rows.Scan(&f.ID, &f.Name, &f.Slug, &created); err != nil {
+			t.Fatal(err)
+		}
+		out = append(out, f)
+	}
+	return out
+}
+
+func firstKidID(t *testing.T, ta *testApp) int64 {
+	t.Helper()
+	// After signup the jar is on the owner session; open tenant via control family.
+	fams := mustListFamilies(t, ta)
+	if len(fams) == 0 {
+		t.Fatal("no family")
+	}
+	tenant, err := ta.tenantApp(fams[0].ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	kids, err := tenant.store.Kids(false)
+	if err != nil || len(kids) == 0 {
+		t.Fatalf("kids: %v len=%d", err, len(kids))
+	}
+	return kids[0].ID
 }

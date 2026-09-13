@@ -9,6 +9,15 @@ import (
 )
 
 func (a *App) handleSettings(w http.ResponseWriter, r *http.Request) {
+	if !a.requireNotKid(w, r) {
+		return
+	}
+	if a.hosted {
+		if sess := sessionFrom(r); sess != nil && sess.Role == roleCaregiver {
+			http.Error(w, "That page is for grown-ups.", http.StatusForbidden)
+			return
+		}
+	}
 	data, err := a.pageData(r, "settings")
 	if err != nil {
 		a.serverError(w, err)
@@ -52,8 +61,20 @@ func (a *App) handleSettings(w http.ResponseWriter, r *http.Request) {
 	data["NextColor"] = kidPalette[len(kids)%len(kidPalette)]
 	data["NextSubjectColor"] = subjectPalette[len(subjects)%len(subjectPalette)]
 	data["Saved"] = r.URL.Query().Get("saved")
+	data["NewPIN"] = r.URL.Query().Get("pin")
+	data["NewPINWho"] = r.URL.Query().Get("who")
 	data["Backups"] = backups
 	data["DataDir"] = a.dataDir
+	if a.hosted {
+		if sess := sessionFrom(r); sess != nil && (sess.IsOwner() || sess.CanManageKidLogins) {
+			members, err := a.control.ListMemberships(sess.FamilyID)
+			if err != nil {
+				a.serverError(w, err)
+				return
+			}
+			data["Memberships"] = members
+		}
+	}
 	a.render(w, "settings", data)
 }
 
@@ -256,6 +277,9 @@ func (a *App) handleSaveTimezone(w http.ResponseWriter, r *http.Request) {
 // Backups --------------------------------------------------------------------
 
 func (a *App) handleMakeBackup(w http.ResponseWriter, r *http.Request) {
+	if !a.requireOwner(w, r) {
+		return
+	}
 	if _, err := a.MakeBackup(); err != nil {
 		a.serverError(w, err)
 		return
@@ -264,6 +288,9 @@ func (a *App) handleMakeBackup(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) handleRestoreBackup(w http.ResponseWriter, r *http.Request) {
+	if !a.requireOwner(w, r) {
+		return
+	}
 	err := a.RestoreBackup(r.PathValue("name"))
 	if errors.Is(err, errNoSuchBackup) || errors.Is(err, errNotABackup) {
 		http.Error(w, "That backup could not be found.", http.StatusNotFound)
@@ -277,6 +304,9 @@ func (a *App) handleRestoreBackup(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) handleDeleteBackup(w http.ResponseWriter, r *http.Request) {
+	if !a.requireOwner(w, r) {
+		return
+	}
 	err := a.DeleteBackup(r.PathValue("name"))
 	if errors.Is(err, errNoSuchBackup) {
 		http.Error(w, "That backup could not be found.", http.StatusNotFound)
@@ -292,6 +322,9 @@ func (a *App) handleDeleteBackup(w http.ResponseWriter, r *http.Request) {
 // handleDownloadBackup hands over a snapshot so it can be kept somewhere other
 // than this computer, which is the only kind of backup that survives the disk.
 func (a *App) handleDownloadBackup(w http.ResponseWriter, r *http.Request) {
+	if !a.requireOwner(w, r) {
+		return
+	}
 	name := r.PathValue("name")
 	path, err := a.backupPath(name)
 	if errors.Is(err, errNoSuchBackup) {

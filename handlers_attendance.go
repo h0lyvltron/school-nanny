@@ -27,6 +27,9 @@ type KidAttendanceReport struct {
 }
 
 func (a *App) handleAttendance(w http.ResponseWriter, r *http.Request) {
+	if !a.requirePlanningAccess(w, r) {
+		return
+	}
 	data, err := a.pageData(r, "attendance")
 	if err != nil {
 		a.serverError(w, err)

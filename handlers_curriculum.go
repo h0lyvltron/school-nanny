@@ -22,6 +22,9 @@ type ApplyPreview struct {
 }
 
 func (a *App) handleCurriculum(w http.ResponseWriter, r *http.Request) {
+	if !a.requirePlanningAccess(w, r) {
+		return
+	}
 	data, err := a.curriculumPageData(r)
 	if err != nil {
 		a.serverError(w, err)

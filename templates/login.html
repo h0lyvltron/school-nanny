@@ -2,7 +2,7 @@
 <section class="login">
     <h1>School Nanny</h1>
     {{if .Hosted}}
-        <p class="muted">Sign in with your parent account.</p>
+        <p class="muted">Sign in with the owner email, or a household PIN.</p>
         {{if .Error}}<p class="form-error">{{.Error}}</p>{{end}}
         <form method="post" action="/login">
             <input type="email" name="email" placeholder="Email"
@@ -10,6 +10,18 @@
             <input type="password" name="password" placeholder="Password"
                    autocomplete="current-password" required>
             <button type="submit">Sign in</button>
+        </form>
+        <hr>
+        <p class="muted small">Household PIN</p>
+        <form method="post" action="/login">
+            <input type="hidden" name="method" value="pin">
+            <input type="text" name="family_slug" placeholder="Family code"
+                   value="{{.FamilySlug}}" autocomplete="organization" required>
+            <input type="text" name="username" placeholder="Username"
+                   autocomplete="username" required>
+            <input type="password" name="pin" placeholder="PIN" inputmode="numeric"
+                   pattern="[0-9]{4,8}" maxlength="8" autocomplete="current-password" required>
+            <button type="submit">Unlock with PIN</button>
         </form>
         <p class="muted small"><a href="/signup">Create a family account</a></p>
     {{else}}

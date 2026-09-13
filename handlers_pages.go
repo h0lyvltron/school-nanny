@@ -68,10 +68,26 @@ func (a *App) handleHome(w http.ResponseWriter, r *http.Request) {
 		a.serverError(w, err)
 		return
 	}
+	if sess := sessionFrom(r); sess != nil && sess.IsKid() {
+		filtered := overdue[:0]
+		for _, l := range overdue {
+			if l.KidID == sess.KidID {
+				filtered = append(filtered, l)
+			}
+		}
+		overdue = filtered
+	}
 	familyWeek, err := a.store.ProgressBetween(start, end, 0, 0)
 	if err != nil {
 		a.serverError(w, err)
 		return
+	}
+	if sess := sessionFrom(r); sess != nil && sess.IsKid() {
+		familyWeek, err = a.store.ProgressBetween(start, end, sess.KidID, 0)
+		if err != nil {
+			a.serverError(w, err)
+			return
+		}
 	}
 	subjects, err := a.store.Subjects(false)
 	if err != nil {
@@ -117,6 +133,10 @@ func (a *App) handleHome(w http.ResponseWriter, r *http.Request) {
 	}
 	data["Setup"] = setup
 	data["ShowSetup"] = !setup.Complete()
+	if sess := sessionFrom(r); sess != nil && (sess.IsKid() || sess.Role == roleCaregiver) {
+		data["ShowSetup"] = false
+		data["NeedsSetup"] = false
+	}
 	a.render(w, "home", data)
 }
 
@@ -149,6 +169,10 @@ func (a *App) handlePlanner(w http.ResponseWriter, r *http.Request) {
 	start := weekStart(parseDateIn(r.URL.Query().Get("week"), requestLocation(r))).Format(dateLayout)
 	end := addDays(start, 6)
 	kidFilter, adultFilter := plannerPersonFilter(r.URL.Query())
+	if sess := sessionFrom(r); sess != nil && sess.IsKid() {
+		kidFilter = sess.KidID
+		adultFilter = 0
+	}
 
 	var lessons []Lesson
 	if adultFilter > 0 {
@@ -280,6 +304,9 @@ type SubjectCard struct {
 func (a *App) handleKid(w http.ResponseWriter, r *http.Request) {
 	kid, ok := a.lookupKid(w, r)
 	if !ok {
+		return
+	}
+	if !a.enforceKidScope(w, r, kid.ID) {
 		return
 	}
 	data, err := a.pageData(r, "kids")

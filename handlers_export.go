@@ -15,6 +15,9 @@ const familyArchiveName = "family-export.zip"
 
 // handleFamilyExport downloads school.db + uploads/ for the signed-in family only.
 func (a *App) handleFamilyExport(w http.ResponseWriter, r *http.Request) {
+	if !a.requireOwner(w, r) {
+		return
+	}
 	if a.store == nil {
 		http.Error(w, "No family data.", http.StatusBadRequest)
 		return
@@ -71,6 +74,9 @@ func (a *App) handleFamilyExport(w http.ResponseWriter, r *http.Request) {
 
 // handleFamilyImport restores an export archive into the signed-in family only.
 func (a *App) handleFamilyImport(w http.ResponseWriter, r *http.Request) {
+	if !a.requireOwner(w, r) {
+		return
+	}
 	if a.store == nil {
 		http.Error(w, "No family data.", http.StatusBadRequest)
 		return
