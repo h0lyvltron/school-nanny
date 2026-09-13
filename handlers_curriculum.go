@@ -415,6 +415,105 @@ func (a *App) lookupPlan(w http.ResponseWriter, r *http.Request) (CurriculumPlan
 	return plan, true
 }
 
+func (a *App) handleCurriculumFromTOC(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "Could not read that form.", http.StatusBadRequest)
+		return
+	}
+	name := strings.TrimSpace(r.FormValue("name"))
+	toc := r.FormValue("toc")
+	subjectID := formInt(r, "subject_id")
+	if name == "" || strings.TrimSpace(toc) == "" || subjectID == 0 {
+		a.renderCurriculumImportError(w, r, "A name, subject, and table of contents are required.")
+		return
+	}
+	subjects, err := a.store.Subjects(false)
+	if err != nil {
+		a.serverError(w, err)
+		return
+	}
+	var subject Subject
+	for _, s := range subjects {
+		if s.ID == int64(subjectID) {
+			subject = s
+			break
+		}
+	}
+	if subject.ID == 0 {
+		a.renderCurriculumImportError(w, r, "Choose a subject that still exists.")
+		return
+	}
+
+	items, err := ParseTOC(toc, name)
+	if err != nil {
+		a.renderCurriculumImportError(w, r, err.Error())
+		return
+	}
+	plan := CurriculumPlan{
+		Name:        name,
+		SubjectID:   subject.ID,
+		SubjectName: subject.Name,
+		Kind:        PlanAuthored,
+	}
+	for i, it := range items {
+		plan.Items = append(plan.Items, CurriculumItem{
+			Title:     TOCItemTitle(it),
+			Notes:     TOCItemNotes(it, name),
+			SortOrder: i + 1,
+		})
+	}
+	n, err := a.store.ImportCurriculum([]CurriculumPlan{plan})
+	if err != nil {
+		a.serverError(w, err)
+		return
+	}
+	a.redirect(w, r, "/curriculum?imported="+strconv.Itoa(n))
+}
+
+func (a *App) handleExportCurriculumPlanYAML(w http.ResponseWriter, r *http.Request) {
+	plan, ok := a.lookupPlan(w, r)
+	if !ok {
+		return
+	}
+	body, err := EmitPlansYAML([]CurriculumPlan{plan})
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	name := planYAMLFilename(plan)
+	w.Header().Set("Content-Type", "application/yaml; charset=utf-8")
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, name))
+	_, _ = w.Write([]byte(body))
+}
+
+func (a *App) handleExportAllCurriculumYAML(w http.ResponseWriter, r *http.Request) {
+	summaries, err := a.store.CurriculumPlans()
+	if err != nil {
+		a.serverError(w, err)
+		return
+	}
+	plans := make([]CurriculumPlan, 0, len(summaries))
+	for _, summary := range summaries {
+		plan, err := a.store.CurriculumPlan(summary.ID)
+		if err != nil {
+			a.serverError(w, err)
+			return
+		}
+		if len(plan.Items) == 0 {
+			continue
+		}
+		plans = append(plans, plan)
+	}
+	body, err := EmitPlansYAML(plans)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	w.Header().Set("Content-Type", "application/yaml; charset=utf-8")
+	w.Header().Set("Content-Disposition", `attachment; filename="curriculum-all.yaml"`)
+	_, _ = w.Write([]byte(body))
+}
+
 func itoa(id int64) string {
 	return fmt.Sprintf("%d", id)
 }

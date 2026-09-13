@@ -1,6 +1,7 @@
 package main
 
 import (
+	"archive/zip"
 	"bytes"
 	"html"
 	"io"
@@ -2291,6 +2292,161 @@ func TestCurriculumImportUnknownSubjectWritesNothing(t *testing.T) {
 	if len(plans) != 0 {
 		t.Fatalf("failed import should write nothing, got %d plans", len(plans))
 	}
+}
+
+func TestCurriculumFromTOCAndYAMLRoundTrip(t *testing.T) {
+	ta := newTestApp(t)
+
+	_, page := ta.get("/curriculum")
+	mustContain(t, page, `action="/curriculum/from-toc"`, "TOC form")
+	mustContain(t, page, "Paste a table of contents", "TOC heading")
+
+	subjects, err := ta.store.Subjects(false)
+	if err != nil || len(subjects) == 0 {
+		t.Fatalf("subjects: %v len=%d", err, len(subjects))
+	}
+	mathID := subjects[0].ID
+	for _, s := range subjects {
+		if strings.EqualFold(s.Name, "Math") || strings.EqualFold(s.Slug, "math") {
+			mathID = s.ID
+			break
+		}
+	}
+
+	toc := "Unit 1\n" +
+		"Lesson 1: Identifying Right and Left . . . 2\n" +
+		"Lesson 2: Writing Numbers 1–5 . . . 4\n" +
+		"Lessons 39–40: Unit Assessment . . . 105\n"
+	status, page := ta.post("/curriculum/from-toc", url.Values{
+		"name":       {"Grade 1 Math TOC"},
+		"subject_id": {itoa64(mathID)},
+		"toc":        {toc},
+	})
+	if status != http.StatusOK {
+		t.Fatalf("from-toc returned %d: %s", status, page)
+	}
+	mustContain(t, page, "Imported 1 plan", "TOC create flash")
+
+	plans, err := ta.store.CurriculumPlans()
+	if err != nil {
+		t.Fatalf("listing plans: %v", err)
+	}
+	plan, ok := planByName(plans, "Grade 1 Math TOC")
+	if !ok {
+		t.Fatal("TOC plan missing")
+	}
+	full, err := ta.store.CurriculumPlan(plan.ID)
+	if err != nil {
+		t.Fatalf("load plan: %v", err)
+	}
+	if len(full.Items) != 3 {
+		t.Fatalf("want 3 TOC items, got %d: %+v", len(full.Items), full.Items)
+	}
+	mustContain(t, full.Items[0].Title, "Identifying Right and Left", "first lesson title")
+	mustContain(t, full.Items[0].Notes, "Unit 1", "unit notes")
+	mustContain(t, full.Items[2].Title, "39", "range start")
+	mustContain(t, full.Items[2].Title, "40", "range end")
+
+	status, yamlBody := ta.get("/curriculum/" + itoa64(plan.ID) + "/export.yaml")
+	if status != http.StatusOK {
+		t.Fatalf("plan YAML export returned %d", status)
+	}
+	mustContain(t, yamlBody, "plans:", "yaml plans key")
+	mustContain(t, yamlBody, "Grade 1 Math TOC", "yaml plan name")
+	mustContain(t, yamlBody, "Identifying Right and Left", "yaml lesson")
+
+	status, allYAML := ta.get("/curriculum/export.yaml")
+	if status != http.StatusOK {
+		t.Fatalf("all YAML export returned %d", status)
+	}
+	mustContain(t, allYAML, "Grade 1 Math TOC", "all yaml includes plan")
+
+	// Round-trip: import the exported YAML as a second plan name by editing locally.
+	roundTrip := strings.Replace(yamlBody, "Grade 1 Math TOC", "Grade 1 Math TOC copy", 1)
+	status, page = ta.postFile("/curriculum/import", "file", "roundtrip.yaml", []byte(roundTrip))
+	if status != http.StatusOK {
+		t.Fatalf("round-trip import returned %d", status)
+	}
+	mustContain(t, page, "Imported 1 plan", "round-trip flash")
+	plans, err = ta.store.CurriculumPlans()
+	if err != nil {
+		t.Fatalf("listing after round-trip: %v", err)
+	}
+	copyPlan, ok := planByName(plans, "Grade 1 Math TOC copy")
+	if !ok {
+		t.Fatal("round-trip plan missing")
+	}
+	copyFull, err := ta.store.CurriculumPlan(copyPlan.ID)
+	if err != nil || len(copyFull.Items) != 3 {
+		t.Fatalf("round-trip items: %+v err=%v", copyFull.Items, err)
+	}
+}
+
+func TestFamilyExportIncludesCurriculumYAML(t *testing.T) {
+	ta := newTestApp(t)
+
+	subjects, err := ta.store.Subjects(false)
+	if err != nil || len(subjects) == 0 {
+		t.Fatalf("subjects: %v", err)
+	}
+	status, page := ta.post("/curriculum/from-toc", url.Values{
+		"name":       {"Zip TOC Plan"},
+		"subject_id": {itoa64(subjects[0].ID)},
+		"toc":        {"Lesson 1: Hello . . . 1\n"},
+	})
+	if status != http.StatusOK {
+		t.Fatalf("seed plan: %d %s", status, page)
+	}
+
+	resp, err := ta.client.Get(ta.server.URL + "/settings/export")
+	if err != nil {
+		t.Fatalf("family export: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("family export status %d", resp.StatusCode)
+	}
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("read export: %v", err)
+	}
+	zr, err := zip.NewReader(bytes.NewReader(body), int64(len(body)))
+	if err != nil {
+		t.Fatalf("open zip: %v", err)
+	}
+	var sawDB, sawPlanYAML, sawAllYAML bool
+	for _, f := range zr.File {
+		switch {
+		case f.Name == dbFileName || strings.HasSuffix(f.Name, "/"+dbFileName):
+			sawDB = true
+		case strings.HasPrefix(f.Name, "curriculum/") && strings.HasSuffix(f.Name, ".yaml"):
+			if f.Name == "curriculum/all.yaml" {
+				sawAllYAML = true
+			} else {
+				sawPlanYAML = true
+			}
+			rc, err := f.Open()
+			if err != nil {
+				t.Fatalf("open %s: %v", f.Name, err)
+			}
+			content, _ := io.ReadAll(rc)
+			rc.Close()
+			mustContain(t, string(content), "Zip TOC Plan", f.Name+" plan name")
+		}
+	}
+	if !sawDB {
+		t.Fatal("family zip missing database")
+	}
+	if !sawPlanYAML {
+		t.Fatal("family zip missing per-plan curriculum YAML")
+	}
+	if !sawAllYAML {
+		t.Fatal("family zip missing curriculum/all.yaml")
+	}
+
+	_, settings := ta.get("/settings")
+	mustContain(t, settings, "curriculum/*.yaml", "settings documents curriculum yaml")
+	mustContain(t, settings, "authoritative", "settings documents DB authority")
 }
 
 func planByName(plans []CurriculumPlan, name string) (CurriculumPlan, bool) {

@@ -48,6 +48,11 @@ func (a *App) handleFamilyExport(w http.ResponseWriter, r *http.Request) {
 		a.serverError(w, err)
 		return
 	}
+	if err := a.zipCurriculumYAML(zw); err != nil {
+		tmp.Close()
+		a.serverError(w, err)
+		return
+	}
 	if err := zw.Close(); err != nil {
 		tmp.Close()
 		a.serverError(w, err)
@@ -252,6 +257,52 @@ func unzipFile(f *zip.File, dest string) error {
 	}
 	defer out.Close()
 	_, err = io.Copy(out, rc)
+	return err
+}
+
+func (a *App) zipCurriculumYAML(zw *zip.Writer) error {
+	if a.store == nil {
+		return nil
+	}
+	summaries, err := a.store.CurriculumPlans()
+	if err != nil {
+		return err
+	}
+	plans := make([]CurriculumPlan, 0, len(summaries))
+	for _, summary := range summaries {
+		plan, err := a.store.CurriculumPlan(summary.ID)
+		if err != nil {
+			return err
+		}
+		if len(plan.Items) == 0 {
+			continue
+		}
+		plans = append(plans, plan)
+		body, err := EmitPlansYAML([]CurriculumPlan{plan})
+		if err != nil {
+			return err
+		}
+		name := filepath.ToSlash(filepath.Join("curriculum", planYAMLFilename(plan)))
+		if err := zipAddBytes(zw, name, []byte(body)); err != nil {
+			return err
+		}
+	}
+	if len(plans) == 0 {
+		return nil
+	}
+	all, err := EmitPlansYAML(plans)
+	if err != nil {
+		return err
+	}
+	return zipAddBytes(zw, "curriculum/all.yaml", []byte(all))
+}
+
+func zipAddBytes(zw *zip.Writer, name string, body []byte) error {
+	w, err := zw.Create(name)
+	if err != nil {
+		return err
+	}
+	_, err = w.Write(body)
 	return err
 }
 

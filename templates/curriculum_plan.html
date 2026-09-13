@@ -32,6 +32,9 @@
             <button type="submit" class="link-button danger"
                     onclick="return confirm('Delete this plan and its files?')">Delete this plan</button>
         </form>
+        {{if .Plan.Items}}
+            <p class="muted small"><a href="/curriculum/{{.Plan.ID}}/export.yaml">Download this plan as YAML</a></p>
+        {{end}}
     </section>
 
     <section class="panel">

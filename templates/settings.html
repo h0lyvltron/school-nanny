@@ -235,7 +235,11 @@
     <h2>Family export / import</h2>
     <p class="muted small">
         Download this family's records and attached files as one zip, or restore
-        from a zip into <em>this</em> family only.
+        from a zip into <em>this</em> family only. Archives include
+        <code>school.db</code>, <code>uploads/</code>, and readable
+        <code>curriculum/*.yaml</code> copies of your plans. On import, the
+        database is authoritative — the YAML files are for humans and other
+        tools, not a second source of truth when restoring.
     </p>
     <p class="settings-row new">
         <a href="/settings/export">Download family archive</a>
@@ -288,7 +292,8 @@
     <p class="muted small">
         A backup holds the lessons, tests, and notes, but not the files you have
         attached. Use <a href="#family-export">Family export / import</a> for a zip
-        that includes attachments, or copy the whole folder above off this computer.
+        that includes attachments and curriculum YAML copies, or copy the whole
+        folder above off this computer.
     </p>
 </section>
 {{end}}
