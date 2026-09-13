@@ -103,7 +103,10 @@ func (a *App) handleHome(w http.ResponseWriter, r *http.Request) {
 			a.serverError(w, err)
 			return
 		}
-		todayEvents = append(todayEvents, events...)
+		for _, e := range events {
+			e.AdultName = adult.Name
+			todayEvents = append(todayEvents, e)
+		}
 	}
 
 	data["Cards"] = cards

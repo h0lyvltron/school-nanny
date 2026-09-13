@@ -180,6 +180,8 @@ func (a *App) Routes() http.Handler {
 	mux.HandleFunc("GET /adults/{id}/schedule", h((*App).handleAdultSchedule))
 	mux.HandleFunc("POST /adults/{id}/schedule", h((*App).handleCreateAdultLesson))
 	mux.HandleFunc("GET /adults/{id}/calendar", h((*App).handleAdultCalendar))
+	mux.HandleFunc("GET /adults/{id}/calendar.ics", h((*App).handleAdultCalendarICS))
+	mux.HandleFunc("POST /adults/{id}/calendar/import", h((*App).handleAdultCalendarImport))
 	mux.HandleFunc("POST /adults/{id}/events", h((*App).handleCreateAdultEvent))
 	mux.HandleFunc("POST /adults/{id}/events/{eventID}", h((*App).handleUpdateAdultEvent))
 	mux.HandleFunc("POST /adults/{id}/events/{eventID}/label", h((*App).handleSetAdultEventLabel))

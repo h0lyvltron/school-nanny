@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -72,6 +73,9 @@ func (a *App) handleAdult(w http.ResponseWriter, r *http.Request) {
 	data["Subjects"] = subjects
 	data["WeekStart"] = start
 	data["WeekEnd"] = end
+	if n, err := strconv.Atoi(r.URL.Query().Get("imported")); err == nil && n > 0 {
+		data["Imported"] = n
+	}
 	a.render(w, "adult", data)
 }
 

@@ -675,14 +675,34 @@ func TestTodayListsCalendarEventsAboveTheKids(t *testing.T) {
 		t.Fatalf("today returned %d", status)
 	}
 	mustContain(t, body, `class="today-events"`, "today events")
+	mustContain(t, body, "Also today", "day glance")
 	mustContain(t, body, "Piano recital", "today events")
 	mustContain(t, body, "4pm", "today events")
 
-	head := strings.Index(body, `class="today-events"`)
+	if !strings.Contains(body, "day-glance") {
+		t.Fatalf("missing day-glance class; section open tags: %s", snippetAround(body, "Also today", 120))
+	}
+	head := strings.Index(body, "day-glance")
 	grid := strings.Index(body, `class="kid-grid"`)
 	if head < 0 || grid < 0 || head > grid {
-		t.Errorf("calendar events should sit above the kid cards")
+		t.Errorf("calendar events should sit above the kid cards (glance=%d grid=%d)", head, grid)
 	}
+}
+
+func snippetAround(body, needle string, width int) string {
+	i := strings.Index(body, needle)
+	if i < 0 {
+		return "(missing)"
+	}
+	start := i - width
+	if start < 0 {
+		start = 0
+	}
+	end := i + width
+	if end > len(body) {
+		end = len(body)
+	}
+	return body[start:end]
 }
 
 // A one-pixel PNG, which is enough for the sniffing the upload does.

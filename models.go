@@ -117,6 +117,7 @@ type AdultEvent struct {
 	LabelName  string
 	LabelColor string
 	LabelEmoji string
+	AdultName  string // filled when listing across adults (Today glance)
 }
 
 func (e AdultEvent) Spans() bool { return e.EndsOn > e.StartsOn }

@@ -363,7 +363,15 @@ img.avatar-nav { width: 1.4rem; height: 1.4rem; }
     display: flex;
     flex-direction: column;
     gap: 0.45rem;
+    margin: 0;
+}
+
+.day-glance {
     margin: 0 0 1.1rem;
+}
+
+.day-glance h2 {
+    margin-bottom: 0.15rem;
 }
 
 .today-event {
@@ -376,10 +384,27 @@ img.avatar-nav { width: 1.4rem; height: 1.4rem; }
     border-radius: 0.55rem;
     background: var(--accent-soft);
     color: var(--accent);
+    text-decoration: none;
+}
+a.today-event:hover {
+    filter: brightness(0.98);
 }
 .today-event strong { color: var(--ink); }
 .today-event p { margin: 0; flex: 1 1 100%; }
 .today-event.is-span { border-radius: 0.35rem; }
+
+.ics-row {
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    align-items: center;
+    margin: 0 0 0.85rem;
+}
+.ics-import {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
+}
 
 .kid-grid {
     display: grid;

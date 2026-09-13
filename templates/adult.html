@@ -10,6 +10,10 @@
     </div>
 </div>
 
+{{if .Imported}}
+    <p class="saved-flash">Added {{.Imported}} calendar {{if eq .Imported 1}}event{{else}}events{{end}} from the import.</p>
+{{end}}
+
 <section class="panel">
     <h2>Pinboard</h2>
     <div class="pin-grid">

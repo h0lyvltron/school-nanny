@@ -10,6 +10,13 @@
         </div>
         <p class="muted small">{{.MonthLabel}} &middot; drag across days for something that lasts more than one</p>
     </div>
+    <div class="settings-row new ics-row">
+        <a href="/adults/{{.Adult.ID}}/calendar.ics">Download .ics</a>
+        <form method="post" action="/adults/{{.Adult.ID}}/calendar/import" enctype="multipart/form-data" class="inline-form ics-import">
+            <input type="file" name="file" accept=".ics,text/calendar" required aria-label="Calendar file">
+            <button type="submit" class="secondary">Import .ics</button>
+        </form>
+    </div>
 
     <div class="cal-grid month-cal" data-calendar data-url="{{.Adult.URL}}" data-month="{{.Month}}">
         <div class="cal-dow">Mon</div>

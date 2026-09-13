@@ -209,16 +209,18 @@ printable year report, and import merge vs replace.
 
 ---
 
-## Wave 4 — Later polish (only after Waves 0–3 earn trust)
+## Wave 4 — Later polish
 
-| ID | Feature | Notes |
+**Status: W4.1–W4.3 shipped on `main`.** W4.4–W4.6 stay demand-driven.
+
+| ID | Feature | Status |
 | --- | --- | --- |
-| **W4.1** | Combined day glance (adult events visible, not counted as school) | Blends life + school without polluting progress |
-| **W4.2** | ICS import/export for adult or family calendar | HomeLearnAI-style; OAuth Google sync later if ever |
-| **W4.3** | PWA / installable mobile shell | After kid PIN + print + Today are solid on phones |
-| **W4.4** | Optional shared curriculum YAML library (opt-in) | Community share without paid marketplace |
-| **W4.5** | Photo portfolio / yearbook | Panda/Moment space—only if parents ask |
-| **W4.6** | Owner mailer + confirm/reset + optional OAuth | From AUTH_ROADMAP when hosting needs it |
+| **W4.1** | Combined day glance | Today shows “Also today” household calendar (not school hours) |
+| **W4.2** | ICS import/export | Adult calendar Download / Import `.ics` |
+| **W4.3** | PWA / installable shell | Manifest, icons, light service worker for static chrome |
+| **W4.4** | Optional shared curriculum YAML library | Demand-driven |
+| **W4.5** | Photo portfolio / yearbook | Demand-driven |
+| **W4.6** | Owner mailer + confirm/reset + optional OAuth | Demand-driven |
 
 ---
 
@@ -229,7 +231,7 @@ Wave 0  Adult-neutral → TOC/YAML/export → (auth design already done)
 Wave 1  Bump policies + vacation shift → print Today/week → light onboarding
 Wave 2  PIN RBAC → kid Today → secondary adult day-run  ← shipped
 Wave 3  Hours → course grades → transcript → import merge/replace  ← shipped
-Wave 4  Calendar glance / ICS / PWA / mailer as demand appears
+Wave 4  Day glance / ICS / PWA  ← shipped (library, yearbook, mailer still demand-driven)
 ```
 
 Wave 2 auth open questions that remain are polish (teacher kid scope, adult

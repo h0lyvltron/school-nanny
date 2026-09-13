@@ -37,17 +37,23 @@
     </div>
 
     {{if .TodayEvents}}
-    <div class="today-events">
-        {{range .TodayEvents}}
-            <article class="today-event{{if .Spans}} is-span{{end}}{{if .HasLabel}} has-label{{end}}"
-                     {{if .HasLabel}}style="--label:{{color .LabelColor}}"{{end}}>
-                <strong>{{if .Icon}}{{.Icon}} {{end}}{{.Title}}</strong>
-                {{if .HasLabel}}<span class="cal-label-chip">{{if .LabelEmoji}}{{.LabelEmoji}} {{end}}{{.LabelName}}</span>{{end}}
-                {{if .Spans}}<span class="muted small">{{dateLabel .}}</span>{{end}}
-                {{if .Body}}<p class="muted small">{{.Body}}</p>{{end}}
-            </article>
-        {{end}}
-    </div>
+    <section class="day-glance panel">
+        <h2>Also today</h2>
+        <p class="muted small">Household calendar — not part of school hours.</p>
+        <div class="today-events">
+            {{range .TodayEvents}}
+                <a class="today-event{{if .Spans}} is-span{{end}}{{if .HasLabel}} has-label{{end}}"
+                   href="/adults/{{.AdultID}}"
+                   {{if .HasLabel}}style="--label:{{color .LabelColor}}"{{end}}>
+                    <strong>{{if .Icon}}{{.Icon}} {{end}}{{.Title}}</strong>
+                    {{if .AdultName}}<span class="muted small">{{.AdultName}}</span>{{end}}
+                    {{if .HasLabel}}<span class="cal-label-chip">{{if .LabelEmoji}}{{.LabelEmoji}} {{end}}{{.LabelName}}</span>{{end}}
+                    {{if .Spans}}<span class="muted small">{{dateLabel .}}</span>{{end}}
+                    {{if .Body}}<p class="muted small">{{.Body}}</p>{{end}}
+                </a>
+            {{end}}
+        </div>
+    </section>
     {{end}}
 
     <div class="kid-grid">
