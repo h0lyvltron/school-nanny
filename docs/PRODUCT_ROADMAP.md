@@ -69,7 +69,7 @@ later waves (curriculum portability, honest adult language, auth implementabilit
 | **W0.1** | Adult-neutral copy | Default adult is **Parent**; schedule heading **“{Name}'s week”**; no Mom/she/her defaults in UI/docs/tests | New empty family shows Parent; Mother’s Day holiday unchanged |
 | **W0.2** | TOC → curriculum in-app | Paste a book TOC; get a curriculum plan (Go port of toc2yaml) | UI + `POST /curriculum/from-toc`; plan editable like YAML import |
 | **W0.3** | Curriculum YAML download | Per-plan (and optional all) download matching import schema | Round-trip: export → import without data loss of titles/order |
-| **W0.4** | Family zip includes curriculum YAML | Archive has `curriculum/*.yaml`; restore docs say DB is authoritative | Documented restore behavior; zip contains YAML mirrors |
+| **W0.4** | Family zip includes curriculum YAML | Archive has `curriculum/*.yaml`; restore UI explains merge vs replace in plain language | Zip contains YAML mirrors; Settings never shows server paths |
 | **W0.5** | Auth design (done) | [`AUTH_ROADMAP.md`](AUTH_ROADMAP.md) locked enough to implement later | Roles + PIN model written; open policy questions listed |
 
 **Research link:** DIY curriculum / TOC scheduling; setup anxiety; “share plans without marketplace.”

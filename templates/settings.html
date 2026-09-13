@@ -314,12 +314,9 @@
 <section class="panel" id="family-export">
     <h2>Family export / import</h2>
     <p class="muted small">
-        Download this family's records and attached files as one zip, or bring an
-        archive back in. Archives include <code>school.db</code>,
-        <code>uploads/</code>, and readable <code>curriculum/*.yaml</code>
-        copies of your plans. On a full replace, the database is authoritative —
-        the YAML files are for humans and other tools, not a second source of
-        truth when restoring. Merge adds curriculum YAML and missing files only.
+        Download a zip of this family's records and attached files, or bring one
+        back in. The zip holds the database, uploads, and plain-text copies of
+        your curriculum plans.
     </p>
     <p class="settings-row new">
         <a href="/settings/export">Download family archive</a>
@@ -330,16 +327,17 @@
             <legend class="muted small">Import mode</legend>
             <label class="check">
                 <input type="radio" name="mode" value="merge" checked>
-                <strong>Merge</strong> — add curriculum YAML and any missing files; keep current records
+                <strong>Merge</strong> — keep what you have; add curriculum plans and any missing files from the zip
             </label>
             <label class="check">
                 <input type="radio" name="mode" value="replace">
-                <strong>Replace</strong> — wipe this family's records and files with the archive
+                <strong>Replace</strong> — throw out this family's current records and files and put the zip in their place
             </label>
         </fieldset>
         <p class="muted small">
-            Replace requires typing <code>REPLACE</code> below. A backup of the
-            current records is saved first either way.
+            Replace asks you to type <code>REPLACE</code> below so it is hard to
+            do by accident. Either way, a backup of the current records is saved
+            first.
         </p>
         <input type="text" name="confirm_replace" placeholder="Type REPLACE only for replace"
                autocomplete="off" aria-label="Confirm replace">
@@ -350,8 +348,9 @@
 <section class="panel" id="backups">
     <h2>Backups</h2>
     <p class="muted small">
-        Everything is kept in <code class="path">{{.DataDir}}</code>. A backup of the
-        records is saved automatically the first time the app opens each day.
+        A backup of the records is saved automatically the first time the app
+        opens each day. You can also make one now and download or restore it
+        later.
     </p>
 
     <form method="post" action="/settings/backups" class="settings-row new">
@@ -386,10 +385,9 @@
     {{end}}
 
     <p class="muted small">
-        A backup holds the lessons, tests, and notes, but not the files you have
-        attached. Use <a href="#family-export">Family export / import</a> for a zip
-        that includes attachments and curriculum YAML copies, or copy the whole
-        folder above off this computer.
+        These backups hold lessons, tests, and notes, but not attached files.
+        Use <a href="#family-export">Family export / import</a> when you need a
+        zip that includes attachments and curriculum copies.
     </p>
 </section>
 {{end}}

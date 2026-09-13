@@ -264,7 +264,7 @@ func TestStartupBackupRunsOnceADay(t *testing.T) {
 	}
 }
 
-func TestSettingsPageShowsWhereTheRecordsLive(t *testing.T) {
+func TestSettingsPageHidesDataDirectory(t *testing.T) {
 	ta := newTestApp(t)
 	ta.addKid("Mia")
 	if _, err := ta.MakeBackup(); err != nil {
@@ -275,7 +275,7 @@ func TestSettingsPageShowsWhereTheRecordsLive(t *testing.T) {
 	if status != http.StatusOK {
 		t.Fatalf("settings returned %d", status)
 	}
-	mustContain(t, body, ta.dataDir, "settings page")
+	mustNotContain(t, body, ta.dataDir, "settings page")
 	mustContain(t, body, "Back up now", "settings page")
 	mustContain(t, body, "/restore", "settings page")
 }

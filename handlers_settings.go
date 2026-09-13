@@ -64,7 +64,6 @@ func (a *App) handleSettings(w http.ResponseWriter, r *http.Request) {
 	data["NewPIN"] = r.URL.Query().Get("pin")
 	data["NewPINWho"] = r.URL.Query().Get("who")
 	data["Backups"] = backups
-	data["DataDir"] = a.dataDir
 	if a.hosted {
 		if sess := sessionFrom(r); sess != nil && (sess.IsOwner() || sess.CanManageKidLogins) {
 			members, err := a.control.ListMemberships(sess.FamilyID)

@@ -2547,8 +2547,11 @@ func TestFamilyExportIncludesCurriculumYAML(t *testing.T) {
 	}
 
 	_, settings := ta.get("/settings")
-	mustContain(t, settings, "curriculum/*.yaml", "settings documents curriculum yaml")
-	mustContain(t, settings, "authoritative", "settings documents DB authority")
+	mustContain(t, settings, "curriculum plans", "settings mentions curriculum in the zip")
+	mustContain(t, settings, "Merge", "settings offers merge import")
+	mustContain(t, settings, "Replace", "settings offers replace import")
+	mustNotContain(t, settings, "authoritative", "settings avoids jargon")
+	mustNotContain(t, settings, ta.dataDir, "settings hides the data directory")
 }
 
 func planByName(plans []CurriculumPlan, name string) (CurriculumPlan, bool) {
