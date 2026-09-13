@@ -816,7 +816,7 @@ func (a *App) handleSaveAdult(w http.ResponseWriter, r *http.Request) {
 		a.serverError(w, err)
 		return
 	}
-	a.redirect(w, r, "/settings?saved=adult")
+	a.redirect(w, r, "/settings/people?saved=adult")
 }
 
 func (a *App) handleAdultAvatarUpload(w http.ResponseWriter, r *http.Request) {
@@ -844,7 +844,7 @@ func (a *App) handleAdultAvatarUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	a.removeUpload(previous)
-	a.redirect(w, r, safeRedirect(r.FormValue("back"), "/settings?saved=photo"))
+	a.redirect(w, r, safeRedirect(r.FormValue("back"), "/settings/people?saved=photo"))
 }
 
 func (a *App) handleAdultAvatarDelete(w http.ResponseWriter, r *http.Request) {
@@ -858,7 +858,7 @@ func (a *App) handleAdultAvatarDelete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	a.removeUpload(previous)
-	a.redirect(w, r, safeRedirect(r.FormValue("back"), "/settings?saved=photo-removed"))
+	a.redirect(w, r, safeRedirect(r.FormValue("back"), "/settings/people?saved=photo-removed"))
 }
 
 func (a *App) handleAdultAvatarImage(w http.ResponseWriter, r *http.Request) {

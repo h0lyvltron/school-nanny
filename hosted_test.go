@@ -87,7 +87,7 @@ func TestHostedSignupLoginIsolation(t *testing.T) {
 	if code != 200 {
 		t.Fatalf("add kid: %d", code)
 	}
-	code, body = ta.get("/settings")
+	code, body = ta.get("/settings/people")
 	if code != 200 || !strings.Contains(body, "Alice") {
 		t.Fatalf("alpha settings missing Alice: %d", code)
 	}
@@ -103,7 +103,7 @@ func TestHostedSignupLoginIsolation(t *testing.T) {
 	if code != 200 || path != "/" {
 		t.Fatalf("signup beta: status=%d path=%s", code, path)
 	}
-	code, body = ta.get("/settings")
+	code, body = ta.get("/settings/people")
 	if code != 200 {
 		t.Fatalf("beta settings: %d", code)
 	}
@@ -131,7 +131,7 @@ func TestHostedSignupLoginIsolation(t *testing.T) {
 	if path != "/" {
 		t.Fatalf("alpha login path=%s code=%d", path, code)
 	}
-	code, body = ta.get("/settings")
+	code, body = ta.get("/settings/people")
 	if !strings.Contains(body, "Alice") {
 		t.Fatalf("alpha lost Alice after re-login")
 	}
@@ -186,7 +186,7 @@ func TestHostedFamilyExportImport(t *testing.T) {
 	if code != 200 {
 		t.Fatalf("import status %d body=%s", code, body)
 	}
-	_, body = ta.get("/settings")
+	_, body = ta.get("/settings/people")
 	if !strings.Contains(body, "Eve") {
 		t.Fatal("import did not restore Eve")
 	}
@@ -271,7 +271,7 @@ func TestHostedPINLoginAndOwnerGates(t *testing.T) {
 	if code != 200 {
 		t.Fatalf("add kid: %d", code)
 	}
-	_, settingsBody := ta.get("/settings")
+	_, settingsBody := ta.get("/settings/access")
 	if !strings.Contains(settingsBody, "Household logins") {
 		t.Fatalf("settings missing household panel")
 	}
@@ -284,7 +284,7 @@ func TestHostedPINLoginAndOwnerGates(t *testing.T) {
 		"role":         {"kid"},
 		"kid_id":       {strconv.FormatInt(kidID, 10)},
 	})
-	if code != 200 || path != "/settings" || !strings.Contains(body, "PIN shown once") {
+	if code != 200 || path != "/settings/access" || !strings.Contains(body, "PIN shown once") {
 		t.Fatalf("create kid pin: status=%d path=%s", code, path)
 	}
 

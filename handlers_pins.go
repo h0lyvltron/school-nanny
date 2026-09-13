@@ -42,7 +42,7 @@ func (a *App) handleCreatePIN(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	a.redirect(w, r, fmt.Sprintf("/settings?saved=pin-created&pin=%s&who=%s",
+	a.redirect(w, r, fmt.Sprintf("/settings/access?saved=pin-created&pin=%s&who=%s",
 		url.QueryEscape(pin), url.QueryEscape(mem.DisplayName)))
 }
 
@@ -84,7 +84,7 @@ func (a *App) handleResetPIN(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	a.redirect(w, r, "/settings?saved=pin-reset&pin="+url.QueryEscape(pin))
+	a.redirect(w, r, "/settings/access?saved=pin-reset&pin="+url.QueryEscape(pin))
 }
 
 func (a *App) handleRevokePIN(w http.ResponseWriter, r *http.Request) {
@@ -101,5 +101,5 @@ func (a *App) handleRevokePIN(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	a.redirect(w, r, "/settings?saved=pin-revoked")
+	a.redirect(w, r, "/settings/access?saved=pin-revoked")
 }

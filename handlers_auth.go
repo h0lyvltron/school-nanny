@@ -251,7 +251,7 @@ func (a *App) handleChangeAccountPassword(w http.ResponseWriter, r *http.Request
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	a.redirect(w, r, "/settings?saved=account-password")
+	a.redirect(w, r, "/settings/access?saved=account-password")
 }
 
 // requireOwner rejects non-owner hosted sessions. Local mode always passes.

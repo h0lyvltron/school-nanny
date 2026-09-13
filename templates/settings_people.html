@@ -1,0 +1,106 @@
+{{define "content"}}
+<div class="page-head">
+    <div>
+        <h1>Settings</h1>
+        <p class="muted">Kids, subjects, the school year, and the lock for this computer.</p>
+    </div>
+</div>
+
+<div id="settings-shell" class="settings-shell">
+    <div id="settings-pane" class="settings-pane">
+        {{template "settings_flash" .}}
+
+        <section class="panel" id="kids">
+            <h2>Kids</h2>
+            <p class="muted small">Photos need to be a JPEG, PNG, GIF, or WebP under 8&nbsp;MB. Phone photos from an iPhone may need to be saved as a JPEG first.</p>
+            <div class="settings-rows">
+                {{range .Kids}}
+                    <div class="settings-kid">
+                        <form method="post" action="/settings/kids" class="settings-row">
+                            <input type="hidden" name="id" value="{{.ID}}">
+                            {{template "avatar" (dict "Person" . "Size" "card")}}
+                            <input type="text" name="name" value="{{.Name}}" required aria-label="Name">
+                            <input type="text" name="grade" value="{{.Grade}}" placeholder="Grade" aria-label="Grade"
+                                   class="settings-grade" size="6">
+                            <input type="color" name="color" value="{{.Color}}" aria-label="Color">
+                            <label class="check"><input type="checkbox" name="archived" {{if .Archived}}checked{{end}}> Hide</label>
+                            <button type="submit" class="secondary">Save</button>
+                        </form>
+                        <div class="settings-photo">
+                            <form method="post" action="/settings/kids/{{.ID}}/avatar"
+                                  enctype="multipart/form-data" class="inline-form photo-form">
+                                <input type="file" name="file" accept="image/jpeg,image/png,image/gif,image/webp,.jpg,.jpeg,.png,.gif,.webp"
+                                       required aria-label="Photo for {{.Name}}">
+                                <button type="submit" class="link-button">{{if .HasPhoto}}Change photo{{else}}Add photo{{end}}</button>
+                            </form>
+                            {{if .HasPhoto}}
+                                <form method="post" action="/settings/kids/{{.ID}}/avatar/delete" class="inline-form">
+                                    <button type="submit" class="link-button danger">Remove photo</button>
+                                </form>
+                            {{end}}
+                        </div>
+                    </div>
+                {{end}}
+            </div>
+
+            <form method="post" action="/settings/kids" class="settings-row new">
+                <input type="text" name="name" placeholder="Name" required aria-label="Name">
+                <input type="text" name="grade" placeholder="Grade" aria-label="Grade"
+                       class="settings-grade" size="6">
+                <input type="color" name="color" value="{{.NextColor}}" aria-label="Color">
+                <button type="submit">Add child</button>
+            </form>
+
+            {{if .Kids}}
+                <details class="add-box">
+                    <summary class="danger">Remove a child</summary>
+                    <p class="muted small">This deletes their lessons, tests, notes, and files. There is no undo.</p>
+                    <div class="settings-rows">
+                        {{range .Kids}}
+                            <form method="post" action="/settings/kids/{{.ID}}/delete" class="settings-row">
+                                <span>{{.Name}}</span>
+                                <button type="submit" class="link-button danger"
+                                        onclick="return confirm('Remove {{.Name}} and everything recorded for them?')">Remove</button>
+                            </form>
+                        {{end}}
+                    </div>
+                </details>
+            {{end}}
+        </section>
+
+        <section class="panel">
+            <h2>Grown-ups</h2>
+            <p class="muted small">Each adult's schedule, notes, and pinboard live on their own page, away from the kids' week.</p>
+            <div class="settings-rows">
+                {{range .Adults}}
+                    <div class="settings-kid">
+                        <form method="post" action="/settings/adults" class="settings-row">
+                            <input type="hidden" name="id" value="{{.ID}}">
+                            {{template "avatar" (dict "Person" . "Size" "card")}}
+                            <input type="text" name="name" value="{{.Name}}" required aria-label="Name">
+                            <input type="text" name="role" value="{{.Role}}" placeholder="Role" aria-label="Role">
+                            <input type="color" name="color" value="{{.Color}}" aria-label="Color">
+                            <label class="check"><input type="checkbox" name="archived" {{if .Archived}}checked{{end}}> Hide</label>
+                            <button type="submit" class="secondary">Save</button>
+                        </form>
+                        <div class="settings-photo">
+                            <form method="post" action="/settings/adults/{{.ID}}/avatar"
+                                  enctype="multipart/form-data" class="inline-form photo-form">
+                                <input type="file" name="file" accept="image/jpeg,image/png,image/gif,image/webp,.jpg,.jpeg,.png,.gif,.webp"
+                                       required aria-label="Photo for {{.Name}}">
+                                <button type="submit" class="link-button">{{if .HasPhoto}}Change photo{{else}}Add photo{{end}}</button>
+                            </form>
+                            {{if .HasPhoto}}
+                                <form method="post" action="/settings/adults/{{.ID}}/avatar/delete" class="inline-form">
+                                    <button type="submit" class="link-button danger">Remove photo</button>
+                                </form>
+                            {{end}}
+                        </div>
+                    </div>
+                {{end}}
+            </div>
+        </section>
+    </div>
+    {{template "settings_aside" .}}
+</div>
+{{end}}

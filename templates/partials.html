@@ -299,14 +299,16 @@
                     hx-target="#lesson-{{.Lesson.ID}}" hx-swap="outerHTML"
                     title="Undo">Done</button>
         {{else}}
-            <input type="number" name="minutes" min="0" step="5"
-                   value="{{if .Lesson.Minutes}}{{.Lesson.Minutes}}{{end}}"
-                   placeholder="min" aria-label="Minutes" class="minutes-inline">
-            <button class="pill"
-                    hx-post="/lessons/{{.Lesson.ID}}/status"
-                    hx-include="closest .lesson-actions"
-                    hx-vals='{"status":"done","show_kid":"{{.ShowKid}}","show_subject":"{{.ShowSubject}}","back":"{{.Back}}"}'
-                    hx-target="#lesson-{{.Lesson.ID}}" hx-swap="outerHTML">Mark done</button>
+            <span class="mark-done-group">
+                <input type="number" name="minutes" min="0" step="5"
+                       value="{{if .Lesson.Minutes}}{{.Lesson.Minutes}}{{end}}"
+                       placeholder="min" aria-label="Minutes" class="minutes-inline">
+                <button class="pill"
+                        hx-post="/lessons/{{.Lesson.ID}}/status"
+                        hx-include="closest .mark-done-group"
+                        hx-vals='{"status":"done","show_kid":"{{.ShowKid}}","show_subject":"{{.ShowSubject}}","back":"{{.Back}}"}'
+                        hx-target="#lesson-{{.Lesson.ID}}" hx-swap="outerHTML">Mark done</button>
+            </span>
             {{if not .Lesson.IsSkipped}}
                 <form method="post" action="/lessons/{{.Lesson.ID}}/double-up" class="inline-form">
                     <input type="hidden" name="back" value="{{.Back}}">
@@ -744,4 +746,78 @@
         {{end}}
     </div>
 </div>
+{{end}}
+
+{{define "settings_flash"}}
+{{if .Saved}}
+    <p class="saved-flash">
+        {{if eq .Saved "restored"}}
+            Records restored. A copy of what they replaced was saved first, in the backups below.
+        {{else if eq .Saved "backup"}}
+            Backup saved.
+        {{else if eq .Saved "backup-removed"}}
+            Backup deleted.
+        {{else if eq .Saved "photo"}}
+            Photo saved.
+        {{else if eq .Saved "photo-removed"}}
+            Photo removed.
+        {{else if eq .Saved "adult"}}
+            Saved.
+        {{else if eq .Saved "imported"}}
+            Family archive imported. A backup of the previous records was kept.
+        {{else if eq .Saved "merged"}}
+            Archive merged: curriculum plans and missing files were added. School records were not replaced.
+        {{else if eq .Saved "account-password"}}
+            Account password updated.
+        {{else if eq .Saved "pin-created"}}
+            Login created{{if .NewPINWho}} for {{.NewPINWho}}{{end}}.
+            {{if .NewPIN}}PIN shown once: <strong>{{.NewPIN}}</strong>. Write it down now.{{end}}
+        {{else if eq .Saved "pin-reset"}}
+            PIN reset.{{if .NewPIN}} New PIN shown once: <strong>{{.NewPIN}}</strong>.{{end}}
+        {{else if eq .Saved "pin-revoked"}}
+            Login revoked.
+        {{else}}
+            Saved.
+        {{end}}
+    </p>
+{{end}}
+{{end}}
+
+{{define "settings_aside"}}
+<nav class="settings-aside" aria-label="Settings sections">
+    <a href="/settings/people"
+       class="{{if eq .SettingsSection "people"}}current{{end}}"
+       {{if eq .SettingsSection "people"}}aria-current="page"{{end}}
+       hx-get="/settings/people"
+       hx-target="#settings-shell"
+       hx-select="#settings-shell"
+       hx-swap="outerHTML"
+       hx-push-url="true">People</a>
+    <a href="/settings/school"
+       class="{{if eq .SettingsSection "school"}}current{{end}}"
+       {{if eq .SettingsSection "school"}}aria-current="page"{{end}}
+       hx-get="/settings/school"
+       hx-target="#settings-shell"
+       hx-select="#settings-shell"
+       hx-swap="outerHTML"
+       hx-push-url="true">School</a>
+    <a href="/settings/access"
+       class="{{if eq .SettingsSection "access"}}current{{end}}"
+       {{if eq .SettingsSection "access"}}aria-current="page"{{end}}
+       hx-get="/settings/access"
+       hx-target="#settings-shell"
+       hx-select="#settings-shell"
+       hx-swap="outerHTML"
+       hx-push-url="true">Access</a>
+    {{if .ShowDataNav}}
+    <a href="/settings/data"
+       class="{{if eq .SettingsSection "data"}}current{{end}}"
+       {{if eq .SettingsSection "data"}}aria-current="page"{{end}}
+       hx-get="/settings/data"
+       hx-target="#settings-shell"
+       hx-select="#settings-shell"
+       hx-swap="outerHTML"
+       hx-push-url="true">Data</a>
+    {{end}}
+</nav>
 {{end}}

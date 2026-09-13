@@ -70,7 +70,7 @@ func (a *App) handleKidAvatarUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	a.removeUpload(previous)
-	a.redirect(w, r, safeRedirect(r.FormValue("back"), "/settings?saved=photo"))
+	a.redirect(w, r, safeRedirect(r.FormValue("back"), "/settings/people?saved=photo"))
 }
 
 func (a *App) handleKidAvatarDelete(w http.ResponseWriter, r *http.Request) {
@@ -84,7 +84,7 @@ func (a *App) handleKidAvatarDelete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	a.removeUpload(previous)
-	a.redirect(w, r, safeRedirect(r.FormValue("back"), "/settings?saved=photo-removed"))
+	a.redirect(w, r, safeRedirect(r.FormValue("back"), "/settings/people?saved=photo-removed"))
 }
 
 // handleKidAvatarImage serves the photo itself. A child with no photo is a 404

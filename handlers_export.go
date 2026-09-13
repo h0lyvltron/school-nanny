@@ -124,14 +124,14 @@ func (a *App) handleFamilyImport(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		a.redirect(w, r, "/settings?saved=imported")
+		a.redirect(w, r, "/settings/data?saved=imported")
 	case "merge":
 		n, err := a.mergeFamilyArchive(tmpName)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		a.redirect(w, r, fmt.Sprintf("/settings?saved=merged&plans=%d", n))
+		a.redirect(w, r, fmt.Sprintf("/settings/data?saved=merged&plans=%d", n))
 	default:
 		http.Error(w, "Choose Replace or Merge.", http.StatusBadRequest)
 	}

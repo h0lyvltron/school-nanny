@@ -1,0 +1,109 @@
+{{define "content"}}
+<div class="page-head">
+    <div>
+        <h1>Settings</h1>
+        <p class="muted">Kids, subjects, the school year, and the lock for this computer.</p>
+    </div>
+</div>
+
+<div id="settings-shell" class="settings-shell">
+    <div id="settings-pane" class="settings-pane">
+        {{template "settings_flash" .}}
+
+        <section class="panel">
+            {{if .Hosted}}
+            {{if .IsOwner}}
+            <h2>Account password</h2>
+            <p class="muted small">
+                Signed in as <strong>{{.AccountEmail}}</strong>. Change the password for this parent account.
+                {{if .FamilySlug}} Family code for PIN logins: <code>{{.FamilySlug}}</code>{{end}}
+            </p>
+            <form method="post" action="/settings/account-password" class="settings-row new">
+                <input type="password" name="password" placeholder="New password" autocomplete="new-password" required>
+                <button type="submit">Save password</button>
+            </form>
+            {{else}}
+            <h2>Signed in</h2>
+            <p class="muted small">
+                {{with .AuthDisplayName}}{{.}}{{else}}Household login{{end}}
+                {{if .FamilySlug}} · family code <code>{{.FamilySlug}}</code>{{end}}
+            </p>
+            {{end}}
+            {{else}}
+            <h2>Lock this app</h2>
+            {{if .HasPassword}}
+                <p class="muted small">A password is set. Type a new one to change it, or save it empty to remove the lock.</p>
+            {{else}}
+                <p class="muted small">Optional. Set a password if this computer is shared or the app is on the home network.</p>
+            {{end}}
+            <form method="post" action="/settings/password" class="settings-row new">
+                <input type="password" name="password" placeholder="Family password" autocomplete="new-password">
+                <button type="submit">Save password</button>
+            </form>
+            {{end}}
+        </section>
+
+        {{if and .Hosted (or .IsOwner .CanManageKidLogins)}}
+        <section class="panel" id="household-logins">
+            <h2>Household logins</h2>
+            <p class="muted small">
+                Issue a username and PIN for co-parents, caregivers, or kids. PINs are 4–8 digits.
+                The family code is <code>{{.FamilySlug}}</code>.
+            </p>
+            {{if .Memberships}}
+            <div class="settings-rows">
+                {{range .Memberships}}
+                    {{if ne .Role "owner"}}
+                    <div class="settings-row">
+                        <strong>{{.DisplayName}}</strong>
+                        <span class="muted small">{{.Username}} · {{.Role}}{{if eq .Status "revoked"}} · revoked{{end}}</span>
+                        {{if eq .Status "active"}}
+                        {{if or $.IsOwner (eq .Role "kid")}}
+                        <form method="post" action="/settings/pins/{{.ID}}/reset" class="inline-form">
+                            <input type="password" name="pin" placeholder="New PIN" inputmode="numeric"
+                                   pattern="[0-9]{4,8}" maxlength="8" required aria-label="New PIN">
+                            <button type="submit" class="secondary">Reset PIN</button>
+                        </form>
+                        {{end}}
+                        {{if $.IsOwner}}
+                        <form method="post" action="/settings/pins/{{.ID}}/revoke" class="inline-form"
+                              onsubmit="return confirm('Revoke this login?')">
+                            <button type="submit" class="link-button danger">Revoke</button>
+                        </form>
+                        {{end}}
+                        {{end}}
+                    </div>
+                    {{end}}
+                {{end}}
+            </div>
+            {{end}}
+            <form method="post" action="/settings/pins" class="settings-row new">
+                <input type="text" name="display_name" placeholder="Name" required>
+                <input type="text" name="username" placeholder="Username" required>
+                <input type="password" name="pin" placeholder="PIN" inputmode="numeric"
+                       pattern="[0-9]{4,8}" maxlength="8" required>
+                <select name="role" aria-label="Role" required>
+                    {{if $.IsOwner}}
+                    <option value="co_parent">Co-parent</option>
+                    <option value="teacher">Teacher</option>
+                    <option value="caregiver">Caregiver</option>
+                    {{end}}
+                    <option value="kid">Kid</option>
+                </select>
+                <select name="kid_id" aria-label="Child for kid login">
+                    <option value="">Child (kid logins)</option>
+                    {{range .Kids}}
+                        {{if not .Archived}}<option value="{{.ID}}">{{.Name}}</option>{{end}}
+                    {{end}}
+                </select>
+                {{if $.IsOwner}}
+                <label class="check"><input type="checkbox" name="can_manage_kid_logins" value="1"> Can manage kid PINs</label>
+                {{end}}
+                <button type="submit">Create login</button>
+            </form>
+        </section>
+        {{end}}
+    </div>
+    {{template "settings_aside" .}}
+</div>
+{{end}}

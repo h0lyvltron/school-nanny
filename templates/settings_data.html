@@ -1,0 +1,95 @@
+{{define "content"}}
+<div class="page-head">
+    <div>
+        <h1>Settings</h1>
+        <p class="muted">Kids, subjects, the school year, and the lock for this computer.</p>
+    </div>
+</div>
+
+<div id="settings-shell" class="settings-shell">
+    <div id="settings-pane" class="settings-pane">
+        {{template "settings_flash" .}}
+
+        <section class="panel" id="family-export">
+            <h2>Family export / import</h2>
+            <p class="muted small">
+                Download a zip of this family's records and attached files, or bring one
+                back in. The zip holds the database, uploads, and plain-text copies of
+                your curriculum plans.
+            </p>
+            <p class="settings-row new">
+                <a href="/settings/export">Download family archive</a>
+            </p>
+            <form method="post" action="/settings/import" enctype="multipart/form-data" class="stack">
+                <input type="file" name="archive" accept=".zip,application/zip" required>
+                <fieldset class="import-modes">
+                    <legend class="muted small">Import mode</legend>
+                    <label class="check">
+                        <input type="radio" name="mode" value="merge" checked>
+                        <strong>Merge</strong> — keep what you have; add curriculum plans and any missing files from the zip
+                    </label>
+                    <label class="check">
+                        <input type="radio" name="mode" value="replace">
+                        <strong>Replace</strong> — throw out this family's current records and files and put the zip in their place
+                    </label>
+                </fieldset>
+                <p class="muted small">
+                    Replace asks you to type <code>REPLACE</code> below so it is hard to
+                    do by accident. Either way, a backup of the current records is saved
+                    first.
+                </p>
+                <input type="text" name="confirm_replace" placeholder="Type REPLACE only for replace"
+                       autocomplete="off" aria-label="Confirm replace">
+                <button type="submit">Import archive</button>
+            </form>
+        </section>
+
+        <section class="panel" id="backups">
+            <h2>Backups</h2>
+            <p class="muted small">
+                A backup of the records is saved automatically the first time the app
+                opens each day. You can also make one now and download or restore it
+                later.
+            </p>
+
+            <form method="post" action="/settings/backups" class="settings-row new">
+                <button type="submit">Back up now</button>
+            </form>
+
+            {{if .Backups}}
+                <ul class="backups">
+                    {{range .Backups}}
+                        <li>
+                            <div class="backup-when">
+                                <strong>{{.TakenLabel}}</strong>
+                                {{if .BeforeRestore}}<span class="pill ghost">kept before a restore</span>{{end}}
+                                <span class="muted small">{{.SizeLabel}}</span>
+                            </div>
+                            <div class="backup-actions">
+                                <a href="/settings/backups/{{.Name}}" class="small">Download</a>
+                                <form method="post" action="/settings/backups/{{.Name}}/restore" class="inline-form">
+                                    <button type="submit" class="link-button"
+                                            onclick="return confirm('Put the records back to {{.TakenLabel}}? Everything since then is replaced. A copy of the current records is saved first, so this can be undone.')">Restore</button>
+                                </form>
+                                <form method="post" action="/settings/backups/{{.Name}}/delete" class="inline-form">
+                                    <button type="submit" class="link-button danger"
+                                            onclick="return confirm('Delete the backup from {{.TakenLabel}}?')">Delete</button>
+                                </form>
+                            </div>
+                        </li>
+                    {{end}}
+                </ul>
+            {{else}}
+                <p class="muted small">No backups yet. One appears here after the first day of use.</p>
+            {{end}}
+
+            <p class="muted small">
+                These backups hold lessons, tests, and notes, but not attached files.
+                Use <a href="#family-export">Family export / import</a> when you need a
+                zip that includes attachments and curriculum copies.
+            </p>
+        </section>
+    </div>
+    {{template "settings_aside" .}}
+</div>
+{{end}}

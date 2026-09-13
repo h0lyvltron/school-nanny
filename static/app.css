@@ -477,7 +477,15 @@ a.today-event:hover {
 .lesson.status-skipped { opacity: 0.65; }
 .lesson.is-overdue { border-left-color: var(--warn); }
 
-.lesson-body { min-width: 0; }
+.lesson-body {
+    min-width: 0;
+    flex: 1 1 auto;
+}
+
+.lesson-meta,
+.lesson-title {
+    overflow-wrap: break-word;
+}
 
 .lesson-title-line {
     display: flex;
@@ -533,14 +541,18 @@ a.today-event:hover {
 .lesson-actions { display: flex; gap: 0.35rem; flex: none; flex-wrap: wrap; }
 .lesson-actions form { display: contents; }
 
-/* In a day cell or a child's card on Today the card is narrow, so the buttons
-   drop below the title instead of squeezing it into a column. The wider lists
-   elsewhere keep them out to the right. */
+/* In a day cell, a child's Today card, or any stacked list the card is narrow,
+   so the buttons drop below the title instead of squeezing the text into a
+   single-character column. */
 .day-lessons .lesson,
-.today-lessons .lesson { flex-direction: column; gap: 0.5rem; }
+.today-lessons .lesson,
+.archive-lessons .lesson,
+.stack > .lesson { flex-direction: column; gap: 0.5rem; }
 
 .day-lessons .lesson-actions,
-.today-lessons .lesson-actions { align-self: flex-start; }
+.today-lessons .lesson-actions,
+.archive-lessons .lesson-actions,
+.stack > .lesson > .lesson-actions { align-self: flex-start; max-width: 100%; }
 
 .pill {
     background: var(--card);
@@ -932,6 +944,65 @@ body.is-dragging-lesson .drop-kids { display: flex; }
 
 .field-row { display: flex; gap: 0.75rem; flex-wrap: wrap; }
 .field-row label { flex: 1 1 8rem; }
+
+.settings-shell {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 11rem;
+    gap: 1.25rem 1.5rem;
+    align-items: start;
+}
+
+.settings-aside {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    position: sticky;
+    top: 1rem;
+}
+
+.settings-aside a {
+    display: block;
+    padding: 0.45rem 0.7rem 0.45rem 0.85rem;
+    border-radius: 0.4rem;
+    color: var(--ink-soft);
+    text-decoration: none;
+    border-left: 3px solid transparent;
+}
+
+.settings-aside a:hover {
+    background: color-mix(in srgb, var(--accent-soft) 45%, transparent);
+    color: var(--ink);
+}
+
+.settings-aside a.current,
+.settings-aside a[aria-current="page"] {
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-weight: 600;
+    border-left-color: var(--accent);
+}
+
+@media (max-width: 720px) {
+    .settings-shell {
+        grid-template-columns: 1fr;
+    }
+    .settings-aside {
+        position: static;
+        flex-direction: row;
+        flex-wrap: wrap;
+        order: -1;
+        gap: 0.35rem;
+    }
+    .settings-aside a {
+        border-left-width: 0;
+        border-bottom: 3px solid transparent;
+        padding: 0.4rem 0.75rem;
+    }
+    .settings-aside a.current,
+    .settings-aside a[aria-current="page"] {
+        border-bottom-color: var(--accent);
+    }
+}
 
 .settings-rows { display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 0.75rem; }
 
@@ -1579,11 +1650,22 @@ a.plan-row:hover .muted { color: var(--ink-soft); }
 }
 
 .minutes-inline {
-    width: 4.5rem;
+    /* Beat Pico's `input { width: 100% }` so this field cannot eat the lesson row. */
+    width: 4.5rem !important;
+    max-width: 4.5rem;
     min-width: 4.5rem;
+    flex: 0 0 4.5rem;
     padding: 0.2rem 0.35rem;
     margin: 0;
     font-size: 0.85rem;
+    height: auto;
+}
+
+.lesson-actions .mark-done-group {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    flex: 0 0 auto;
 }
 
 .records-table {

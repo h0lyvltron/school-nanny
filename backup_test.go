@@ -2,6 +2,7 @@ package main
 
 import (
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -271,13 +272,101 @@ func TestSettingsPageHidesDataDirectory(t *testing.T) {
 		t.Fatalf("making a backup: %v", err)
 	}
 
-	status, body := ta.get("/settings")
+	status, body := ta.get("/settings/data")
 	if status != http.StatusOK {
 		t.Fatalf("settings returned %d", status)
 	}
 	mustNotContain(t, body, ta.dataDir, "settings page")
 	mustContain(t, body, "Back up now", "settings page")
 	mustContain(t, body, "/restore", "settings page")
+}
+
+func TestSettingsSubpages(t *testing.T) {
+	ta := newTestApp(t)
+	ta.addKid("Mia")
+
+	client := &http.Client{
+		CheckRedirect: func(*http.Request, []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+	resp, err := client.Get(ta.server.URL + "/settings")
+	if err != nil {
+		t.Fatalf("GET /settings: %v", err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusSeeOther || resp.Header.Get("Location") != "/settings/people" {
+		t.Fatalf("GET /settings → %d %s", resp.StatusCode, resp.Header.Get("Location"))
+	}
+
+	cases := []struct {
+		path, heading string
+	}{
+		{"/settings/people", "Kids"},
+		{"/settings/school", "Subjects"},
+		{"/settings/access", "Lock this app"},
+		{"/settings/data", "Backups"},
+	}
+	for _, tc := range cases {
+		status, body := ta.get(tc.path)
+		if status != http.StatusOK {
+			t.Fatalf("%s returned %d", tc.path, status)
+		}
+		mustContain(t, body, tc.heading, tc.path)
+		mustContain(t, body, `id="settings-shell"`, tc.path+" shell")
+		mustContain(t, body, `aria-current="page"`, tc.path+" current section")
+		mustContain(t, body, `hx-target="#settings-shell"`, tc.path+" htmx")
+	}
+
+	status, body := ta.get("/settings/people?saved=kid")
+	if status != http.StatusOK {
+		t.Fatalf("people flash: %d", status)
+	}
+	mustContain(t, body, "Saved.", "flash after kid save")
+
+	status, _ = ta.get("/settings/nope")
+	if status != http.StatusNotFound {
+		t.Fatalf("unknown section want 404 got %d", status)
+	}
+}
+
+func TestSettingsDataOwnerGate(t *testing.T) {
+	ta := newHostedTestApp(t, "")
+	ta.postForm("/signup", url.Values{
+		"email":       {"owner@example.com"},
+		"password":    {"owner-pass-word"},
+		"family_name": {"Data Family"},
+	})
+	code, body, _ := ta.postForm("/settings/pins", url.Values{
+		"display_name": {"Co"},
+		"username":     {"co"},
+		"pin":          {"1234"},
+		"role":         {"co_parent"},
+	})
+	if code != 200 || !strings.Contains(body, "PIN shown once") {
+		t.Fatalf("create co_parent: %d", code)
+	}
+	fams := mustListFamilies(t, ta)
+	slug := fams[0].Slug
+
+	ta.post("/logout", url.Values{})
+	ta.postForm("/login", url.Values{
+		"method":      {"pin"},
+		"family_slug": {slug},
+		"username":    {"co"},
+		"pin":         {"1234"},
+	})
+	code, body = ta.get("/settings/people")
+	if code != 200 {
+		t.Fatalf("co_parent people: %d", code)
+	}
+	if strings.Contains(body, `hx-get="/settings/data"`) || strings.Contains(body, `>Data</a>`) {
+		t.Fatal("co_parent should not see Data in the section list")
+	}
+	code, _ = ta.get("/settings/data")
+	if code != 403 {
+		t.Fatalf("co_parent data want 403 got %d", code)
+	}
 }
 
 // Moving to the per-user folder must not look like losing everything, so an

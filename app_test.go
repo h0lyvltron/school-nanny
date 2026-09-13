@@ -2566,7 +2566,7 @@ func TestFamilyExportIncludesCurriculumYAML(t *testing.T) {
 		t.Fatal("family zip missing curriculum/all.yaml")
 	}
 
-	_, settings := ta.get("/settings")
+	_, settings := ta.get("/settings/data")
 	mustContain(t, settings, "curriculum plans", "settings mentions curriculum in the zip")
 	mustContain(t, settings, "Merge", "settings offers merge import")
 	mustContain(t, settings, "Replace", "settings offers replace import")
@@ -2761,7 +2761,7 @@ func TestSubjectColorReachesTheLessonTitle(t *testing.T) {
 	mustContain(t, planner, "--subject:#b8437a", "the planner's lesson card")
 	mustContain(t, planner, `<span class="lesson-subject">Math</span>`, "the planner's subject label")
 
-	_, settings := ta.get("/settings")
+	_, settings := ta.get("/settings/school")
 	mustContain(t, settings, `value="#b8437a"`, "subject color picker")
 }
 

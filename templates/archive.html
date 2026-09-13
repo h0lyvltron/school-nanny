@@ -7,7 +7,7 @@
 </div>
 
 {{if or (not .Kids) (not .Years)}}
-    <p class="muted">Archive needs at least one child and one school year in <a href="/settings">Settings</a>.</p>
+    <p class="muted">Archive needs at least one child and one school year in <a href="/settings/people">Settings</a>.</p>
 {{else}}
     <form method="get" action="/archive" class="planner-controls">
         <div class="inline-grid">
@@ -94,7 +94,7 @@
     <div class="two-col">
         <section class="panel">
             <h2>Lessons</h2>
-            <div class="stack">
+            <div class="stack archive-lessons">
                 {{range .Lessons}}
                     {{template "lesson_row" (dict "Lesson" . "ShowKid" false "ShowSubject" true "Back" "/archive")}}
                 {{else}}

@@ -4,21 +4,21 @@
         <h1>Welcome to School Nanny</h1>
         <p>Plan the week and keep the year in one place. A short checklist gets you ready to plan.</p>
         <ol class="setup-checklist">
-            <li><a href="/settings#years">Set the school year dates</a></li>
-            <li><a href="/settings">Add the kids</a></li>
-            <li><a href="/settings#subjects">Keep the subjects you use</a></li>
+            <li><a href="/settings/school#years">Set the school year dates</a></li>
+            <li><a href="/settings/people">Add the kids</a></li>
+            <li><a href="/settings/school#subjects">Keep the subjects you use</a></li>
             <li class="optional"><a href="/curriculum">Optional: paste a book TOC or import a plan</a></li>
         </ol>
-        <a href="/settings" role="button">Open Settings</a>
+        <a href="/settings/people" role="button">Open Settings</a>
     </section>
 {{else}}
     {{if .ShowSetup}}
     <section class="setup-banner panel">
         <h2>Finish getting set up</h2>
         <ol class="setup-checklist">
-            <li class="{{if .Setup.HasYear}}done{{end}}">{{if .Setup.HasYear}}School year is set{{else}}<a href="/settings#years">Set the school year dates</a>{{end}}</li>
-            <li class="{{if .Setup.HasKids}}done{{end}}">{{if .Setup.HasKids}}Kids are ready{{else}}<a href="/settings">Add the kids</a>{{end}}</li>
-            <li class="{{if .Setup.HasSubjects}}done{{end}}">{{if .Setup.HasSubjects}}Subjects are ready{{else}}<a href="/settings#subjects">Choose subjects</a>{{end}}</li>
+            <li class="{{if .Setup.HasYear}}done{{end}}">{{if .Setup.HasYear}}School year is set{{else}}<a href="/settings/school#years">Set the school year dates</a>{{end}}</li>
+            <li class="{{if .Setup.HasKids}}done{{end}}">{{if .Setup.HasKids}}Kids are ready{{else}}<a href="/settings/people">Add the kids</a>{{end}}</li>
+            <li class="{{if .Setup.HasSubjects}}done{{end}}">{{if .Setup.HasSubjects}}Subjects are ready{{else}}<a href="/settings/school#subjects">Choose subjects</a>{{end}}</li>
             <li class="optional {{if .Setup.HasCurriculum}}done{{end}}">{{if .Setup.HasCurriculum}}Curriculum plan ready{{else}}<a href="/curriculum">Optional: paste a TOC or import a plan</a>{{end}}</li>
         </ol>
     </section>

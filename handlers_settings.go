@@ -8,7 +8,25 @@ import (
 	"time"
 )
 
+const (
+	settingsPeople = "people"
+	settingsSchool = "school"
+	settingsAccess = "access"
+	settingsData   = "data"
+)
+
 func (a *App) handleSettings(w http.ResponseWriter, r *http.Request) {
+	http.Redirect(w, r, "/settings/people", http.StatusSeeOther)
+}
+
+func (a *App) handleSettingsSection(w http.ResponseWriter, r *http.Request) {
+	section := r.PathValue("section")
+	switch section {
+	case settingsPeople, settingsSchool, settingsAccess, settingsData:
+	default:
+		a.notFound(w)
+		return
+	}
 	if !a.requireNotKid(w, r) {
 		return
 	}
@@ -18,38 +36,43 @@ func (a *App) handleSettings(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	data, err := a.pageData(r, "settings")
+	if section == settingsData && !a.requireOwner(w, r) {
+		return
+	}
+
+	data, err := a.settingsPageData(r, section)
 	if err != nil {
 		a.serverError(w, err)
 		return
+	}
+	a.render(w, "settings_"+section, data)
+}
+
+func (a *App) settingsPageData(r *http.Request, section string) (map[string]any, error) {
+	data, err := a.pageData(r, "settings")
+	if err != nil {
+		return nil, err
 	}
 
 	kids, err := a.store.Kids(true)
 	if err != nil {
-		a.serverError(w, err)
-		return
+		return nil, err
 	}
 	subjects, err := a.store.Subjects(true)
 	if err != nil {
-		a.serverError(w, err)
-		return
+		return nil, err
 	}
 	years, err := a.store.SchoolYears()
 	if err != nil {
-		a.serverError(w, err)
-		return
+		return nil, err
 	}
-
 	adults, err := a.store.Adults(true)
 	if err != nil {
-		a.serverError(w, err)
-		return
+		return nil, err
 	}
-
 	backups, err := a.Backups()
 	if err != nil {
-		a.serverError(w, err)
-		return
+		return nil, err
 	}
 
 	data["Kids"] = kids
@@ -64,17 +87,19 @@ func (a *App) handleSettings(w http.ResponseWriter, r *http.Request) {
 	data["NewPIN"] = r.URL.Query().Get("pin")
 	data["NewPINWho"] = r.URL.Query().Get("who")
 	data["Backups"] = backups
+	data["SettingsSection"] = section
+	data["ShowDataNav"] = !a.hosted || data["IsOwner"] == true
+
 	if a.hosted {
 		if sess := sessionFrom(r); sess != nil && (sess.IsOwner() || sess.CanManageKidLogins) {
 			members, err := a.control.ListMemberships(sess.FamilyID)
 			if err != nil {
-				a.serverError(w, err)
-				return
+				return nil, err
 			}
 			data["Memberships"] = members
 		}
 	}
-	a.render(w, "settings", data)
+	return data, nil
 }
 
 // kidPalette gives each child a distinct, readable color without asking the
@@ -117,7 +142,7 @@ func (a *App) handleSaveKid(w http.ResponseWriter, r *http.Request) {
 		a.serverError(w, err)
 		return
 	}
-	a.redirect(w, r, "/settings?saved=kid")
+	a.redirect(w, r, "/settings/people?saved=kid")
 }
 
 func (a *App) handleDeleteKid(w http.ResponseWriter, r *http.Request) {
@@ -134,7 +159,7 @@ func (a *App) handleDeleteKid(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	a.removeUpload(kid.AvatarPath)
-	a.redirect(w, r, "/settings?saved=kid-removed")
+	a.redirect(w, r, "/settings/people?saved=kid-removed")
 }
 
 func (a *App) handleSaveSubject(w http.ResponseWriter, r *http.Request) {
@@ -162,7 +187,7 @@ func (a *App) handleSaveSubject(w http.ResponseWriter, r *http.Request) {
 		a.serverError(w, err)
 		return
 	}
-	a.redirect(w, r, "/settings?saved=subject")
+	a.redirect(w, r, "/settings/school?saved=subject")
 }
 
 func (a *App) handleDeleteSubject(w http.ResponseWriter, r *http.Request) {
@@ -170,7 +195,7 @@ func (a *App) handleDeleteSubject(w http.ResponseWriter, r *http.Request) {
 		a.serverError(w, err)
 		return
 	}
-	a.redirect(w, r, "/settings?saved=subject-removed")
+	a.redirect(w, r, "/settings/school?saved=subject-removed")
 }
 
 func (a *App) handleSaveSchoolYear(w http.ResponseWriter, r *http.Request) {
@@ -200,7 +225,7 @@ func (a *App) handleSaveSchoolYear(w http.ResponseWriter, r *http.Request) {
 		a.serverError(w, err)
 		return
 	}
-	a.redirect(w, r, "/settings?saved=year")
+	a.redirect(w, r, "/settings/school?saved=year")
 }
 
 func (a *App) handleDeleteSchoolYear(w http.ResponseWriter, r *http.Request) {
@@ -208,7 +233,7 @@ func (a *App) handleDeleteSchoolYear(w http.ResponseWriter, r *http.Request) {
 		a.serverError(w, err)
 		return
 	}
-	a.redirect(w, r, "/settings?saved=year-removed")
+	a.redirect(w, r, "/settings/school?saved=year-removed")
 }
 
 func (a *App) handleSavePassword(w http.ResponseWriter, r *http.Request) {
@@ -228,7 +253,7 @@ func (a *App) handleSavePassword(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		a.clearSession(w)
-		a.redirect(w, r, "/settings?saved=password-cleared")
+		a.redirect(w, r, "/settings/access?saved=password-cleared")
 		return
 	}
 
@@ -242,7 +267,7 @@ func (a *App) handleSavePassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	a.issueSession(w)
-	a.redirect(w, r, "/settings?saved=password")
+	a.redirect(w, r, "/settings/access?saved=password")
 }
 
 func (a *App) handleSaveTimezone(w http.ResponseWriter, r *http.Request) {
@@ -259,7 +284,7 @@ func (a *App) handleSaveTimezone(w http.ResponseWriter, r *http.Request) {
 			a.serverError(w, err)
 			return
 		}
-		a.redirect(w, r, "/settings?saved=timezone")
+		a.redirect(w, r, "/settings/school?saved=timezone")
 		return
 	}
 	if loadLocation(raw) == nil {
@@ -270,7 +295,7 @@ func (a *App) handleSaveTimezone(w http.ResponseWriter, r *http.Request) {
 		a.serverError(w, err)
 		return
 	}
-	a.redirect(w, r, "/settings?saved=timezone")
+	a.redirect(w, r, "/settings/school?saved=timezone")
 }
 
 // Backups --------------------------------------------------------------------
@@ -283,7 +308,7 @@ func (a *App) handleMakeBackup(w http.ResponseWriter, r *http.Request) {
 		a.serverError(w, err)
 		return
 	}
-	a.redirect(w, r, "/settings?saved=backup")
+	a.redirect(w, r, "/settings/data?saved=backup")
 }
 
 func (a *App) handleRestoreBackup(w http.ResponseWriter, r *http.Request) {
@@ -299,7 +324,7 @@ func (a *App) handleRestoreBackup(w http.ResponseWriter, r *http.Request) {
 		a.serverError(w, err)
 		return
 	}
-	a.redirect(w, r, "/settings?saved=restored")
+	a.redirect(w, r, "/settings/data?saved=restored")
 }
 
 func (a *App) handleDeleteBackup(w http.ResponseWriter, r *http.Request) {
@@ -315,7 +340,7 @@ func (a *App) handleDeleteBackup(w http.ResponseWriter, r *http.Request) {
 		a.serverError(w, err)
 		return
 	}
-	a.redirect(w, r, "/settings?saved=backup-removed")
+	a.redirect(w, r, "/settings/data?saved=backup-removed")
 }
 
 // handleDownloadBackup hands over a snapshot so it can be kept somewhere other
