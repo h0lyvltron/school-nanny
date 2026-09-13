@@ -31,12 +31,17 @@ product centers.
 
 ## Already strong (protect; don’t dilute)
 
+Code inventory (2026-09-13) matches this table; partials are called out in the waves below.
+
 | Behavior | Notes |
 | --- | --- |
 | Multi-child Today + week planner | Table stakes; keep fast |
 | Drag move / Ctrl-copy / copy-to-child chips | Differentiator—keep polishing |
-| Recurring series | Foundation for bump/reschedule |
-| Lesson files + tests/scores | Records spine |
+| Recurring series + assignment push/pull | Foundation for bump/reschedule (W1.1 extends with policies) |
+| Lesson **minutes** + progress hour labels | Foundation for hours reports (W3.1 aggregates / surfaces) |
+| Lesson files + tests/scores | Records spine; not yet course GPA / transcripts |
+| Attendance present/absent/excused + archive totals | Have; hours packaging and transcript still Wave 3 |
+| Curriculum plans + YAML/CSV **import** + archive→plan | Have; TOC-in-app + YAML **download** still Wave 0 |
 | Adult pinboard + adult week (off kid progress) | Distinctive; do not merge into “life OS” |
 | Family zip export + local/LAN + hosted Coolify | Moat vs cloud-only planners |
 | Invite-gated family create | Fits private deploy story |
@@ -79,6 +84,10 @@ Highest emotional parity with Planet/Scholaric/Syllabird *and* the #1 WTM ask
 ### W1.1 — Miss-day / bump with policy picker
 
 **Problem:** Life happens; tools that only delete or leave orphans lose trust.
+
+**Foundation we already have:** manual drag move, skip status, and assignment
+**push/pull** along a series. Wave 1 adds an explicit **policy picker** and
+vacation-range shift—not a greenfield scheduler.
 
 **Behavior:**
 
@@ -177,10 +186,14 @@ Attendance exists; tests/scores exist. Forum + Tracker/OSS still demand packaged
 
 ### W3.1 — Hours alongside attendance
 
+**Foundation we already have:** lessons store **minutes**; progress already
+exposes hour-style labels in places. Wave 3 is packaging for oversight—not a
+new time field from scratch.
+
 **Behavior:**
 
-- Optional duration on completed lessons and/or daily hours per kid/subject.
-- Year/term report: hours by subject and total.
+- Ensure minutes are easy to enter on complete / log-unplanned flows.
+- Year/term report: hours by subject and total (with attendance).
 
 **Acceptance:** Parent can show “X hours of Math this year” from the app.
 
