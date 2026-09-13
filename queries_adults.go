@@ -60,7 +60,7 @@ func (s *Store) SetAdultAvatar(id int64, storedPath string) (string, error) {
 	return previous, nil
 }
 
-// EnsureDefaultAdult gives the family one grown-up to work with, so her pages
+// EnsureDefaultAdult gives the family one grown-up to work with, so adult pages
 // exist without anyone having to set them up first. The name is only a
 // starting point; Settings can change it.
 func (s *Store) EnsureDefaultAdult() error {
@@ -72,7 +72,7 @@ func (s *Store) EnsureDefaultAdult() error {
 		return nil
 	}
 	_, err := s.db().Exec(`INSERT INTO adults (name, role, color, sort_order) VALUES (?, ?, ?, 1)`,
-		"Mom", "Mom", "#8d78e0")
+		"Parent", "Parent", "#8d78e0")
 	return err
 }
 

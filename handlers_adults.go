@@ -287,7 +287,7 @@ func rangeLabel(from, to, today string) string {
 	return prettyDateOn(from, today) + " - " + prettyDateOn(to, today)
 }
 
-// handleCreateAdultEvent writes something onto her calendar. The end date is
+// handleCreateAdultEvent writes something onto an adult calendar. The end date is
 // optional: leaving it off means a single day.
 func (a *App) handleCreateAdultEvent(w http.ResponseWriter, r *http.Request) {
 	adult, ok := a.lookupAdult(w, r)
@@ -659,7 +659,7 @@ func (a *App) renderAdultDay(w http.ResponseWriter, r *http.Request, adult Adult
 	}
 }
 
-// handleCreateAdultLesson books something on her calendar. It is a lesson row
+// handleCreateAdultLesson books something on an adult calendar. It is a lesson row
 // like any other, which is what lets her week reuse the planner's machinery.
 func (a *App) handleCreateAdultLesson(w http.ResponseWriter, r *http.Request) {
 	adult, ok := a.lookupAdult(w, r)
@@ -801,7 +801,7 @@ func (a *App) handleSaveAdult(w http.ResponseWriter, r *http.Request) {
 	}
 	role := strings.TrimSpace(r.FormValue("role"))
 	if role == "" {
-		role = "Mom"
+		role = "Parent"
 	}
 	color := strings.TrimSpace(r.FormValue("color"))
 	if color == "" {

@@ -587,11 +587,11 @@ func TestPlannerMarkupIsDraggable(t *testing.T) {
 // shows her own schedule rather than theirs.
 func TestPlannerFiltersByTheParent(t *testing.T) {
 	ta := newTestApp(t)
-	mom := ta.mom()
+	parent := ta.parent()
 	kid := ta.addKid("Mia")
 	date := today()
 	ta.insertUnassignedLesson(kid, ta.mathSubjectID(), date, "Long division", "")
-	ta.post("/adults/"+itoa64(mom.ID)+"/schedule", url.Values{
+	ta.post("/adults/"+itoa64(parent.ID)+"/schedule", url.Values{
 		"subject_id":   {itoa64(ta.mathSubjectID())},
 		"scheduled_on": {date},
 		"title":        {"Dentist"},
@@ -601,29 +601,29 @@ func TestPlannerFiltersByTheParent(t *testing.T) {
 	if status != http.StatusOK {
 		t.Fatalf("planner returned %d", status)
 	}
-	mustContain(t, body, `href="/planner?week=`+weekStart(parseDate(date)).Format(dateLayout)+`&amp;adult=`+itoa64(mom.ID)+`"`, "parent chip")
+	mustContain(t, body, `href="/planner?week=`+weekStart(parseDate(date)).Format(dateLayout)+`&amp;adult=`+itoa64(parent.ID)+`"`, "parent chip")
 	mustContain(t, body, "Long division", "all kids")
 	mustNotContain(t, body, "Dentist", "all kids")
 
-	status, hers := ta.get(plannerFilterURL(weekStart(parseDate(date)).Format(dateLayout), 0, mom.ID))
+	status, hers := ta.get(plannerFilterURL(weekStart(parseDate(date)).Format(dateLayout), 0, parent.ID))
 	if status != http.StatusOK {
 		t.Fatalf("parent filter returned %d", status)
 	}
 	mustContain(t, hers, "Dentist", "parent week")
 	mustNotContain(t, hers, "Long division", "parent week")
-	mustContain(t, hers, `data-adult-filter="`+itoa64(mom.ID)+`"`, "parent week")
-	mustContain(t, hers, `hx-post="/adults/`+itoa64(mom.ID)+`/schedule"`, "parent week")
+	mustContain(t, hers, `data-adult-filter="`+itoa64(parent.ID)+`"`, "parent week")
+	mustContain(t, hers, `hx-post="/adults/`+itoa64(parent.ID)+`/schedule"`, "parent week")
 }
 
 // Calendar events paint onto the week days so she can see appointments without
 // leaving the planner; the sliding toggle only hides them in the browser.
 func TestPlannerShowsCalendarEventsOnTheDays(t *testing.T) {
 	ta := newTestApp(t)
-	mom := ta.mom()
+	parent := ta.parent()
 	start := weekStart(parseDate(today())).Format(dateLayout)
 	wednesday := addDays(start, 2)
 	_, err := ta.store.CreateAdultEvent(AdultEvent{
-		AdultID:  mom.ID,
+		AdultID:  parent.ID,
 		StartsOn: wednesday,
 		EndsOn:   addDays(wednesday, 1),
 		Title:    "Field trip",
@@ -644,13 +644,13 @@ func TestPlannerShowsCalendarEventsOnTheDays(t *testing.T) {
 	mustContain(t, body, `data-week-events`, "events toggle")
 }
 
-// Today lists what is on her calendar under the date, before the kids' cards.
+// Today lists what is on the adult calendar under the date, before the kids' cards.
 func TestTodayListsCalendarEventsAboveTheKids(t *testing.T) {
 	ta := newTestApp(t)
-	mom := ta.mom()
+	parent := ta.parent()
 	ta.addKid("Mia")
 	_, err := ta.store.CreateAdultEvent(AdultEvent{
-		AdultID:  mom.ID,
+		AdultID:  parent.ID,
 		StartsOn: today(),
 		EndsOn:   today(),
 		Title:    "Piano recital",
@@ -939,7 +939,7 @@ func TestUpgradingToAdultsKeepsExistingRecords(t *testing.T) {
 
 // The family always has one grown-up to work with, without anyone having to
 // set her up first.
-func (ta *testApp) mom() Adult {
+func (ta *testApp) parent() Adult {
 	ta.t.Helper()
 	adults, err := ta.store.Adults(false)
 	if err != nil {
@@ -953,12 +953,12 @@ func (ta *testApp) mom() Adult {
 
 func TestDefaultAdultIsReadyToUse(t *testing.T) {
 	ta := newTestApp(t)
-	mom := ta.mom()
-	if mom.Name != "Mom" {
-		t.Errorf("expected the default adult to be called Mom, got %q", mom.Name)
+	parent := ta.parent()
+	if parent.Name != "Parent" {
+		t.Errorf("expected the default adult to be called Parent, got %q", parent.Name)
 	}
 
-	status, body := ta.get("/adults/" + itoa64(mom.ID))
+	status, body := ta.get("/adults/" + itoa64(parent.ID))
 	if status != http.StatusOK {
 		t.Fatalf("her profile returned %d", status)
 	}
@@ -967,20 +967,20 @@ func TestDefaultAdultIsReadyToUse(t *testing.T) {
 
 	// She is reachable from anywhere, next to the children.
 	_, home := ta.get("/")
-	mustContain(t, home, `href="/adults/`+itoa64(mom.ID)+`"`, "nav")
+	mustContain(t, home, `href="/adults/`+itoa64(parent.ID)+`"`, "nav")
 }
 
 // Her dentist appointment is not a lesson for the kids, so it must not show up
 // in any view built for them.
 func TestAdultScheduleStaysOutOfKidViews(t *testing.T) {
 	ta := newTestApp(t)
-	mom := ta.mom()
+	parent := ta.parent()
 	kid := ta.addKid("Mia")
 	subject := ta.mathSubjectID()
 	date := today()
 
 	ta.insertUnassignedLesson(kid, subject, date, "Long division", "")
-	status, _ := ta.post("/adults/"+itoa64(mom.ID)+"/schedule", url.Values{
+	status, _ := ta.post("/adults/"+itoa64(parent.ID)+"/schedule", url.Values{
 		"subject_id":   {itoa64(subject)},
 		"scheduled_on": {date},
 		"title":        {"Dentist appointment"},
@@ -1024,7 +1024,7 @@ func TestAdultScheduleStaysOutOfKidViews(t *testing.T) {
 	if err := ta.store.Migrate(); err != nil {
 		t.Fatalf("restarting: %v", err)
 	}
-	hers, err := ta.store.AdultLessonsBetween(date, date, mom.ID)
+	hers, err := ta.store.AdultLessonsBetween(date, date, parent.ID)
 	if err != nil {
 		t.Fatalf("listing her day: %v", err)
 	}
@@ -1036,20 +1036,20 @@ func TestAdultScheduleStaysOutOfKidViews(t *testing.T) {
 	}
 
 	// It is on her own week, though.
-	_, page := ta.get("/adults/" + itoa64(mom.ID) + "/schedule")
+	_, page := ta.get("/adults/" + itoa64(parent.ID) + "/schedule")
 	mustContain(t, page, "Dentist appointment", "her schedule")
 }
 
 func TestAdultNotesAreSeparateFromKidNotes(t *testing.T) {
 	ta := newTestApp(t)
-	mom := ta.mom()
+	parent := ta.parent()
 	kid := ta.addKid("Mia")
 
 	ta.post("/notes", url.Values{
-		"adult_id": {itoa64(mom.ID)},
+		"adult_id": {itoa64(parent.ID)},
 		"noted_on": {today()},
 		"body":     {"Order more printer paper"},
-		"back":     {"/adults/" + itoa64(mom.ID)},
+		"back":     {"/adults/" + itoa64(parent.ID)},
 	})
 	ta.post("/notes", url.Values{
 		"kid_id":   {itoa64(kid)},
@@ -1058,7 +1058,7 @@ func TestAdultNotesAreSeparateFromKidNotes(t *testing.T) {
 		"back":     {"/kids/" + itoa64(kid)},
 	})
 
-	hers, err := ta.store.AdultNotes(mom.ID, 20)
+	hers, err := ta.store.AdultNotes(parent.ID, 20)
 	if err != nil {
 		t.Fatalf("listing her notes: %v", err)
 	}
@@ -1080,13 +1080,13 @@ func TestAdultNotesAreSeparateFromKidNotes(t *testing.T) {
 // A note or lesson has to belong to someone, and to exactly one someone.
 func TestALessonCannotBelongToBothAKidAndAnAdult(t *testing.T) {
 	ta := newTestApp(t)
-	mom := ta.mom()
+	parent := ta.parent()
 	kid := ta.addKid("Mia")
 
 	_, err := ta.store.db().Exec(`INSERT INTO lessons
 		(kid_id, adult_id, subject_id, scheduled_on, status, title, minutes, notes, created_at)
 		VALUES (?, ?, ?, ?, 'planned', 'Both at once', 0, '', ?)`,
-		kid, mom.ID, ta.mathSubjectID(), today(), today())
+		kid, parent.ID, ta.mathSubjectID(), today(), today())
 	if err == nil {
 		t.Error("expected the database to refuse a lesson belonging to two people")
 	}
@@ -1102,8 +1102,8 @@ func TestALessonCannotBelongToBothAKidAndAnAdult(t *testing.T) {
 
 func TestPinboardCardsRoundTrip(t *testing.T) {
 	ta := newTestApp(t)
-	mom := ta.mom()
-	base := "/adults/" + itoa64(mom.ID)
+	parent := ta.parent()
+	base := "/adults/" + itoa64(parent.ID)
 
 	for _, title := range []string{"Curriculum wish list", "Field trip ideas"} {
 		status, _ := ta.post(base+"/cards", url.Values{"title": {title}})
@@ -1112,7 +1112,7 @@ func TestPinboardCardsRoundTrip(t *testing.T) {
 		}
 	}
 
-	cards, err := ta.store.AdultCards(mom.ID)
+	cards, err := ta.store.AdultCards(parent.ID)
 	if err != nil || len(cards) != 2 {
 		t.Fatalf("expected 2 cards, got %d (err %v)", len(cards), err)
 	}
@@ -1125,7 +1125,7 @@ func TestPinboardCardsRoundTrip(t *testing.T) {
 		url.Values{"direction": {"up"}}); status != http.StatusOK {
 		t.Fatalf("moving a card returned %d", status)
 	}
-	cards, _ = ta.store.AdultCards(mom.ID)
+	cards, _ = ta.store.AdultCards(parent.ID)
 	if cards[0].Title != "Field trip ideas" {
 		t.Errorf("expected the moved card first, got %q", cards[0].Title)
 	}
@@ -1137,7 +1137,7 @@ func TestPinboardCardsRoundTrip(t *testing.T) {
 		"body":   {"Ask the co-op about the science kit"},
 		"pinned": {"on"},
 	})
-	cards, _ = ta.store.AdultCards(mom.ID)
+	cards, _ = ta.store.AdultCards(parent.ID)
 	if !cards[0].Pinned || cards[0].ID != last.ID {
 		t.Error("expected the pinned card to come first")
 	}
@@ -1148,7 +1148,7 @@ func TestPinboardCardsRoundTrip(t *testing.T) {
 	if status, _ := ta.post(base+"/cards/"+itoa64(last.ID)+"/delete", url.Values{}); status != http.StatusOK {
 		t.Fatalf("deleting a card returned %d", status)
 	}
-	cards, _ = ta.store.AdultCards(mom.ID)
+	cards, _ = ta.store.AdultCards(parent.ID)
 	if len(cards) != 1 {
 		t.Errorf("expected 1 card left, got %d", len(cards))
 	}
@@ -1156,42 +1156,42 @@ func TestPinboardCardsRoundTrip(t *testing.T) {
 
 func TestAdultPhotoAndSettings(t *testing.T) {
 	ta := newTestApp(t)
-	mom := ta.mom()
+	parent := ta.parent()
 
 	status, _ := ta.post("/settings/adults", url.Values{
-		"id":    {itoa64(mom.ID)},
+		"id":    {itoa64(parent.ID)},
 		"name":  {"Sarah"},
-		"role":  {"Mom"},
+		"role":  {"Parent"},
 		"color": {"#3fae7f"},
 	})
 	if status != http.StatusOK {
 		t.Fatalf("saving her details returned %d", status)
 	}
-	updated, _ := ta.store.Adult(mom.ID)
+	updated, _ := ta.store.Adult(parent.ID)
 	if updated.Name != "Sarah" {
 		t.Errorf("expected her name to be saved, got %q", updated.Name)
 	}
 
-	if status, _ := ta.postFile("/settings/adults/"+itoa64(mom.ID)+"/avatar",
+	if status, _ := ta.postFile("/settings/adults/"+itoa64(parent.ID)+"/avatar",
 		"file", "sarah.png", tinyPNG); status != http.StatusOK {
 		t.Fatalf("uploading her photo returned %d", status)
 	}
-	withPhoto, _ := ta.store.Adult(mom.ID)
+	withPhoto, _ := ta.store.Adult(parent.ID)
 	if !withPhoto.HasPhoto() {
 		t.Fatal("expected her photo to be recorded")
 	}
-	if status, _ := ta.get("/avatars/adults/" + itoa64(mom.ID)); status != http.StatusOK {
+	if status, _ := ta.get("/avatars/adults/" + itoa64(parent.ID)); status != http.StatusOK {
 		t.Errorf("serving her photo returned %d", status)
 	}
 	_, nav := ta.get("/")
-	mustContain(t, nav, "/avatars/adults/"+itoa64(mom.ID), "nav")
+	mustContain(t, nav, "/avatars/adults/"+itoa64(parent.ID), "nav")
 }
 
 // Removing a grown-up should take her schedule, notes, and pinboard with her.
 func TestDeletingAnAdultClearsHerRecords(t *testing.T) {
 	ta := newTestApp(t)
-	mom := ta.mom()
-	base := "/adults/" + itoa64(mom.ID)
+	parent := ta.parent()
+	base := "/adults/" + itoa64(parent.ID)
 
 	ta.post(base+"/schedule", url.Values{
 		"subject_id":   {itoa64(ta.mathSubjectID())},
@@ -1199,7 +1199,7 @@ func TestDeletingAnAdultClearsHerRecords(t *testing.T) {
 		"title":        {"Dentist appointment"},
 	})
 	ta.post("/notes", url.Values{
-		"adult_id": {itoa64(mom.ID)},
+		"adult_id": {itoa64(parent.ID)},
 		"noted_on": {today()},
 		"body":     {"Order more printer paper"},
 	})
@@ -1209,7 +1209,7 @@ func TestDeletingAnAdultClearsHerRecords(t *testing.T) {
 		"starts_on": {today()},
 	})
 
-	if _, err := ta.store.db().Exec(`DELETE FROM adults WHERE id = ?`, mom.ID); err != nil {
+	if _, err := ta.store.db().Exec(`DELETE FROM adults WHERE id = ?`, parent.ID); err != nil {
 		t.Fatalf("deleting her: %v", err)
 	}
 	for _, q := range []string{
@@ -1235,21 +1235,21 @@ func TestDeletingAnAdultClearsHerRecords(t *testing.T) {
 // holidays have to be there before anyone types one in.
 func TestHerCalendarLightsTodayAndKnowsTheHolidays(t *testing.T) {
 	ta := newTestApp(t)
-	mom := ta.mom()
+	parent := ta.parent()
 
-	status, body := ta.get("/adults/" + itoa64(mom.ID))
+	status, body := ta.get("/adults/" + itoa64(parent.ID))
 	if status != http.StatusOK {
 		t.Fatalf("her profile returned %d", status)
 	}
 	mustContain(t, body, "Calendar", "her profile")
 	mustContain(t, body, "/static/calendar.js", "her profile")
-	mustContain(t, body, `data-calendar`, "her calendar")
+	mustContain(t, body, `data-calendar`, "adult calendar")
 	if class := calendarCellClass(t, body, today()); !strings.Contains(class, "is-today") {
 		t.Errorf("today's cell is %q, expected it to be lit", class)
 	}
 
 	// A month nobody has touched still knows what falls in it.
-	status, body = ta.get("/adults/" + itoa64(mom.ID) + "?month=2026-07")
+	status, body = ta.get("/adults/" + itoa64(parent.ID) + "?month=2026-07")
 	if status != http.StatusOK {
 		t.Fatalf("July returned %d", status)
 	}
@@ -1290,11 +1290,11 @@ func TestHolidaysLandOnTheTraditionalDays(t *testing.T) {
 // has to come back saying which run she is pointing at.
 func TestSelectingARangeOnHerCalendar(t *testing.T) {
 	ta := newTestApp(t)
-	mom := ta.mom()
+	parent := ta.parent()
 
-	status, body := ta.get("/adults/" + itoa64(mom.ID) + "?month=2026-07&from=2026-07-13&to=2026-07-17")
+	status, body := ta.get("/adults/" + itoa64(parent.ID) + "?month=2026-07&from=2026-07-13&to=2026-07-17")
 	if status != http.StatusOK {
-		t.Fatalf("her calendar returned %d", status)
+		t.Fatalf("adult calendar returned %d", status)
 	}
 	for _, date := range []string{"2026-07-13", "2026-07-15", "2026-07-17"} {
 		if class := calendarCellClass(t, body, date); !strings.Contains(class, "is-selected") {
@@ -1310,15 +1310,15 @@ func TestSelectingARangeOnHerCalendar(t *testing.T) {
 	mustContain(t, body, `name="ends_on" value="2026-07-17"`, "add form")
 
 	// Dragging backwards is the same stretch as dragging forwards.
-	_, reversed := ta.get("/adults/" + itoa64(mom.ID) + "?month=2026-07&from=2026-07-17&to=2026-07-13")
+	_, reversed := ta.get("/adults/" + itoa64(parent.ID) + "?month=2026-07&from=2026-07-17&to=2026-07-13")
 	mustContain(t, reversed, `name="starts_on" value="2026-07-13"`, "backwards drag")
 	mustContain(t, reversed, `name="ends_on" value="2026-07-17"`, "backwards drag")
 }
 
 func TestAMultiDayEventMarksEveryDayItCovers(t *testing.T) {
 	ta := newTestApp(t)
-	mom := ta.mom()
-	base := "/adults/" + itoa64(mom.ID)
+	parent := ta.parent()
+	base := "/adults/" + itoa64(parent.ID)
 
 	status, _ := ta.post(base+"/events", url.Values{
 		"title":     {"Grandma visits"},
@@ -1346,7 +1346,7 @@ func TestAMultiDayEventMarksEveryDayItCovers(t *testing.T) {
 	_, mid := ta.get(base + "?month=2026-07&from=2026-07-15&to=2026-07-15")
 	mustContain(t, mid, "Guest room needs making up", "a day inside the visit")
 
-	events, err := ta.store.AdultEventsOverlapping(mom.ID, "2026-07-01", "2026-07-31")
+	events, err := ta.store.AdultEventsOverlapping(parent.ID, "2026-07-01", "2026-07-31")
 	if err != nil || len(events) != 1 {
 		t.Fatalf("expected 1 event, got %d (err %v)", len(events), err)
 	}
@@ -1354,18 +1354,18 @@ func TestAMultiDayEventMarksEveryDayItCovers(t *testing.T) {
 		t.Fatalf("removing it returned %d", status)
 	}
 	_, after := ta.get(base + "?month=2026-07")
-	mustNotContain(t, after, "Grandma visits", "her calendar")
+	mustNotContain(t, after, "Grandma visits", "adult calendar")
 }
 
 // Picking a day must not reload her profile: she is scrolled down to the month
 // when she clicks, and a fresh page would throw her back to the top.
 func TestChoosingADayRedrawsOnlyTheCalendar(t *testing.T) {
 	ta := newTestApp(t)
-	mom := ta.mom()
+	parent := ta.parent()
 
-	status, body := ta.get("/adults/" + itoa64(mom.ID) + "/calendar?month=2026-07&from=2026-07-13&to=2026-07-17")
+	status, body := ta.get("/adults/" + itoa64(parent.ID) + "/calendar?month=2026-07&from=2026-07-13&to=2026-07-17")
 	if status != http.StatusOK {
-		t.Fatalf("redrawing her calendar returned %d", status)
+		t.Fatalf("redrawing adult calendar returned %d", status)
 	}
 	mustContain(t, body, `id="adult-calendar"`, "calendar fragment")
 	mustContain(t, body, `name="starts_on" value="2026-07-13"`, "calendar fragment")
@@ -1382,8 +1382,8 @@ func TestChoosingADayRedrawsOnlyTheCalendar(t *testing.T) {
 // underneath her instead of the page jumping.
 func TestWritingOnHerCalendarRedrawsItInPlace(t *testing.T) {
 	ta := newTestApp(t)
-	mom := ta.mom()
-	base := "/adults/" + itoa64(mom.ID)
+	parent := ta.parent()
+	base := "/adults/" + itoa64(parent.ID)
 
 	status, body := ta.postHTMX(base+"/events", url.Values{
 		"view":      {"calendar"},
@@ -1401,7 +1401,7 @@ func TestWritingOnHerCalendarRedrawsItInPlace(t *testing.T) {
 	mustContain(t, body, "Grandma visits", "calendar fragment")
 	mustNotContain(t, body, "<html", "calendar fragment")
 
-	events, err := ta.store.AdultEventsOverlapping(mom.ID, "2026-07-13", "2026-07-14")
+	events, err := ta.store.AdultEventsOverlapping(parent.ID, "2026-07-13", "2026-07-14")
 	if err != nil || len(events) != 1 {
 		t.Fatalf("expected 1 event, got %d (err %v)", len(events), err)
 	}
@@ -1421,9 +1421,9 @@ func TestWritingOnHerCalendarRedrawsItInPlace(t *testing.T) {
 
 func TestAnEventCannotEndBeforeItStarts(t *testing.T) {
 	ta := newTestApp(t)
-	mom := ta.mom()
+	parent := ta.parent()
 
-	status, _ := ta.post("/adults/"+itoa64(mom.ID)+"/events", url.Values{
+	status, _ := ta.post("/adults/"+itoa64(parent.ID)+"/events", url.Values{
 		"title":     {"Backwards"},
 		"starts_on": {"2026-07-16"},
 		"ends_on":   {"2026-07-13"},
@@ -1436,7 +1436,7 @@ func TestAnEventCannotEndBeforeItStarts(t *testing.T) {
 // One profile must not be able to clear something off another's calendar.
 func TestHerCalendarIsHerOwn(t *testing.T) {
 	ta := newTestApp(t)
-	mom := ta.mom()
+	parent := ta.parent()
 	if _, err := ta.store.db().Exec(`INSERT INTO adults (name, role, color, sort_order)
 		VALUES ('Dad', 'Dad', '#3f7fae', 2)`); err != nil {
 		t.Fatalf("adding him: %v", err)
@@ -1450,14 +1450,14 @@ func TestHerCalendarIsHerOwn(t *testing.T) {
 	}
 
 	id, err := ta.store.CreateAdultEvent(AdultEvent{
-		AdultID: mom.ID, StartsOn: "2026-07-13", EndsOn: "2026-07-13", Title: "Her appointment",
+		AdultID: parent.ID, StartsOn: "2026-07-13", EndsOn: "2026-07-13", Title: "Her appointment",
 	})
 	if err != nil {
 		t.Fatalf("adding her event: %v", err)
 	}
 
 	ta.post("/adults/"+itoa64(dad.ID)+"/events/"+itoa64(id)+"/delete", nil)
-	hers, err := ta.store.AdultEventsOverlapping(mom.ID, "2026-07-13", "2026-07-13")
+	hers, err := ta.store.AdultEventsOverlapping(parent.ID, "2026-07-13", "2026-07-13")
 	if err != nil || len(hers) != 1 {
 		t.Fatalf("expected her event to survive, got %d (err %v)", len(hers), err)
 	}
@@ -1466,12 +1466,12 @@ func TestHerCalendarIsHerOwn(t *testing.T) {
 	mustNotContain(t, his, "Her appointment", "his calendar")
 }
 
-// Labels are color tags on her calendar: she can invent them, put them on
+// Labels are color tags on an adult calendar: invent them, put them on
 // events, and the month paints those events in that color.
 func TestSheCanColorCodeEventsWithLabels(t *testing.T) {
 	ta := newTestApp(t)
-	mom := ta.mom()
-	base := "/adults/" + itoa64(mom.ID)
+	parent := ta.parent()
+	base := "/adults/" + itoa64(parent.ID)
 
 	status, _ := ta.post(base+"/labels", url.Values{
 		"name":  {"Medical"},
@@ -1480,7 +1480,7 @@ func TestSheCanColorCodeEventsWithLabels(t *testing.T) {
 	if status != http.StatusOK {
 		t.Fatalf("creating a label returned %d", status)
 	}
-	labels, err := ta.store.AdultEventLabels(mom.ID)
+	labels, err := ta.store.AdultEventLabels(parent.ID)
 	if err != nil || len(labels) != 1 {
 		t.Fatalf("expected 1 label, got %d (err %v)", len(labels), err)
 	}
@@ -1502,7 +1502,7 @@ func TestSheCanColorCodeEventsWithLabels(t *testing.T) {
 		"ends_on":   {"2026-07-13"},
 		"label_id":  {itoa64(labels[0].ID)},
 	})
-	events, err := ta.store.AdultEventsOverlapping(mom.ID, "2026-07-13", "2026-07-13")
+	events, err := ta.store.AdultEventsOverlapping(parent.ID, "2026-07-13", "2026-07-13")
 	if err != nil || len(events) != 1 {
 		t.Fatalf("expected 1 event, got %d (err %v)", len(events), err)
 	}
@@ -1535,7 +1535,7 @@ func TestSheCanColorCodeEventsWithLabels(t *testing.T) {
 	if after.LabelID != 0 {
 		t.Errorf("deleting a label should untag the event, got %d", after.LabelID)
 	}
-	left, _ := ta.store.AdultEventLabels(mom.ID)
+	left, _ := ta.store.AdultEventLabels(parent.ID)
 	if len(left) != 0 {
 		t.Errorf("expected no labels left, got %d", len(left))
 	}
@@ -1545,7 +1545,7 @@ func TestSheCanColorCodeEventsWithLabels(t *testing.T) {
 // someone else's profile.
 func TestEventLabelsStayOnTheirCalendar(t *testing.T) {
 	ta := newTestApp(t)
-	mom := ta.mom()
+	parent := ta.parent()
 	if _, err := ta.store.db().Exec(`INSERT INTO adults (name, role, color, sort_order)
 		VALUES ('Dad', 'Dad', '#3f7fae', 2)`); err != nil {
 		t.Fatalf("adding him: %v", err)
@@ -1559,7 +1559,7 @@ func TestEventLabelsStayOnTheirCalendar(t *testing.T) {
 	}
 
 	labelID, err := ta.store.CreateAdultEventLabel(AdultEventLabel{
-		AdultID: mom.ID, Name: "Travel", Color: "#2f6ecb",
+		AdultID: parent.ID, Name: "Travel", Color: "#2f6ecb",
 	})
 	if err != nil {
 		t.Fatalf("creating her label: %v", err)
@@ -1580,7 +1580,7 @@ func TestEventLabelsStayOnTheirCalendar(t *testing.T) {
 	}
 
 	ta.post("/adults/"+itoa64(dad.ID)+"/labels/"+itoa64(labelID)+"/delete", nil)
-	still, _ := ta.store.AdultEventLabels(mom.ID)
+	still, _ := ta.store.AdultEventLabels(parent.ID)
 	if len(still) != 1 {
 		t.Errorf("he must not be able to delete her label")
 	}
@@ -1590,11 +1590,11 @@ func TestEventLabelsStayOnTheirCalendar(t *testing.T) {
 // emoji riding along on the label.
 func TestSheCanLabelExistingEventsAndPutEmojiOnLabels(t *testing.T) {
 	ta := newTestApp(t)
-	mom := ta.mom()
-	base := "/adults/" + itoa64(mom.ID)
+	parent := ta.parent()
+	base := "/adults/" + itoa64(parent.ID)
 
 	eventID, err := ta.store.CreateAdultEvent(AdultEvent{
-		AdultID: mom.ID, StartsOn: "2026-07-13", EndsOn: "2026-07-13",
+		AdultID: parent.ID, StartsOn: "2026-07-13", EndsOn: "2026-07-13",
 		Title: "Dentist", Body: "checkup",
 	})
 	if err != nil {
@@ -1609,7 +1609,7 @@ func TestSheCanLabelExistingEventsAndPutEmojiOnLabels(t *testing.T) {
 	if status != http.StatusOK {
 		t.Fatalf("creating a label returned %d", status)
 	}
-	labels, err := ta.store.AdultEventLabels(mom.ID)
+	labels, err := ta.store.AdultEventLabels(parent.ID)
 	if err != nil || len(labels) != 1 || labels[0].Emoji != "🦷" {
 		t.Fatalf("expected Medical with tooth emoji, got %+v (err %v)", labels, err)
 	}
@@ -1661,8 +1661,8 @@ func TestSheCanLabelExistingEventsAndPutEmojiOnLabels(t *testing.T) {
 // without changing the date the holiday falls on.
 func TestSheCanPersonalizeHolidays(t *testing.T) {
 	ta := newTestApp(t)
-	mom := ta.mom()
-	base := "/adults/" + itoa64(mom.ID)
+	parent := ta.parent()
+	base := "/adults/" + itoa64(parent.ID)
 
 	found := false
 	for _, h := range usHolidays(2026) {

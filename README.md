@@ -26,10 +26,10 @@ connection needed once it is built.
 - **Lesson page** — edit the details, attach files, or turn it into a test with
   a score.
 - **Tests** — scores per child and subject, with the graded page attached.
-- **Mom's page** — a grown-up gets a page of her own: a pinboard of cards for
-  things worth keeping in view, her own week, and her own notes. Her schedule
-  is deliberately kept off the family week and out of the children's progress,
-  so a dentist appointment never counts as schoolwork.
+- **Adult / parent page** — a grown-up gets a page of their own: a pinboard of
+  cards for things worth keeping in view, their own week, and their own notes.
+  That schedule is deliberately kept off the family week and out of the
+  children's progress, so a dentist appointment never counts as schoolwork.
 - **Settings** — the kids, the grown-ups, the subjects, the school year, and an
   optional password.
 
@@ -46,7 +46,7 @@ Subjects start out as Math, Language Arts, Science, Social Studies, History,
 Japanese, Music & Art, and Other/Elective. You can rename them, hide the ones
 you do not use, and add your own.
 
-## Running it on her Windows computer
+## Running it on a Windows computer
 
 The usual path: build here, copy a folder there. Nothing needs to be installed
 on the Windows machine.
@@ -56,11 +56,11 @@ on the Windows machine.
 ```
 
 That writes `dist/windows/` containing the program, a starter, and a short note.
-Copy that whole folder to her PC (USB stick, shared folder, however you like).
-She double-clicks **Start School Nanny.bat**; a small black window opens and the
+Copy that whole folder to the PC (USB stick, shared folder, however you like).
+Double-click **Start School Nanny.bat**; a small black window opens and the
 browser goes to the app. Closing the black window closes the app.
 
-Her records live in `%LOCALAPPDATA%\school-nanny`, not beside the program, so
+Records live in `%LOCALAPPDATA%\school-nanny`, not beside the program, so
 that rebuilding or replacing the program folder cannot touch them. The exact
 path is on the Settings page and in the console window at startup.
 
