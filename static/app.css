@@ -1656,20 +1656,29 @@ a.plan-row:hover .muted { color: var(--ink-soft); }
 }
 
 .minutes-inline {
-    /* Beat Pico's `input { width: 100% }` so this field cannot eat the lesson row.
-       Size matches .pill so Mark done / Double up stay aligned beside it. */
-    width: 4.5rem !important;
-    max-width: 4.5rem;
-    min-width: 4.5rem;
-    flex: 0 0 4.5rem;
+    /* Beat Pico's `input { width: 100% }` so this field cannot eat the lesson row. */
+    width: 3.1rem !important;
+    max-width: 3.1rem;
+    min-width: 3.1rem;
+    flex: 0 0 3.1rem;
     box-sizing: border-box;
-    height: 1.85rem;
-    min-height: 1.85rem;
-    padding: 0.2rem 0.4rem;
+    height: 1.6rem;
+    min-height: 1.6rem;
+    padding: 0.1rem 0.2rem;
     margin: 0;
     font-size: 0.78rem;
     line-height: 1.2;
-    border-radius: 999px;
+    text-align: center;
+    border-radius: 0.35rem;
+    /* Hide spinner arrows so the number can sit centered in the box. */
+    -moz-appearance: textfield;
+    appearance: textfield;
+}
+
+.minutes-inline::-webkit-outer-spin-button,
+.minutes-inline::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
 }
 
 .lesson-actions .mark-done-group {
