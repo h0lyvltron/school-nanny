@@ -299,17 +299,18 @@
                     hx-target="#lesson-{{.Lesson.ID}}" hx-swap="outerHTML"
                     title="Undo">Done</button>
         {{else}}
-            <span class="mark-done-group">
+            <div class="mark-done-row">
                 <input type="number" name="minutes" min="0" step="5"
                        value="{{if .Lesson.Minutes}}{{.Lesson.Minutes}}{{end}}"
                        placeholder="min" aria-label="Minutes" class="minutes-inline">
                 <button class="pill"
                         hx-post="/lessons/{{.Lesson.ID}}/status"
-                        hx-include="closest .mark-done-group"
+                        hx-include="closest .mark-done-row"
                         hx-vals='{"status":"done","show_kid":"{{.ShowKid}}","show_subject":"{{.ShowSubject}}","back":"{{.Back}}"}'
                         hx-target="#lesson-{{.Lesson.ID}}" hx-swap="outerHTML">Mark done</button>
-            </span>
+            </div>
             {{if not .Lesson.IsSkipped}}
+            <div class="lesson-ops">
                 <form method="post" action="/lessons/{{.Lesson.ID}}/double-up" class="inline-form">
                     <input type="hidden" name="back" value="{{.Back}}">
                     <button class="pill ghost" type="submit"
@@ -349,6 +350,7 @@
                         hx-vals='{"status":"skipped","show_kid":"{{.ShowKid}}","show_subject":"{{.ShowSubject}}","back":"{{.Back}}"}'
                         hx-target="#lesson-{{.Lesson.ID}}" hx-swap="outerHTML"
                         title="Drop without moving other lessons">Drop</button>
+            </div>
             {{end}}
         {{end}}
     </div>

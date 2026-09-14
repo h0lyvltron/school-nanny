@@ -540,12 +540,28 @@ a.today-event:hover {
 
 .lesson-actions {
     display: flex;
-    gap: 0.35rem;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.4rem;
     flex: none;
-    flex-wrap: wrap;
-    align-items: center;
+    width: 100%;
 }
 .lesson-actions form { display: contents; }
+
+.mark-done-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.5rem;
+    width: 100%;
+}
+
+.lesson-ops {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.35rem;
+}
 
 /* In a day cell, a child's Today card, or any stacked list the card is narrow,
    so the buttons drop below the title instead of squeezing the text into a
@@ -558,7 +574,7 @@ a.today-event:hover {
 .day-lessons .lesson-actions,
 .today-lessons .lesson-actions,
 .archive-lessons .lesson-actions,
-.stack > .lesson > .lesson-actions { align-self: flex-start; max-width: 100%; }
+.stack > .lesson > .lesson-actions { align-self: stretch; max-width: 100%; width: 100%; }
 
 .pill {
     background: var(--card);
@@ -1656,21 +1672,21 @@ a.plan-row:hover .muted { color: var(--ink-soft); }
 }
 
 .minutes-inline {
-    /* Beat Pico's `input { width: 100% }` so this field cannot eat the lesson row. */
-    width: 3.1rem !important;
-    max-width: 3.1rem;
-    min-width: 3.1rem;
-    flex: 0 0 3.1rem;
+    /* Beat Pico's full-width / tall form controls so this stays a compact box. */
+    width: 3.75rem !important;
+    max-width: 3.75rem;
+    min-width: 3.75rem;
+    flex: 0 0 3.75rem;
     box-sizing: border-box;
-    height: 1.6rem;
-    min-height: 1.6rem;
-    padding: 0.1rem 0.2rem;
-    margin: 0;
+    height: 1.45rem !important;
+    min-height: 0 !important;
+    padding: 0 0.25rem !important;
+    margin: 0 !important;
     font-size: 0.78rem;
-    line-height: 1.2;
+    line-height: 1.45rem;
     text-align: center;
     border-radius: 0.35rem;
-    /* Hide spinner arrows so the number can sit centered in the box. */
+    /* Hide spinner arrows so the number / "min" hint can sit centered. */
     -moz-appearance: textfield;
     appearance: textfield;
 }
@@ -1681,17 +1697,8 @@ a.plan-row:hover .muted { color: var(--ink-soft); }
     margin: 0;
 }
 
-.lesson-actions .mark-done-group {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.35rem;
-    flex: 0 0 auto;
-    max-width: 100%;
-}
-
 .lesson-actions .pill {
     flex: 0 0 auto;
-    align-self: center;
     box-sizing: border-box;
 }
 
