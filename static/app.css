@@ -538,7 +538,13 @@ a.today-event:hover {
 
 .chip .avatar { box-shadow: 0 0 0 1px var(--chip-ink); }
 
-.lesson-actions { display: flex; gap: 0.35rem; flex: none; flex-wrap: wrap; }
+.lesson-actions {
+    display: flex;
+    gap: 0.35rem;
+    flex: none;
+    flex-wrap: wrap;
+    align-items: center;
+}
 .lesson-actions form { display: contents; }
 
 /* In a day cell, a child's Today card, or any stacked list the card is narrow,
@@ -1650,15 +1656,20 @@ a.plan-row:hover .muted { color: var(--ink-soft); }
 }
 
 .minutes-inline {
-    /* Beat Pico's `input { width: 100% }` so this field cannot eat the lesson row. */
+    /* Beat Pico's `input { width: 100% }` so this field cannot eat the lesson row.
+       Size matches .pill so Mark done / Double up stay aligned beside it. */
     width: 4.5rem !important;
     max-width: 4.5rem;
     min-width: 4.5rem;
     flex: 0 0 4.5rem;
-    padding: 0.2rem 0.35rem;
+    box-sizing: border-box;
+    height: 1.85rem;
+    min-height: 1.85rem;
+    padding: 0.2rem 0.4rem;
     margin: 0;
-    font-size: 0.85rem;
-    height: auto;
+    font-size: 0.78rem;
+    line-height: 1.2;
+    border-radius: 999px;
 }
 
 .lesson-actions .mark-done-group {
@@ -1666,6 +1677,13 @@ a.plan-row:hover .muted { color: var(--ink-soft); }
     align-items: center;
     gap: 0.35rem;
     flex: 0 0 auto;
+    max-width: 100%;
+}
+
+.lesson-actions .pill {
+    flex: 0 0 auto;
+    align-self: center;
+    box-sizing: border-box;
 }
 
 .records-table {
