@@ -154,7 +154,7 @@ func (a *App) shiftAssignmentLesson(w http.ResponseWriter, r *http.Request, shif
 		return
 	}
 	a.redirect(w, r, safeRedirect(r.FormValue("back"), plannerURL(
-		weekStart(parseDate(lesson.ScheduledOn)).Format(dateLayout), lesson.KidID)))
+		requestWeekStart(r, parseDate(lesson.ScheduledOn)).Format(dateLayout), lesson.KidID)))
 }
 
 func (a *App) lookupAssignment(w http.ResponseWriter, r *http.Request) (PlanAssignment, bool) {

@@ -2154,6 +2154,54 @@ func TestWeekStartsOnMonday(t *testing.T) {
 	}
 }
 
+func TestWeekStartOnSunday(t *testing.T) {
+	saturday := time.Date(2026, 8, 29, 12, 0, 0, 0, time.Local)
+	if got := weekStartOn(saturday, time.Sunday).Format(dateLayout); got != "2026-08-23" {
+		t.Errorf("Saturday should belong to the week starting Sunday 2026-08-23, got %s", got)
+	}
+	sunday := time.Date(2026, 8, 30, 12, 0, 0, 0, time.Local)
+	if got := weekStartOn(sunday, time.Sunday).Format(dateLayout); got != "2026-08-30" {
+		t.Errorf("Sunday should be its own week start, got %s", got)
+	}
+	if got := weekdayHeaders(time.Sunday); got[0] != "Sun" || got[6] != "Sat" {
+		t.Errorf("Sunday-start headers: %v", got)
+	}
+	if got := weekdayHeaders(time.Monday); got[0] != "Mon" || got[6] != "Sun" {
+		t.Errorf("Monday-start headers: %v", got)
+	}
+}
+
+func TestSettingsSavesWeekStart(t *testing.T) {
+	ta := newTestApp(t)
+	status, body := ta.post("/settings/week-start", url.Values{
+		"week_starts_on": {"sunday"},
+	})
+	if status != http.StatusOK && status != http.StatusSeeOther {
+		t.Fatalf("save returned %d", status)
+	}
+	got, err := ta.store.Setting(settingWeekStart)
+	if err != nil || got != weekStartSunday {
+		t.Fatalf("saved %q (%v)", got, err)
+	}
+
+	status, body = ta.get("/planner")
+	if status != http.StatusOK {
+		t.Fatalf("planner: %d", status)
+	}
+	// With Sunday start, this week's planner URL / first day should be a Sunday.
+	start := weekStartOn(parseDate(today()), time.Sunday).Format(dateLayout)
+	if parseDate(start).Weekday() != time.Sunday {
+		t.Fatalf("expected Sunday week start, got %s", start)
+	}
+	mustContain(t, body, `week=`+start, "planner uses Sunday week start")
+
+	status, body = ta.get("/settings/school")
+	if status != http.StatusOK {
+		t.Fatalf("settings school: %d", status)
+	}
+	mustContain(t, body, `value="sunday" selected`, "settings shows Sunday selected")
+}
+
 func TestSafeRedirectStaysInsideTheApp(t *testing.T) {
 	cases := map[string]string{
 		"/planner":           "/planner",

@@ -379,7 +379,7 @@ func (a *App) handleApplyCurriculum(w http.ResponseWriter, r *http.Request) {
 	if len(dates) > 0 {
 		first = dates[0]
 	}
-	a.redirect(w, r, "/planner?week="+weekStart(parseDate(first)).Format(dateLayout)+"&kid="+r.FormValue("kid_id"))
+	a.redirect(w, r, "/planner?week="+requestWeekStart(r, parseDate(first)).Format(dateLayout)+"&kid="+r.FormValue("kid_id"))
 }
 
 func curriculumPreview(plan CurriculumPlan, start, weekdays string) ([]ApplyPreview, string, error) {

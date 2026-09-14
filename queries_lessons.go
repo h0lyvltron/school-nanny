@@ -299,23 +299,6 @@ func nullableID(id int64) any {
 	return id
 }
 
-// weekStart snaps a date to the Monday of its week, which is how the planner
-// grid is laid out.
-// weekDates lists the seven days of the week a date falls in, Monday first.
-func weekDates(date string) []string {
-	start := weekStart(parseDate(date)).Format(dateLayout)
-	days := make([]string, 0, 7)
-	for i := 0; i < 7; i++ {
-		days = append(days, addDays(start, i))
-	}
-	return days
-}
-
-func weekStart(t time.Time) time.Time {
-	offset := (int(t.Weekday()) + 6) % 7
-	return time.Date(t.Year(), t.Month(), t.Day()-offset, 0, 0, 0, 0, t.Location())
-}
-
 // parseDate accepts a YYYY-MM-DD string, falling back to today when it is
 // missing or malformed so a bad URL never breaks a page.
 func parseDate(value string) time.Time {

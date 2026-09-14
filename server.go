@@ -231,6 +231,7 @@ func (a *App) Routes() http.Handler {
 	mux.HandleFunc("POST /settings/password", h((*App).handleSavePassword))
 	mux.HandleFunc("POST /settings/account-password", h((*App).handleChangeAccountPassword))
 	mux.HandleFunc("POST /settings/timezone", h((*App).handleSaveTimezone))
+	mux.HandleFunc("POST /settings/week-start", h((*App).handleSaveWeekStart))
 	mux.HandleFunc("POST /settings/backups", h((*App).handleMakeBackup))
 	mux.HandleFunc("GET /settings/backups/{name}", h((*App).handleDownloadBackup))
 	mux.HandleFunc("POST /settings/backups/{name}/restore", h((*App).handleRestoreBackup))
@@ -270,7 +271,9 @@ func (a *App) withTimezone(next http.Handler) http.Handler {
 				family = ""
 			}
 		}
-		next.ServeHTTP(w, r.WithContext(withLocation(r.Context(), resolveLocation(family, cookieTZ(r)))))
+		ctx := withLocation(r.Context(), resolveLocation(family, cookieTZ(r)))
+		ctx = withWeekStartDay(ctx, app.familyWeekStart())
+		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
 
@@ -372,6 +375,7 @@ func (a *App) pageData(r *http.Request, active string) (map[string]any, error) {
 			break
 		}
 	}
+	weekStartDay := requestWeekStartDay(r)
 	data := map[string]any{
 		"Active":               active,
 		"NavKids":              kids,
@@ -382,6 +386,8 @@ func (a *App) pageData(r *http.Request, active string) (map[string]any, error) {
 		"FamilyTimezoneListed": familyListed,
 		"DeviceTimezone":       cookieTZ(r),
 		"CommonTimezones":      commonTimezones,
+		"WeekStartsOn":         weekStartValue(weekStartDay),
+		"WeekdayHeaders":       weekdayHeaders(weekStartDay),
 		"Hosted":               a.hosted,
 		"IsOwner":              true,
 		"Role":                 roleOwner,

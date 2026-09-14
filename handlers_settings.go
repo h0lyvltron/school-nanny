@@ -298,6 +298,19 @@ func (a *App) handleSaveTimezone(w http.ResponseWriter, r *http.Request) {
 	a.redirect(w, r, "/settings/school?saved=timezone")
 }
 
+func (a *App) handleSaveWeekStart(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "Could not read that form.", http.StatusBadRequest)
+		return
+	}
+	day := parseWeekStart(r.FormValue("week_starts_on"))
+	if err := a.store.SetSetting(settingWeekStart, weekStartValue(day)); err != nil {
+		a.serverError(w, err)
+		return
+	}
+	a.redirect(w, r, "/settings/school?saved=week-start")
+}
+
 // Backups --------------------------------------------------------------------
 
 func (a *App) handleMakeBackup(w http.ResponseWriter, r *http.Request) {

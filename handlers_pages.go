@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 )
 
 // KidToday is one child's slice of the family home page.
@@ -26,7 +27,7 @@ func (a *App) handleHome(w http.ResponseWriter, r *http.Request) {
 
 	kids, _ := data["NavKids"].([]Kid)
 	now := requestToday(r)
-	start := weekStart(requestNow(r)).Format(dateLayout)
+	start := requestWeekStart(r, requestNow(r)).Format(dateLayout)
 	end := addDays(start, 6)
 
 	weekLessons, err := a.store.LessonsBetween(start, end, 0)
@@ -169,7 +170,7 @@ func (a *App) handlePlanner(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	start := weekStart(parseDateIn(r.URL.Query().Get("week"), requestLocation(r))).Format(dateLayout)
+	start := requestWeekStart(r, parseDateIn(r.URL.Query().Get("week"), requestLocation(r))).Format(dateLayout)
 	end := addDays(start, 6)
 	kidFilter, adultFilter := plannerPersonFilter(r.URL.Query())
 	if sess := sessionFrom(r); sess != nil && sess.IsKid() {
@@ -241,7 +242,7 @@ func (a *App) handlePlanner(w http.ResponseWriter, r *http.Request) {
 	data["WeekEnd"] = end
 	data["PrevWeek"] = addDays(start, -7)
 	data["NextWeek"] = addDays(start, 7)
-	data["ThisWeek"] = weekStart(requestNow(r)).Format(dateLayout)
+	data["ThisWeek"] = requestWeekStart(r, requestNow(r)).Format(dateLayout)
 	data["Progress"] = progress
 	a.render(w, "planner", data)
 }
@@ -324,7 +325,7 @@ func (a *App) handleKid(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	weekFrom := weekStart(requestNow(r)).Format(dateLayout)
+	weekFrom := requestWeekStart(r, requestNow(r)).Format(dateLayout)
 	weekTo := addDays(weekFrom, 6)
 	yearFrom, yearTo, yearName, err := a.yearBounds(requestToday(r))
 	if err != nil {
@@ -455,7 +456,7 @@ func (a *App) handleSubject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	weekFrom := weekStart(requestNow(r)).Format(dateLayout)
+	weekFrom := requestWeekStart(r, requestNow(r)).Format(dateLayout)
 	weekTo := addDays(weekFrom, 6)
 	yearFrom, yearTo, yearName, err := a.yearBounds(requestToday(r))
 	if err != nil {
@@ -553,7 +554,7 @@ func (a *App) handleLesson(w http.ResponseWriter, r *http.Request) {
 	data["Series"] = series
 	data["Assignment"] = assignment
 	data["PlanMates"] = planMates
-	data["Return"] = lessonReturn(lesson, r.URL.Query().Get("back"))
+	data["Return"] = lessonReturn(lesson, r.URL.Query().Get("back"), requestWeekStartDay(r))
 	data["Subjects"] = subjects
 	data["Kids"] = data["NavKids"]
 	a.render(w, "lesson", data)
@@ -571,7 +572,7 @@ type LessonReturn struct {
 	Delete string
 }
 
-func lessonReturn(lesson Lesson, back string) LessonReturn {
+func lessonReturn(lesson Lesson, back string, weekStarts time.Weekday) LessonReturn {
 	self := fmt.Sprintf("/lessons/%d", lesson.ID)
 	origin := safeRedirect(back, "")
 	if origin != "" {
@@ -591,7 +592,7 @@ func lessonReturn(lesson Lesson, back string) LessonReturn {
 	if lesson.ForAdult() {
 		ret.Delete = lesson.PersonURL() + "/schedule"
 	} else {
-		ret.Delete = plannerURL(weekStart(parseDate(lesson.ScheduledOn)).Format(dateLayout), lesson.KidID)
+		ret.Delete = plannerURL(weekStartOn(parseDate(lesson.ScheduledOn), weekStarts).Format(dateLayout), lesson.KidID)
 	}
 	return ret
 }

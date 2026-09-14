@@ -42,7 +42,7 @@ func (a *App) handleAttendance(w http.ResponseWriter, r *http.Request) {
 	}
 	kidFilter := parseInt64(r.URL.Query().Get("kid"))
 
-	if err := a.populateAttendance(data, month, kidFilter); err != nil {
+	if err := a.populateAttendance(data, month, kidFilter, requestWeekStartDay(r)); err != nil {
 		a.serverError(w, err)
 		return
 	}
@@ -108,7 +108,7 @@ func (a *App) handleSaveAttendance(w http.ResponseWriter, r *http.Request) {
 		if month == "" {
 			month = monthFirst(date)
 		}
-		a.renderAttendanceBoard(w, month, formID(r, "kid_filter"))
+		a.renderAttendanceBoard(w, r, month, formID(r, "kid_filter"))
 	default:
 		a.redirect(w, r, safeRedirect(r.FormValue("back"), "/attendance"))
 	}
@@ -132,16 +132,16 @@ func (a *App) renderTodayAttendance(w http.ResponseWriter, kidID int64, date str
 	})
 }
 
-func (a *App) renderAttendanceBoard(w http.ResponseWriter, month string, kidFilter int64) {
-	data := map[string]any{}
-	if err := a.populateAttendance(data, month, kidFilter); err != nil {
+func (a *App) renderAttendanceBoard(w http.ResponseWriter, r *http.Request, month string, kidFilter int64) {
+	data := map[string]any{"Today": requestToday(r)}
+	if err := a.populateAttendance(data, month, kidFilter, requestWeekStartDay(r)); err != nil {
 		a.serverError(w, err)
 		return
 	}
 	a.renderPartial(w, "attendance_board", data)
 }
 
-func (a *App) populateAttendance(data map[string]any, month string, kidFilter int64) error {
+func (a *App) populateAttendance(data map[string]any, month string, kidFilter int64, weekStarts time.Weekday) error {
 	month = monthFirst(month)
 	from := month
 	to := monthLast(month)
@@ -197,7 +197,7 @@ func (a *App) populateAttendance(data map[string]any, month string, kidFilter in
 		}
 	}
 
-	weeks := attendanceMonthGrid(month, showKids, byKidDay)
+	weeks := attendanceMonthGrid(month, showKids, byKidDay, weekStarts)
 	totals, err := a.store.AttendanceTotalsBetween(rangeFrom, rangeTo, kidFilter)
 	if err != nil {
 		return err
@@ -214,6 +214,7 @@ func (a *App) populateAttendance(data map[string]any, month string, kidFilter in
 	data["NextMonth"] = addMonths(month, 1)
 	data["KidFilter"] = kidFilter
 	data["Weeks"] = weeks
+	data["WeekdayHeaders"] = weekdayHeaders(weekStarts)
 	data["Totals"] = totals
 	data["YearName"] = yearName
 	data["YearFrom"] = yearFrom
@@ -227,11 +228,11 @@ func (a *App) populateAttendance(data map[string]any, month string, kidFilter in
 	return nil
 }
 
-func attendanceMonthGrid(month string, kids []Kid, byKidDay map[int64]map[string]Attendance) [][]CalendarDay {
+func attendanceMonthGrid(month string, kids []Kid, byKidDay map[int64]map[string]Attendance, weekStarts time.Weekday) [][]CalendarDay {
 	first := parseDate(monthFirst(month))
-	start := weekStart(first)
+	start := weekStartOn(first, weekStarts)
 	last := parseDate(monthLast(month))
-	end := last.AddDate(0, 0, (7-int(last.Weekday()))%7)
+	end := weekStartOn(last, weekStarts).AddDate(0, 0, 6)
 	if end.Before(last) {
 		end = last
 	}

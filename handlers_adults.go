@@ -38,7 +38,7 @@ func (a *App) handleAdult(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	start := weekStart(requestNow(r)).Format(dateLayout)
+	start := requestWeekStart(r, requestNow(r)).Format(dateLayout)
 	end := addDays(start, 6)
 
 	cards, err := a.store.AdultCards(adult.ID)
@@ -61,7 +61,7 @@ func (a *App) handleAdult(w http.ResponseWriter, r *http.Request) {
 		a.serverError(w, err)
 		return
 	}
-	if err := a.populateAdultCalendar(data, adult, r.URL.Query()); err != nil {
+	if err := a.populateAdultCalendar(data, adult, r.URL.Query(), requestWeekStartDay(r)); err != nil {
 		a.serverError(w, err)
 		return
 	}
@@ -94,7 +94,7 @@ func (a *App) handleAdultCalendar(w http.ResponseWriter, r *http.Request) {
 
 func (a *App) renderAdultCalendar(w http.ResponseWriter, r *http.Request, adult Adult, query url.Values) {
 	data := map[string]any{"Adult": adult, "Today": requestToday(r)}
-	if err := a.populateAdultCalendar(data, adult, query); err != nil {
+	if err := a.populateAdultCalendar(data, adult, query, requestWeekStartDay(r)); err != nil {
 		a.serverError(w, err)
 		return
 	}
@@ -115,7 +115,7 @@ type AdultCalendarDay struct {
 // days holds. Selection is a pair of inclusive dates because a stretch she
 // dragged across the grid - a trip, a week of appointments - is one event, not
 // several, and a single day is simply both ends landing together.
-func (a *App) populateAdultCalendar(data map[string]any, adult Adult, query url.Values) error {
+func (a *App) populateAdultCalendar(data map[string]any, adult Adult, query url.Values, weekStarts time.Weekday) error {
 	asOf := today()
 	if t, ok := data["Today"].(string); ok && t != "" {
 		asOf = t
@@ -129,8 +129,9 @@ func (a *App) populateAdultCalendar(data map[string]any, adult Adult, query url.
 
 	// The grid pads out to whole weeks, so it reaches a little into the months
 	// on either side. Everything below works in those outer dates.
-	gridFrom := weekStart(parseDate(monthFirst(month))).Format(dateLayout)
-	gridTo := addDays(gridFrom, len(monthGridDates(month))-1)
+	dates := monthGridDates(month, weekStarts)
+	gridFrom := dates[0]
+	gridTo := dates[len(dates)-1]
 
 	from, to := selectedRange(query.Get("from"), query.Get("to"), month, gridFrom, gridTo, asOf)
 
@@ -147,7 +148,7 @@ func (a *App) populateAdultCalendar(data map[string]any, adult Adult, query url.
 
 	var weeks [][]AdultCalendarDay
 	var week []AdultCalendarDay
-	for _, date := range monthGridDates(month) {
+	for _, date := range dates {
 		day := AdultCalendarDay{
 			Date:     date,
 			InMonth:  date >= monthFirst(month) && date <= monthLast(month),
@@ -194,6 +195,7 @@ func (a *App) populateAdultCalendar(data map[string]any, adult Adult, query url.
 	data["NextMonth"] = addMonths(month, 1)
 	data["ThisMonth"] = monthFirst(asOf)
 	data["Weeks"] = weeks
+	data["WeekdayHeaders"] = weekdayHeaders(weekStarts)
 	data["SelectedFrom"] = from
 	data["SelectedTo"] = to
 	data["SelectionLabel"] = rangeLabel(from, to, asOf)
@@ -233,12 +235,12 @@ func applyHolidayNotes(holidays []Holiday, notes []holidayNoteRow) []Holiday {
 }
 
 // monthGridDates lists the days a month's grid shows, padded out to whole
-// Monday-to-Sunday weeks the way the attendance calendar does.
-func monthGridDates(month string) []string {
+// weeks for the family's configured week start.
+func monthGridDates(month string, weekStarts time.Weekday) []string {
 	first := parseDate(monthFirst(month))
 	last := parseDate(monthLast(month))
-	start := weekStart(first)
-	end := last.AddDate(0, 0, (7-int(last.Weekday()))%7)
+	start := weekStartOn(first, weekStarts)
+	end := weekStartOn(last, weekStarts).AddDate(0, 0, 6)
 
 	var dates []string
 	for t := start; !t.After(end); t = t.AddDate(0, 0, 1) {
@@ -598,7 +600,7 @@ func (a *App) handleAdultSchedule(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	start := weekStart(parseDateIn(r.URL.Query().Get("week"), requestLocation(r))).Format(dateLayout)
+	start := requestWeekStart(r, parseDateIn(r.URL.Query().Get("week"), requestLocation(r))).Format(dateLayout)
 	end := addDays(start, 6)
 
 	lessons, err := a.store.AdultLessonsBetween(start, end, adult.ID)
@@ -629,7 +631,7 @@ func (a *App) handleAdultSchedule(w http.ResponseWriter, r *http.Request) {
 	data["WeekEnd"] = end
 	data["PrevWeek"] = addDays(start, -7)
 	data["NextWeek"] = addDays(start, 7)
-	data["ThisWeek"] = weekStart(requestNow(r)).Format(dateLayout)
+	data["ThisWeek"] = requestWeekStart(r, requestNow(r)).Format(dateLayout)
 	a.render(w, "adult_schedule", data)
 }
 

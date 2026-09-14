@@ -95,6 +95,21 @@
                 <button type="submit">Save timezone</button>
             </form>
         </section>
+
+        <section class="panel">
+            <h2>Week starts on</h2>
+            <p class="muted small">
+                The planner and month calendars open on this day. School days
+                (which lessons count on which weekdays) stay the same either way.
+            </p>
+            <form method="post" action="/settings/week-start" class="settings-row new">
+                <select name="week_starts_on" aria-label="First day of the week">
+                    <option value="monday" {{if ne .WeekStartsOn "sunday"}}selected{{end}}>Monday</option>
+                    <option value="sunday" {{if eq .WeekStartsOn "sunday"}}selected{{end}}>Sunday</option>
+                </select>
+                <button type="submit">Save week start</button>
+            </form>
+        </section>
     </div>
     {{template "settings_aside" .}}
 </div>

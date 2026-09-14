@@ -19,13 +19,7 @@
     </div>
 
     <div class="cal-grid month-cal" data-calendar data-url="{{.Adult.URL}}" data-month="{{.Month}}">
-        <div class="cal-dow">Mon</div>
-        <div class="cal-dow">Tue</div>
-        <div class="cal-dow">Wed</div>
-        <div class="cal-dow">Thu</div>
-        <div class="cal-dow">Fri</div>
-        <div class="cal-dow">Sat</div>
-        <div class="cal-dow">Sun</div>
+        {{range .WeekdayHeaders}}<div class="cal-dow">{{.}}</div>{{end}}
         {{$url := .Adult.URL}}
         {{$month := .Month}}
         {{range .Weeks}}
@@ -718,13 +712,7 @@
     </div>
 
     <div class="cal-grid">
-        <div class="cal-dow">Mon</div>
-        <div class="cal-dow">Tue</div>
-        <div class="cal-dow">Wed</div>
-        <div class="cal-dow">Thu</div>
-        <div class="cal-dow">Fri</div>
-        <div class="cal-dow">Sat</div>
-        <div class="cal-dow">Sun</div>
+        {{range .WeekdayHeaders}}<div class="cal-dow">{{.}}</div>{{end}}
         {{$month := .Month}}
         {{$filter := .KidFilter}}
         {{range .Weeks}}

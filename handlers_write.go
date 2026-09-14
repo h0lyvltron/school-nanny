@@ -42,7 +42,7 @@ func (a *App) handleCreateLesson(w http.ResponseWriter, r *http.Request) {
 			a.serverError(w, err)
 			return
 		}
-		a.redirect(w, r, safeRedirect(r.FormValue("back"), "/planner?week="+weekStart(parseDate(lesson.ScheduledOn)).Format(dateLayout)))
+		a.redirect(w, r, safeRedirect(r.FormValue("back"), "/planner?week="+requestWeekStart(r, parseDate(lesson.ScheduledOn)).Format(dateLayout)))
 		return
 	}
 
@@ -182,7 +182,7 @@ func (a *App) handleRescheduleLesson(w http.ResponseWriter, r *http.Request) {
 	if r.Header.Get("HX-Request") == "true" && r.FormValue("view") == "planner" {
 		days := []string{date, before.ScheduledOn}
 		if cascaded {
-			days = append(days, weekDates(date)...)
+			days = append(days, requestWeekDates(r, date)...)
 		}
 		a.renderPlannerDays(w, r, formID(r, "kid_filter"), formID(r, "adult_filter"), days...)
 		return
@@ -320,7 +320,7 @@ func (a *App) renderPlannerDays(w http.ResponseWriter, r *http.Request, kidFilte
 			"AdultFilter": adultFilter,
 			"Adult":       filterAdult,
 			"Today":       requestToday(r),
-			"Back":        plannerFilterURL(weekStart(parseDate(date)).Format(dateLayout), kidFilter, adultFilter),
+			"Back":        plannerFilterURL(requestWeekStart(r, parseDate(date)).Format(dateLayout), kidFilter, adultFilter),
 			"OOB":         i > 0,
 		})
 	}
