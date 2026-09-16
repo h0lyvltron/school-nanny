@@ -187,12 +187,16 @@
                 <p class="muted small pdf-viewer-status" data-pdf-status></p>
                 <div class="pdf-viewer-stage-wrap">
                     <button type="button" class="pdf-viewer-page-arrow is-previous"
-                            data-pdf-prev aria-label="Previous page" title="Previous page">‹</button>
+                            data-pdf-prev aria-label="Previous page" title="Previous page">
+                        <span aria-hidden="true"></span>
+                    </button>
                     <div class="pdf-viewer-stage" data-pdf-stage>
                         <canvas data-pdf-canvas></canvas>
                     </div>
                     <button type="button" class="pdf-viewer-page-arrow is-next"
-                            data-pdf-next aria-label="Next page" title="Next page">›</button>
+                            data-pdf-next aria-label="Next page" title="Next page">
+                        <span aria-hidden="true"></span>
+                    </button>
                 </div>
                 <p class="muted small">
                     Viewing {{.PDFFile.OriginalName}}{{if .Lesson.HasPageRange}} · {{.Lesson.PageRangeLabel}}{{end}}.

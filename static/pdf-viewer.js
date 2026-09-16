@@ -25,6 +25,9 @@ async function mountViewer(root) {
   var stage = root.querySelector("[data-pdf-stage]");
   var status = root.querySelector("[data-pdf-status]");
   var pageLabel = root.querySelector("[data-pdf-page-label]");
+  var previousButton = root.querySelector("[data-pdf-prev]");
+  var nextButton = root.querySelector("[data-pdf-next]");
+  var stageWrap = stage?.parentElement;
   if (!canvas || !stage) {
     return;
   }
@@ -62,13 +65,11 @@ async function mountViewer(root) {
       pageLabel.textContent = "Page " + currentPage + " of " + pageEnd +
         (pageStart > 1 || pageEndAttr > 0 ? " (lesson " + pageStart + "–" + pageEnd + ")" : "");
     }
-    var prev = root.querySelector("[data-pdf-prev]");
-    var next = root.querySelector("[data-pdf-next]");
-    if (prev) {
-      prev.disabled = currentPage <= pageStart;
+    if (previousButton) {
+      previousButton.disabled = currentPage <= pageStart;
     }
-    if (next) {
-      next.disabled = currentPage >= pageEnd;
+    if (nextButton) {
+      nextButton.disabled = currentPage >= pageEnd;
     }
     var jumpInput = root.querySelector("[data-pdf-jump]");
     if (jumpInput) {
@@ -121,6 +122,7 @@ async function mountViewer(root) {
         viewport: viewport,
         transform: transform
       }).promise;
+      updateFullscreenArrowPositions();
       setStatus("");
     } catch (err) {
       setStatus("Could not render that page.");
@@ -135,6 +137,26 @@ async function mountViewer(root) {
         pendingPage = null;
       }
     }
+  }
+
+  function updateFullscreenArrowPositions() {
+    if (!stageWrap) {
+      return;
+    }
+    if (!overlayOpen) {
+      stageWrap.style.removeProperty("--pdf-previous-arrow-left");
+      stageWrap.style.removeProperty("--pdf-next-arrow-left");
+      return;
+    }
+    var rect = canvas.getBoundingClientRect();
+    var arrowSize = 48;
+    var gap = 12;
+    var edge = 12;
+    var maxLeft = Math.max(edge, window.innerWidth - arrowSize - edge);
+    var previousLeft = clamp(rect.left - arrowSize - gap, edge, maxLeft);
+    var nextLeft = clamp(rect.right + gap, edge, maxLeft);
+    stageWrap.style.setProperty("--pdf-previous-arrow-left", previousLeft + "px");
+    stageWrap.style.setProperty("--pdf-next-arrow-left", nextLeft + "px");
   }
 
   function openOverlay() {
@@ -152,6 +174,7 @@ async function mountViewer(root) {
     fitMode = "custom";
     customScale = clamp(Math.max(currentScale * 1.5, 1.5), 0.25, 6);
     requestAnimationFrame(function () {
+      updateFullscreenArrowPositions();
       renderPage(currentPage);
       overlayClose.focus({ preventScroll: true });
     });
@@ -167,6 +190,7 @@ async function mountViewer(root) {
     stage.removeAttribute("aria-modal");
     stage.removeAttribute("aria-label");
     document.body.classList.remove("pdf-overlay-open");
+    updateFullscreenArrowPositions();
     if (overlayRestore) {
       fitMode = overlayRestore.fitMode;
       customScale = overlayRestore.customScale;
@@ -268,6 +292,11 @@ async function mountViewer(root) {
   stage.addEventListener("click", function (event) {
     if (overlayOpen && event.target === stage && Date.now() - overlayOpenedAt > 250) {
       closeOverlay();
+    }
+  });
+  stage.addEventListener("scroll", function () {
+    if (overlayOpen) {
+      requestAnimationFrame(updateFullscreenArrowPositions);
     }
   });
 
