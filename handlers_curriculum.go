@@ -414,10 +414,24 @@ func (a *App) handleScheduleCurriculumItem(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	kidID := formID(r, "kid_id")
+	planID := formID(r, "plan_id")
 	itemID := formID(r, "item_id")
 	date := formDate(r, "scheduled_on")
-	if kidID == 0 || itemID == 0 {
-		a.renderScheduleCurriculumItem(w, r, "Choose a child and a curriculum lesson.")
+	if kidID == 0 || planID == 0 || itemID == 0 {
+		a.renderScheduleCurriculumItem(w, r, "Choose a child, curriculum, and lesson.")
+		return
+	}
+	item, err := a.store.CurriculumItem(itemID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			a.renderScheduleCurriculumItem(w, r, "That curriculum lesson no longer exists.")
+			return
+		}
+		a.serverError(w, err)
+		return
+	}
+	if item.PlanID != planID {
+		a.renderScheduleCurriculumItem(w, r, "Choose a lesson from the selected curriculum.")
 		return
 	}
 	if _, err := a.store.ScheduleCurriculumItem(kidID, itemID, date); err != nil {
@@ -481,7 +495,23 @@ func (a *App) renderScheduleCurriculumItem(w http.ResponseWriter, r *http.Reques
 		selectedKidID = parseInt64(r.URL.Query().Get("kid"))
 	}
 	data["SelectedKidID"] = selectedKidID
-	data["SelectedItemID"] = formID(r, "item_id")
+	selectedItemID := formID(r, "item_id")
+	selectedPlanID := formID(r, "plan_id")
+	if selectedPlanID == 0 {
+		selectedPlanID = parseInt64(r.URL.Query().Get("plan"))
+	}
+	if selectedPlanID == 0 && selectedItemID != 0 {
+		for _, plan := range plans {
+			for _, item := range plan.Items {
+				if item.ID == selectedItemID {
+					selectedPlanID = plan.ID
+					break
+				}
+			}
+		}
+	}
+	data["SelectedPlanID"] = selectedPlanID
+	data["SelectedItemID"] = selectedItemID
 	a.render(w, "curriculum_schedule", data)
 }
 

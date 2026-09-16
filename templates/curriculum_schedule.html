@@ -21,17 +21,24 @@
                 {{end}}
             </select>
         </label>
-        <label>Curriculum lesson
-            <select name="item_id" required>
-                <option value="">Choose a lesson</option>
-                {{$selectedItem := .SelectedItemID}}
+        <label>Curriculum
+            <select name="plan_id" id="curriculum-plan" required>
+                <option value="">Choose a curriculum</option>
+                {{$selectedPlan := .SelectedPlanID}}
                 {{range .Plans}}
                     {{if .Items}}
-                    <optgroup label="{{.Name}} · {{.SubjectName}}">
-                        {{range .Items}}
-                            <option value="{{.ID}}" {{if eq .ID $selectedItem}}selected{{end}}>{{.Title}}</option>
-                        {{end}}
-                    </optgroup>
+                        <option value="{{.ID}}" {{if eq .ID $selectedPlan}}selected{{end}}>{{.Name}} · {{.SubjectName}}</option>
+                    {{end}}
+                {{end}}
+            </select>
+        </label>
+        <label>Curriculum lesson
+            <select name="item_id" id="curriculum-lesson" required>
+                <option value="" data-placeholder>Choose a curriculum first</option>
+                {{$selectedItem := .SelectedItemID}}
+                {{range .Plans}}
+                    {{range .Items}}
+                        <option value="{{.ID}}" data-plan-id="{{.PlanID}}" {{if eq .ID $selectedItem}}selected{{end}}>{{.Title}}</option>
                     {{end}}
                 {{end}}
             </select>
@@ -45,4 +52,31 @@
         <p>Add a child and a curriculum plan before scheduling an individual curriculum lesson.</p>
     {{end}}
 </section>
+
+<script>
+(() => {
+    const plan = document.getElementById("curriculum-plan");
+    const lesson = document.getElementById("curriculum-lesson");
+    if (!plan || !lesson) return;
+
+    const placeholder = lesson.querySelector("[data-placeholder]");
+    const options = Array.from(lesson.querySelectorAll("[data-plan-id]"));
+    const populateLessons = reset => {
+        const planID = plan.value;
+        options.forEach(option => {
+            const visible = option.dataset.planId === planID;
+            option.hidden = !visible;
+            option.disabled = !visible;
+        });
+        if (reset || !options.some(option => option.value === lesson.value && !option.disabled)) {
+            lesson.value = "";
+        }
+        lesson.disabled = !planID;
+        placeholder.textContent = planID ? "Choose a lesson" : "Choose a curriculum first";
+    };
+
+    plan.addEventListener("change", () => populateLessons(true));
+    populateLessons(false);
+})();
+</script>
 {{end}}

@@ -95,7 +95,7 @@ func TestScheduleMissingCurriculumItemRejoinsAssignment(t *testing.T) {
 func TestCurriculumSchedulePageAndPost(t *testing.T) {
 	ta := newTestApp(t)
 	kid := ta.addKid("Mia")
-	_, items := recoveryCurriculum(t, ta)
+	plan, items := recoveryCurriculum(t, ta)
 	date := addDays(today(), 4)
 
 	status, page := ta.get("/planner?week=" + weekStart(parseDate(date)).Format(dateLayout))
@@ -104,11 +104,14 @@ func TestCurriculumSchedulePageAndPost(t *testing.T) {
 	}
 	status, page = ta.get("/curriculum/schedule-item?date=" + date)
 	if status != 200 || !strings.Contains(page, "Recoverable Math") ||
+		!strings.Contains(page, `id="curriculum-plan"`) ||
+		!strings.Contains(page, `data-plan-id="`+itoa64(plan.ID)+`"`) ||
 		!strings.Contains(page, "Lesson two") {
 		t.Fatalf("schedule page status=%d body=%q", status, page)
 	}
 	ta.redirectAfterPost("/curriculum/schedule-item", mapValues(
 		"kid_id", itoa64(kid),
+		"plan_id", itoa64(plan.ID),
 		"item_id", itoa64(items[1].ID),
 		"scheduled_on", date,
 	))
