@@ -2516,6 +2516,15 @@ func TestCurriculumFromTOCAndYAMLRoundTrip(t *testing.T) {
 	mustContain(t, full.Items[0].Notes, "Unit 1", "unit notes")
 	mustContain(t, full.Items[2].Title, "39", "range start")
 	mustContain(t, full.Items[2].Title, "40", "range end")
+	if full.Items[0].PageStart != 2 || full.Items[0].PageEnd != 3 {
+		t.Fatalf("first item pages: start=%d end=%d", full.Items[0].PageStart, full.Items[0].PageEnd)
+	}
+	if full.Items[1].PageStart != 4 || full.Items[1].PageEnd != 104 {
+		t.Fatalf("second item pages: start=%d end=%d", full.Items[1].PageStart, full.Items[1].PageEnd)
+	}
+	if full.Items[2].PageStart != 105 {
+		t.Fatalf("third item page start: %d", full.Items[2].PageStart)
+	}
 
 	status, yamlBody := ta.get("/curriculum/" + itoa64(plan.ID) + "/export.yaml")
 	if status != http.StatusOK {
@@ -2524,6 +2533,8 @@ func TestCurriculumFromTOCAndYAMLRoundTrip(t *testing.T) {
 	mustContain(t, yamlBody, "plans:", "yaml plans key")
 	mustContain(t, yamlBody, "Grade 1 Math TOC", "yaml plan name")
 	mustContain(t, yamlBody, "Identifying Right and Left", "yaml lesson")
+	mustContain(t, yamlBody, "page_start: 2", "yaml page_start")
+	mustContain(t, yamlBody, "page_end: 3", "yaml page_end")
 
 	status, allYAML := ta.get("/curriculum/export.yaml")
 	if status != http.StatusOK {
@@ -3743,4 +3754,160 @@ func (ta *testApp) insertUnassignedLesson(kid, subject int64, date, title, creat
 		ta.t.Fatalf("lesson id: %v", err)
 	}
 	return id
+}
+
+func TestCurriculumFromPDF(t *testing.T) {
+	ta := newTestApp(t)
+	mathID := ta.mathSubjectID()
+
+	pdfPath := filepath.Join(t.TempDir(), "grade1.pdf")
+	if err := writeMinimalTOCPDF(pdfPath); err != nil {
+		t.Fatal(err)
+	}
+	pdfBytes, err := os.ReadFile(pdfPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var buf bytes.Buffer
+	writer := multipart.NewWriter(&buf)
+	writer.WriteField("name", "Grade 1 Math PDF")
+	writer.WriteField("subject_id", itoa64(mathID))
+	part, err := writer.CreateFormFile("file", "grade1.pdf")
+	if err != nil {
+		t.Fatal(err)
+	}
+	part.Write(pdfBytes)
+	writer.Close()
+
+	resp, err := ta.client.Post(ta.server.URL+"/curriculum/from-pdf", writer.FormDataContentType(), &buf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("from-pdf status=%d body=%s", resp.StatusCode, body)
+	}
+	page := string(body)
+	mustContain(t, page, "Imported from PDF", "review flash")
+	mustContain(t, page, "Grade 1 Math PDF", "plan name")
+	mustContain(t, page, "Identifying Right and Left", "lesson title")
+
+	plans, err := ta.store.CurriculumPlans()
+	if err != nil {
+		t.Fatal(err)
+	}
+	plan, ok := planByName(plans, "Grade 1 Math PDF")
+	if !ok {
+		t.Fatal("plan missing")
+	}
+	full, err := ta.store.CurriculumPlan(plan.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(full.Items) < 2 {
+		t.Fatalf("items=%d", len(full.Items))
+	}
+	if full.Items[0].PageStart != 2 {
+		t.Fatalf("page_start=%d", full.Items[0].PageStart)
+	}
+	if len(full.Attachments) != 1 {
+		t.Fatalf("want PDF attachment, got %d", len(full.Attachments))
+	}
+	if full.Attachments[0].ContentType != "application/pdf" {
+		t.Fatalf("attachment type=%q", full.Attachments[0].ContentType)
+	}
+}
+
+func TestApplyCurriculumCopiesPageRanges(t *testing.T) {
+	ta := newTestApp(t)
+	kid := ta.addKid("Sam")
+	mathID := ta.mathSubjectID()
+	planID, err := ta.store.CreateCurriculumPlan(CurriculumPlan{
+		Name: "Paged Math", SubjectID: mathID, Kind: PlanAuthored,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = ta.store.CreateCurriculumItem(CurriculumItem{
+		PlanID: planID, Title: "Lesson A", PageStart: 10, PageEnd: 12,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = ta.store.CreateCurriculumItem(CurriculumItem{
+		PlanID: planID, Title: "Lesson B", PageStart: 13, PageEnd: 15,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	plan, err := ta.store.CurriculumPlan(planID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dates := []string{"2026-09-14", "2026-09-15"}
+	if err := ta.store.ApplyCurriculum(plan, kid, dates, "1,2,3,4,5"); err != nil {
+		t.Fatal(err)
+	}
+	lessons, err := ta.store.LessonsBetween("2026-09-14", "2026-09-15", kid)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(lessons) != 2 {
+		t.Fatalf("lessons=%d", len(lessons))
+	}
+	if lessons[0].PageStart != 10 || lessons[0].PageEnd != 12 {
+		t.Fatalf("lesson0 pages=%d-%d", lessons[0].PageStart, lessons[0].PageEnd)
+	}
+	if lessons[1].PageStart != 13 || lessons[1].PageEnd != 15 {
+		t.Fatalf("lesson1 pages=%d-%d", lessons[1].PageStart, lessons[1].PageEnd)
+	}
+}
+
+func TestLessonPageShowsPDFViewer(t *testing.T) {
+	ta := newTestApp(t)
+	kid := ta.addKid("Sam")
+	mathID := ta.mathSubjectID()
+	lessonID, err := ta.store.CreateLesson(Lesson{
+		KidID: kid, SubjectID: mathID, ScheduledOn: "2026-09-14",
+		Status: StatusPlanned, Title: "Read pages", PageStart: 2, PageEnd: 3,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	pdfPath := filepath.Join(t.TempDir(), "lesson.pdf")
+	if err := writeMinimalTOCPDF(pdfPath); err != nil {
+		t.Fatal(err)
+	}
+	pdfBytes, err := os.ReadFile(pdfPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var buf bytes.Buffer
+	writer := multipart.NewWriter(&buf)
+	writer.WriteField("owner_type", OwnerLesson)
+	writer.WriteField("lesson_id", itoa64(lessonID))
+	writer.WriteField("back", "/lessons/"+itoa64(lessonID))
+	part, err := writer.CreateFormFile("file", "lesson.pdf")
+	if err != nil {
+		t.Fatal(err)
+	}
+	part.Write(pdfBytes)
+	writer.Close()
+	resp, err := ta.client.Post(ta.server.URL+"/files", writer.FormDataContentType(), &buf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+
+	status, page := ta.get("/lessons/" + itoa64(lessonID))
+	if status != http.StatusOK {
+		t.Fatalf("status=%d", status)
+	}
+	mustContain(t, page, `data-pdf-viewer`, "viewer root")
+	mustContain(t, page, `data-page-start="2"`, "page start")
+	mustContain(t, page, `data-page-end="3"`, "page end")
+	mustContain(t, page, `/static/pdf-viewer.js`, "viewer script")
+	mustContain(t, page, `name="page_start"`, "edit field")
 }

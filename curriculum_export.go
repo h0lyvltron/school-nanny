@@ -58,6 +58,14 @@ func writePlanYAML(b *strings.Builder, p CurriculumPlan) error {
 			b.WriteString("\n        minutes: ")
 			fmt.Fprintf(b, "%d", it.Minutes)
 		}
+		if it.PageStart > 0 {
+			b.WriteString("\n        page_start: ")
+			fmt.Fprintf(b, "%d", it.PageStart)
+		}
+		if it.PageEnd > 0 {
+			b.WriteString("\n        page_end: ")
+			fmt.Fprintf(b, "%d", it.PageEnd)
+		}
 		if notes := strings.TrimSpace(it.Notes); notes != "" {
 			b.WriteString("\n        notes: ")
 			writeYAMLScalar(b, notes)

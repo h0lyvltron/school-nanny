@@ -32,15 +32,17 @@
     <p class="muted small">Adds new written plans from a YAML or CSV file. It never merges into a plan you already have.</p>
     <details class="import-help">
         <summary>File format</summary>
-        <p class="muted small">Same fields either way. <code>subject</code> is a name or slug, like <code>math</code> or <code>Language Arts</code>. Lesson order in the file becomes the sequence. PDFs are attached on the plan page after.</p>
+        <p class="muted small">Same fields either way. <code>subject</code> is a name or slug, like <code>math</code> or <code>Language Arts</code>. Lesson order in the file becomes the sequence. Optional <code>page_start</code> / <code>page_end</code> mark PDF pages. PDFs are attached on the plan page after.</p>
         <pre class="schema-sample">plans:
   - name: 3rd grade Math
     subject: math
     items:
       - week: 1
         title: Place value
-        minutes: 40</pre>
-        <p class="muted small">CSV header: <code>plan,subject,week,title,minutes,notes</code></p>
+        minutes: 40
+        page_start: 12
+        page_end: 15</pre>
+        <p class="muted small">CSV header: <code>plan,subject,week,title,minutes,notes,page_start,page_end</code></p>
     </details>
     <form method="post" action="/curriculum/import" enctype="multipart/form-data" class="upload"
           data-toast="Imported!"
@@ -75,6 +77,33 @@
                           placeholder="Unit 1&#10;Lesson 1: Identifying Right and Left . . . 2&#10;Lesson 2: Writing Numbers 1–5 . . . 4"></textarea>
             </label>
             <button type="submit">Create plan from TOC</button>
+        </form>
+    {{else}}
+        <p class="muted">Add subjects in Settings first.</p>
+    {{end}}
+</section>
+
+<section class="panel">
+    <h2>Upload a curriculum PDF</h2>
+    <p class="muted small">
+        Reads the PDF outline when present, otherwise scrapes text from the front pages
+        looking for a Lesson / Unit table of contents. Creates a plan with page ranges
+        and attaches the PDF for the lesson viewer.
+    </p>
+    {{if .Subjects}}
+        <form method="post" action="/curriculum/from-pdf" enctype="multipart/form-data" class="stack">
+            <label>Plan name
+                <input type="text" name="name" placeholder="Name, like Grade 1 Math" required>
+            </label>
+            <label>Subject
+                <select name="subject_id" required>
+                    {{range .Subjects}}<option value="{{.ID}}">{{.Name}}</option>{{end}}
+                </select>
+            </label>
+            <label>Curriculum PDF
+                <input type="file" name="file" accept="application/pdf,.pdf" required aria-label="Curriculum PDF">
+            </label>
+            <button type="submit">Create plan from PDF</button>
         </form>
     {{else}}
         <p class="muted">Add subjects in Settings first.</p>

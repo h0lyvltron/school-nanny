@@ -140,6 +140,7 @@ func (a *App) Routes() http.Handler {
 	mux.HandleFunc("POST /curriculum", h((*App).handleCreateCurriculumPlan))
 	mux.HandleFunc("POST /curriculum/import", h((*App).handleImportCurriculum))
 	mux.HandleFunc("POST /curriculum/from-toc", h((*App).handleCurriculumFromTOC))
+	mux.HandleFunc("POST /curriculum/from-pdf", h((*App).handleCurriculumFromPDF))
 	mux.HandleFunc("GET /curriculum/export.yaml", h((*App).handleExportAllCurriculumYAML))
 	mux.HandleFunc("GET /curriculum/{id}", h((*App).handleCurriculumPlan))
 	mux.HandleFunc("GET /curriculum/{id}/export.yaml", h((*App).handleExportCurriculumPlanYAML))

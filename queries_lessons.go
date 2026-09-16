@@ -12,6 +12,7 @@ const lessonSelect = `SELECT l.id, COALESCE(l.kid_id, 0), COALESCE(l.adult_id, 0
 		l.subject_id, COALESCE(l.school_year_id, 0),
 		COALESCE(l.series_id, 0), COALESCE(l.assignment_id, 0), COALESCE(l.sequence, 0),
 		l.scheduled_on, l.status, l.title, l.minutes, l.notes,
+		COALESCE(l.page_start, 0), COALESCE(l.page_end, 0),
 		COALESCE(l.completed_at, ''), l.created_at,
 		COALESCE(k.name, ad.name, ''), COALESCE(k.color, ad.color, ''),
 		COALESCE(k.avatar_path, ad.avatar_path, ''), s.name, s.color
@@ -32,6 +33,7 @@ func scanLessons(rows *sql.Rows) ([]Lesson, error) {
 		if err := rows.Scan(&l.ID, &l.KidID, &l.AdultID, &l.SubjectID, &l.SchoolYearID, &l.SeriesID,
 			&l.AssignmentID, &l.Sequence,
 			&l.ScheduledOn, &l.Status, &l.Title, &l.Minutes, &l.Notes,
+			&l.PageStart, &l.PageEnd,
 			&l.CompletedAt, &l.CreatedAt,
 			&l.PersonName, &l.PersonColor, &l.PersonAvatar,
 			&l.SubjectName, &l.SubjectColor); err != nil {
@@ -116,11 +118,12 @@ func (s *Store) CreateLesson(l Lesson) (int64, error) {
 	}
 	res, err := s.db().Exec(`INSERT INTO lessons
 		(kid_id, adult_id, subject_id, school_year_id, series_id, assignment_id, sequence,
-		 scheduled_on, status, title, minutes, notes, completed_at, created_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		 scheduled_on, status, title, minutes, notes, page_start, page_end, completed_at, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		nullableID(l.KidID), nullableID(l.AdultID),
 		l.SubjectID, nullableID(yearID), nullableID(l.SeriesID), nullableID(l.AssignmentID), l.Sequence,
 		l.ScheduledOn, l.Status, l.Title, l.Minutes, l.Notes,
+		nullablePage(l.PageStart), nullablePage(l.PageEnd),
 		completedAt, time.Now().Format(time.RFC3339))
 	if err != nil {
 		return 0, err
@@ -130,11 +133,20 @@ func (s *Store) CreateLesson(l Lesson) (int64, error) {
 
 func (s *Store) UpdateLesson(id int64, l Lesson) error {
 	_, err := s.db().Exec(`UPDATE lessons
-		SET kid_id = ?, adult_id = ?, subject_id = ?, scheduled_on = ?, title = ?, minutes = ?, notes = ?
+		SET kid_id = ?, adult_id = ?, subject_id = ?, scheduled_on = ?, title = ?, minutes = ?, notes = ?,
+		    page_start = ?, page_end = ?
 		WHERE id = ?`,
 		nullableID(l.KidID), nullableID(l.AdultID),
-		l.SubjectID, l.ScheduledOn, l.Title, l.Minutes, l.Notes, id)
+		l.SubjectID, l.ScheduledOn, l.Title, l.Minutes, l.Notes,
+		nullablePage(l.PageStart), nullablePage(l.PageEnd), id)
 	return err
+}
+
+func nullablePage(n int) any {
+	if n <= 0 {
+		return nil
+	}
+	return n
 }
 
 // SetLessonStatus moves a lesson between planned, done, and skipped, stamping

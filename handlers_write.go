@@ -84,6 +84,8 @@ func (a *App) handleUpdateLesson(w http.ResponseWriter, r *http.Request) {
 		Title:       strings.TrimSpace(r.FormValue("title")),
 		Minutes:     formInt(r, "minutes"),
 		Notes:       strings.TrimSpace(r.FormValue("notes")),
+		PageStart:   formInt(r, "page_start"),
+		PageEnd:     formInt(r, "page_end"),
 	}
 	// A lesson belongs to a child or to an adult, never both.
 	if lesson.AdultID != 0 {

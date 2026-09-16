@@ -1,5 +1,8 @@
 {{define "content"}}
 {{$back := printf "/curriculum/%d" .Plan.ID}}
+{{if .FromPDF}}
+<p class="saved-flash">Imported from PDF — review the sequence and page ranges below, then apply when ready.</p>
+{{end}}
 <div class="page-head">
     <div>
         <p class="crumbs"><a href="/curriculum">Curriculum</a></p>
@@ -68,6 +71,8 @@
                 <input type="text" name="title" value="{{.Title}}" required aria-label="Title">
                 <input type="number" name="week_number" min="0" value="{{if .WeekNumber}}{{.WeekNumber}}{{end}}" placeholder="wk" aria-label="Week number">
                 <input type="number" name="minutes" min="0" step="5" value="{{if .Minutes}}{{.Minutes}}{{end}}" placeholder="min" aria-label="Minutes">
+                <input type="number" name="page_start" min="0" value="{{if .PageStart}}{{.PageStart}}{{end}}" placeholder="p start" aria-label="Page start">
+                <input type="number" name="page_end" min="0" value="{{if .PageEnd}}{{.PageEnd}}{{end}}" placeholder="p end" aria-label="Page end">
                 <input type="text" name="notes" value="{{.Notes}}" placeholder="Notes" aria-label="Notes">
                 <button type="submit" class="secondary">Save</button>
                 <button type="submit" class="link-button" formmethod="post"
@@ -87,6 +92,8 @@
         <input type="text" name="title" placeholder="Next lesson title" required>
         <input type="number" name="week_number" min="0" placeholder="wk" aria-label="Week number">
         <input type="number" name="minutes" min="0" step="5" placeholder="min" aria-label="Minutes">
+        <input type="number" name="page_start" min="0" placeholder="p start" aria-label="Page start">
+        <input type="number" name="page_end" min="0" placeholder="p end" aria-label="Page end">
         <input type="text" name="notes" placeholder="Notes" aria-label="Notes">
         <button type="submit">Add to sequence</button>
     </form>

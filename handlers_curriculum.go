@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -189,6 +191,9 @@ func (a *App) handleCurriculumPlan(w http.ResponseWriter, r *http.Request) {
 	data["Assignments"] = assignments
 	data["Weekdays"] = weekdayChoices(defaultWeekdays())
 	data["Start"] = requestToday(r)
+	if r.URL.Query().Get("from_pdf") == "1" {
+		data["FromPDF"] = true
+	}
 	a.render(w, "curriculum_plan", data)
 }
 
@@ -241,6 +246,8 @@ func (a *App) handleCreateCurriculumItem(w http.ResponseWriter, r *http.Request)
 		Notes:      strings.TrimSpace(r.FormValue("notes")),
 		Minutes:    formInt(r, "minutes"),
 		WeekNumber: formInt(r, "week_number"),
+		PageStart:  formInt(r, "page_start"),
+		PageEnd:    formInt(r, "page_end"),
 	}
 	if item.Title == "" {
 		http.Error(w, "A lesson in the sequence needs a title.", http.StatusBadRequest)
@@ -263,6 +270,8 @@ func (a *App) handleUpdateCurriculumItem(w http.ResponseWriter, r *http.Request)
 		Notes:      strings.TrimSpace(r.FormValue("notes")),
 		Minutes:    formInt(r, "minutes"),
 		WeekNumber: formInt(r, "week_number"),
+		PageStart:  formInt(r, "page_start"),
+		PageEnd:    formInt(r, "page_end"),
 	}
 	if item.Title == "" {
 		http.Error(w, "A lesson in the sequence needs a title.", http.StatusBadRequest)
@@ -458,19 +467,108 @@ func (a *App) handleCurriculumFromTOC(w http.ResponseWriter, r *http.Request) {
 		SubjectName: subject.Name,
 		Kind:        PlanAuthored,
 	}
-	for i, it := range items {
-		plan.Items = append(plan.Items, CurriculumItem{
-			Title:     TOCItemTitle(it),
-			Notes:     TOCItemNotes(it, name),
-			SortOrder: i + 1,
-		})
-	}
+	plan.Items = ItemsFromTOC(items, name)
 	n, err := a.store.ImportCurriculum([]CurriculumPlan{plan})
 	if err != nil {
 		a.serverError(w, err)
 		return
 	}
 	a.redirect(w, r, "/curriculum?imported="+strconv.Itoa(n))
+}
+
+func (a *App) handleCurriculumFromPDF(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, maxUploadBytes+64*1024)
+	if err := r.ParseMultipartForm(8 << 20); err != nil {
+		a.renderCurriculumImportError(w, r, importUploadError(err))
+		return
+	}
+	if r.MultipartForm != nil {
+		defer r.MultipartForm.RemoveAll()
+	}
+
+	name := strings.TrimSpace(r.FormValue("name"))
+	subjectID := formInt(r, "subject_id")
+	if name == "" || subjectID == 0 {
+		a.renderCurriculumImportError(w, r, "A name, subject, and PDF are required.")
+		return
+	}
+	files := r.MultipartForm.File["file"]
+	if len(files) == 0 {
+		a.renderCurriculumImportError(w, r, "Choose a curriculum PDF to upload.")
+		return
+	}
+	header := files[0]
+
+	subjects, err := a.store.Subjects(false)
+	if err != nil {
+		a.serverError(w, err)
+		return
+	}
+	var subject Subject
+	for _, s := range subjects {
+		if s.ID == int64(subjectID) {
+			subject = s
+			break
+		}
+	}
+	if subject.ID == 0 {
+		a.renderCurriculumImportError(w, r, "Choose a subject that still exists.")
+		return
+	}
+
+	src, err := header.Open()
+	if err != nil {
+		a.renderCurriculumImportError(w, r, "Could not read that PDF.")
+		return
+	}
+	tocItems, method, err := ExtractCurriculumFromPDFReader(src)
+	src.Close()
+	if err != nil {
+		a.renderCurriculumImportError(w, r, err.Error())
+		return
+	}
+
+	plan := CurriculumPlan{
+		Name:        name,
+		SubjectID:   subject.ID,
+		SubjectName: subject.Name,
+		Kind:        PlanAuthored,
+		Notes:       "Imported from PDF (" + method + ")",
+	}
+	plan.Items = ItemsFromTOC(tocItems, name)
+
+	planID, err := a.store.CreateCurriculumPlan(plan)
+	if err != nil {
+		a.serverError(w, err)
+		return
+	}
+	for _, it := range plan.Items {
+		it.PlanID = planID
+		if _, err := a.store.CreateCurriculumItem(it); err != nil {
+			a.serverError(w, err)
+			return
+		}
+	}
+
+	stored, contentType, err := a.saveUpload(header.Filename, header)
+	if err != nil {
+		a.serverError(w, err)
+		return
+	}
+	if _, err := a.store.CreateAttachment(Attachment{
+		OwnerType:        OwnerCurriculum,
+		CurriculumPlanID: planID,
+		OriginalName:     filepath.Base(header.Filename),
+		StoredPath:       stored,
+		SizeBytes:        header.Size,
+		ContentType:      contentType,
+	}); err != nil {
+		os.Remove(filepath.Join(a.uploadDir, stored))
+		a.serverError(w, err)
+		return
+	}
+
+	a.redirect(w, r, "/curriculum/"+strconv.FormatInt(planID, 10)+"?from_pdf=1")
 }
 
 func (a *App) handleExportCurriculumPlanYAML(w http.ResponseWriter, r *http.Request) {

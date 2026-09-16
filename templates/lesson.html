@@ -84,6 +84,14 @@
                     </select>
                 </label>
             </div>
+            <div class="field-row">
+                <label>PDF page start
+                    <input type="number" name="page_start" min="0" value="{{if .Lesson.PageStart}}{{.Lesson.PageStart}}{{end}}" placeholder="—" aria-label="PDF page start">
+                </label>
+                <label>PDF page end
+                    <input type="number" name="page_end" min="0" value="{{if .Lesson.PageEnd}}{{.Lesson.PageEnd}}{{end}}" placeholder="—" aria-label="PDF page end">
+                </label>
+            </div>
             <label>Notes
                 <textarea name="notes" rows="4" placeholder="How did it go?">{{.Lesson.Notes}}</textarea>
             </label>
@@ -159,6 +167,36 @@
             <h2>Files</h2>
             {{template "upload_form" (dict "OwnerType" "lesson" "LessonID" .Lesson.ID "Back" $back)}}
             {{template "file_list" (dict "Files" .Lesson.Attachments "Back" $back)}}
+            {{if .HasPDF}}
+            <div class="pdf-viewer"
+                 data-pdf-viewer
+                 data-file-url="/files/{{.PDFFile.ID}}"
+                 data-page-start="{{if .Lesson.PageStart}}{{.Lesson.PageStart}}{{else}}1{{end}}"
+                 data-page-end="{{if .Lesson.PageEnd}}{{.Lesson.PageEnd}}{{end}}">
+                <div class="pdf-viewer-toolbar" role="toolbar" aria-label="PDF controls">
+                    <button type="button" class="secondary" data-pdf-prev>Previous</button>
+                    <button type="button" class="secondary" data-pdf-next>Next</button>
+                    <label class="muted small">Jump
+                        <input type="number" data-pdf-jump min="1" aria-label="Jump to page">
+                    </label>
+                    <button type="button" class="secondary" data-pdf-zoom-out>Zoom out</button>
+                    <button type="button" class="secondary" data-pdf-zoom-in>Zoom in</button>
+                    <button type="button" class="secondary" data-pdf-fit-width>Fit width</button>
+                    <button type="button" class="secondary" data-pdf-fit-page>Fit page</button>
+                    <button type="button" class="secondary" data-pdf-reset>Reset</button>
+                    <span class="muted small" data-pdf-page-label></span>
+                </div>
+                <p class="muted small pdf-viewer-status" data-pdf-status></p>
+                <div class="pdf-viewer-stage" data-pdf-stage>
+                    <canvas data-pdf-canvas></canvas>
+                </div>
+                <p class="muted small">
+                    Viewing {{.PDFFile.OriginalName}}{{if .Lesson.HasPageRange}} · {{.Lesson.PageRangeLabel}}{{end}}.
+                    Open the file in a new tab from the list above if you need the full book.
+                </p>
+            </div>
+            <script type="module" src="/static/pdf-viewer.js"></script>
+            {{end}}
         </section>
 
         {{if not .Lesson.ForAdult}}

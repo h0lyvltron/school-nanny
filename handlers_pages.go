@@ -557,6 +557,19 @@ func (a *App) handleLesson(w http.ResponseWriter, r *http.Request) {
 	data["Return"] = lessonReturn(lesson, r.URL.Query().Get("back"), requestWeekStartDay(r))
 	data["Subjects"] = subjects
 	data["Kids"] = data["NavKids"]
+
+	pdfFile, hasPDF := firstPDFAttachment(lesson.Attachments)
+	if !hasPDF && assignment.PlanID != 0 {
+		planFiles, err := a.store.AttachmentsForPlan(assignment.PlanID)
+		if err != nil {
+			a.serverError(w, err)
+			return
+		}
+		pdfFile, hasPDF = firstPDFAttachment(planFiles)
+	}
+	data["PDFFile"] = pdfFile
+	data["HasPDF"] = hasPDF
+
 	a.render(w, "lesson", data)
 }
 

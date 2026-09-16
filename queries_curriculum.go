@@ -84,7 +84,7 @@ func (s *Store) DeleteCurriculumPlan(id int64) error {
 
 func (s *Store) CurriculumItems(planID int64) ([]CurriculumItem, error) {
 	rows, err := s.db().Query(`SELECT id, plan_id, sort_order, title, notes, minutes,
-			COALESCE(week_number, 0), created_at
+			COALESCE(week_number, 0), COALESCE(page_start, 0), COALESCE(page_end, 0), created_at
 		FROM curriculum_items WHERE plan_id = ? ORDER BY sort_order, id`, planID)
 	if err != nil {
 		return nil, err
@@ -95,7 +95,7 @@ func (s *Store) CurriculumItems(planID int64) ([]CurriculumItem, error) {
 	for rows.Next() {
 		var it CurriculumItem
 		if err := rows.Scan(&it.ID, &it.PlanID, &it.SortOrder, &it.Title, &it.Notes,
-			&it.Minutes, &it.WeekNumber, &it.CreatedAt); err != nil {
+			&it.Minutes, &it.WeekNumber, &it.PageStart, &it.PageEnd, &it.CreatedAt); err != nil {
 			return nil, err
 		}
 		out = append(out, it)
@@ -110,9 +110,10 @@ func (s *Store) CreateCurriculumItem(it CurriculumItem) (int64, error) {
 		return 0, err
 	}
 	res, err := s.db().Exec(`INSERT INTO curriculum_items
-		(plan_id, sort_order, title, notes, minutes, week_number, created_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		(plan_id, sort_order, title, notes, minutes, week_number, page_start, page_end, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		it.PlanID, next, it.Title, it.Notes, it.Minutes, nullableWeek(it.WeekNumber),
+		nullablePage(it.PageStart), nullablePage(it.PageEnd),
 		time.Now().Format(time.RFC3339))
 	if err != nil {
 		return 0, err
@@ -122,8 +123,10 @@ func (s *Store) CreateCurriculumItem(it CurriculumItem) (int64, error) {
 
 func (s *Store) UpdateCurriculumItem(id int64, it CurriculumItem) error {
 	_, err := s.db().Exec(`UPDATE curriculum_items
-		SET title = ?, notes = ?, minutes = ?, week_number = ? WHERE id = ?`,
-		it.Title, it.Notes, it.Minutes, nullableWeek(it.WeekNumber), id)
+		SET title = ?, notes = ?, minutes = ?, week_number = ?, page_start = ?, page_end = ?
+		WHERE id = ?`,
+		it.Title, it.Notes, it.Minutes, nullableWeek(it.WeekNumber),
+		nullablePage(it.PageStart), nullablePage(it.PageEnd), id)
 	return err
 }
 
@@ -202,9 +205,10 @@ func (s *Store) CreatePlanFromLessons(name string, subjectID, sourceKidID, sourc
 	}
 	for i, l := range lessons {
 		if _, err := tx.Exec(`INSERT INTO curriculum_items
-			(plan_id, sort_order, title, notes, minutes, week_number, created_at)
-			VALUES (?, ?, ?, ?, ?, NULL, ?)`,
-			planID, i+1, l.Title, l.Notes, l.Minutes, now); err != nil {
+			(plan_id, sort_order, title, notes, minutes, week_number, page_start, page_end, created_at)
+			VALUES (?, ?, ?, ?, ?, NULL, ?, ?, ?)`,
+			planID, i+1, l.Title, l.Notes, l.Minutes,
+			nullablePage(l.PageStart), nullablePage(l.PageEnd), now); err != nil {
 			return 0, err
 		}
 	}
@@ -240,9 +244,10 @@ func (s *Store) ImportCurriculum(plans []CurriculumPlan) (int, error) {
 				order = i + 1
 			}
 			if _, err := tx.Exec(`INSERT INTO curriculum_items
-				(plan_id, sort_order, title, notes, minutes, week_number, created_at)
-				VALUES (?, ?, ?, ?, ?, ?, ?)`,
-				planID, order, it.Title, it.Notes, it.Minutes, nullableWeek(it.WeekNumber), now); err != nil {
+				(plan_id, sort_order, title, notes, minutes, week_number, page_start, page_end, created_at)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				planID, order, it.Title, it.Notes, it.Minutes, nullableWeek(it.WeekNumber),
+				nullablePage(it.PageStart), nullablePage(it.PageEnd), now); err != nil {
 				return 0, err
 			}
 		}

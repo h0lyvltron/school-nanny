@@ -25,10 +25,12 @@ type importPlan struct {
 }
 
 type importItem struct {
-	Week    int    `yaml:"week"`
-	Title   string `yaml:"title"`
-	Minutes int    `yaml:"minutes"`
-	Notes   string `yaml:"notes"`
+	Week      int    `yaml:"week"`
+	Title     string `yaml:"title"`
+	Minutes   int    `yaml:"minutes"`
+	Notes     string `yaml:"notes"`
+	PageStart int    `yaml:"page_start"`
+	PageEnd   int    `yaml:"page_end"`
 }
 
 func parseCurriculumImport(filename string, body []byte, subjects []Subject) ([]CurriculumPlan, error) {
@@ -133,10 +135,12 @@ func parseCurriculumCSV(body []byte) ([]importPlan, error) {
 			seen[k] = pos
 		}
 		item := importItem{
-			Title:   title,
-			Notes:   csvField(row, idx, "notes"),
-			Week:    csvInt(row, idx, "week"),
-			Minutes: csvInt(row, idx, "minutes"),
+			Title:     title,
+			Notes:     csvField(row, idx, "notes"),
+			Week:      csvInt(row, idx, "week"),
+			Minutes:   csvInt(row, idx, "minutes"),
+			PageStart: csvInt(row, idx, "page_start"),
+			PageEnd:   csvInt(row, idx, "page_end"),
 		}
 		plans[pos].Items = append(plans[pos].Items, item)
 	}
@@ -211,9 +215,12 @@ func resolveImportPlans(drafts []importPlan, subjects []Subject) ([]CurriculumPl
 				Notes:      strings.TrimSpace(it.Notes),
 				Minutes:    it.Minutes,
 				WeekNumber: it.Week,
+				PageStart:  it.PageStart,
+				PageEnd:    it.PageEnd,
 				SortOrder:  i + 1,
 			})
 		}
+		FillPageEnds(plan.Items)
 		out = append(out, plan)
 	}
 	return out, nil

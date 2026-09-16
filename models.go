@@ -216,6 +216,8 @@ type Lesson struct {
 	Title        string
 	Minutes      int
 	Notes        string
+	PageStart    int
+	PageEnd      int
 	CompletedAt  string
 	CreatedAt    string
 
@@ -229,6 +231,14 @@ type Lesson struct {
 
 	Attachments []Attachment
 	Assessments []Assessment
+}
+
+// HasPageRange reports whether this lesson points at one or more PDF pages.
+func (l Lesson) HasPageRange() bool { return l.PageStart > 0 }
+
+// PageRangeLabel is a short "p. 12–15" (or "p. 12") for the UI.
+func (l Lesson) PageRangeLabel() string {
+	return pageRangeLabel(l.PageStart, l.PageEnd)
 }
 
 func (l Lesson) ForAdult() bool { return l.AdultID != 0 }
@@ -517,7 +527,27 @@ type CurriculumItem struct {
 	Notes      string
 	Minutes    int
 	WeekNumber int
+	PageStart  int
+	PageEnd    int
 	CreatedAt  string
+}
+
+// HasPageRange reports whether this sequence item has a PDF page start.
+func (it CurriculumItem) HasPageRange() bool { return it.PageStart > 0 }
+
+// PageRangeLabel is a short "p. 12–15" (or "p. 12") for the UI.
+func (it CurriculumItem) PageRangeLabel() string {
+	return pageRangeLabel(it.PageStart, it.PageEnd)
+}
+
+func pageRangeLabel(start, end int) string {
+	if start <= 0 {
+		return ""
+	}
+	if end > start {
+		return fmt.Sprintf("p. %d–%d", start, end)
+	}
+	return fmt.Sprintf("p. %d", start)
 }
 
 // PlanAssignment is one child's scheduled copy of a curriculum sequence.

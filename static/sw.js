@@ -1,5 +1,5 @@
 /* Light installable shell: cache the app chrome so a revisit still paints. */
-const CACHE = "school-nanny-shell-v1";
+const CACHE = "school-nanny-shell-v2";
 const SHELL = [
   "/static/app.css",
   "/static/pico.min.css",
@@ -8,6 +8,9 @@ const SHELL = [
   "/static/ui.js",
   "/static/planner.js",
   "/static/calendar.js",
+  "/static/pdf-viewer.js",
+  "/static/pdfjs/pdf.min.mjs",
+  "/static/pdfjs/pdf.worker.min.mjs",
   "/static/icon-192.png",
   "/static/manifest.webmanifest"
 ];

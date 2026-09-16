@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"crypto/rand"
 	"database/sql"
 	"encoding/hex"
@@ -73,7 +74,7 @@ func (a *App) handleUpload(w http.ResponseWriter, r *http.Request) {
 		if header.Size == 0 {
 			continue
 		}
-		stored, err := a.saveUpload(header.Filename, header)
+		stored, contentType, err := a.saveUpload(header.Filename, header)
 		if err != nil {
 			a.serverError(w, err)
 			return
@@ -82,7 +83,7 @@ func (a *App) handleUpload(w http.ResponseWriter, r *http.Request) {
 		entry.OriginalName = filepath.Base(header.Filename)
 		entry.StoredPath = stored
 		entry.SizeBytes = header.Size
-		entry.ContentType = header.Header.Get("Content-Type")
+		entry.ContentType = contentType
 		if _, err := a.store.CreateAttachment(entry); err != nil {
 			os.Remove(filepath.Join(a.uploadDir, stored))
 			a.serverError(w, err)
@@ -93,37 +94,73 @@ func (a *App) handleUpload(w http.ResponseWriter, r *http.Request) {
 }
 
 // saveUpload writes the file under uploads/YYYY/MM and returns the path
-// relative to the upload folder, so the data folder stays movable.
-func (a *App) saveUpload(name string, header *multipart.FileHeader) (string, error) {
+// relative to the upload folder, so the data folder stays movable, plus a
+// sniffed Content-Type (PDF magic wins over a vague browser multipart type).
+func (a *App) saveUpload(name string, header *multipart.FileHeader) (string, string, error) {
 	src, err := header.Open()
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	defer src.Close()
 
 	now := time.Now()
 	dir := filepath.Join(now.Format("2006"), now.Format("01"))
 	if err := os.MkdirAll(filepath.Join(a.uploadDir, dir), 0o755); err != nil {
-		return "", err
+		return "", "", err
 	}
 
 	buf := make([]byte, 8)
 	if _, err := rand.Read(buf); err != nil {
-		return "", err
+		return "", "", err
 	}
 	stored := filepath.Join(dir, hex.EncodeToString(buf)+"-"+safeFilename(name))
 
 	dst, err := os.OpenFile(filepath.Join(a.uploadDir, stored), os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	defer dst.Close()
 
-	if _, err := io.Copy(dst, src); err != nil {
+	contentType, reader, err := detectUploadContentType(name, header.Header.Get("Content-Type"), src)
+	if err != nil {
 		os.Remove(dst.Name())
-		return "", err
+		return "", "", err
 	}
-	return filepath.ToSlash(stored), nil
+	if _, err := io.Copy(dst, reader); err != nil {
+		os.Remove(dst.Name())
+		return "", "", err
+	}
+	return filepath.ToSlash(stored), contentType, nil
+}
+
+// detectUploadContentType prefers PDF magic bytes, then http.DetectContentType,
+// then the multipart Content-Type, then the filename extension.
+func detectUploadContentType(filename, headerType string, r io.Reader) (string, io.Reader, error) {
+	head := make([]byte, 512)
+	n, err := io.ReadFull(r, head)
+	if err != nil && err != io.EOF && err != io.ErrUnexpectedEOF {
+		return "", nil, err
+	}
+	head = head[:n]
+	rest := io.MultiReader(bytes.NewReader(head), r)
+
+	if bytes.HasPrefix(head, []byte("%PDF")) {
+		return "application/pdf", rest, nil
+	}
+	sniffed := http.DetectContentType(head)
+	if sniffed != "" && sniffed != "application/octet-stream" && !strings.HasPrefix(sniffed, "text/plain") {
+		return sniffed, rest, nil
+	}
+	if ct := strings.TrimSpace(headerType); ct != "" && ct != "application/octet-stream" {
+		return ct, rest, nil
+	}
+	if ext := mime.TypeByExtension(strings.ToLower(filepath.Ext(filename))); ext != "" {
+		return ext, rest, nil
+	}
+	if sniffed != "" {
+		return sniffed, rest, nil
+	}
+	return "application/octet-stream", rest, nil
 }
 
 func (a *App) handleDownload(w http.ResponseWriter, r *http.Request) {
@@ -164,6 +201,8 @@ func (a *App) handleDownload(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Disposition",
 		mime.FormatMediaType(disposition, map[string]string{"filename": record.OriginalName}))
+	// ServeContent honors Range requests (Accept-Ranges / 206), which PDF.js
+	// uses to stream large curriculum books without downloading every byte.
 	http.ServeContent(w, r, record.OriginalName, info.ModTime(), file)
 }
 
