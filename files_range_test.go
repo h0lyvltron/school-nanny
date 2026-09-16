@@ -84,11 +84,32 @@ func TestFileDownloadSupportsRange(t *testing.T) {
 	if got := rangeResp.Header.Get("Accept-Ranges"); got != "bytes" {
 		t.Fatalf("Accept-Ranges=%q", got)
 	}
+	if got := rangeResp.Header.Get("Cache-Control"); got != "private, max-age=31536000, immutable" {
+		t.Fatalf("Cache-Control=%q", got)
+	}
+	etag := rangeResp.Header.Get("ETag")
+	if etag == "" {
+		t.Fatal("missing ETag")
+	}
 	body, _ := io.ReadAll(rangeResp.Body)
 	if string(body) != string(payload[:12]) {
 		t.Fatalf("range body=%q", body)
 	}
 	if ct := rangeResp.Header.Get("Content-Type"); ct != "application/pdf" {
 		t.Fatalf("Content-Type=%q", ct)
+	}
+
+	cachedReq, err := http.NewRequest(http.MethodGet, ta.server.URL+"/files/"+itoa64(files[0].ID), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cachedReq.Header.Set("If-None-Match", etag)
+	cachedResp, err := ta.client.Do(cachedReq)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cachedResp.Body.Close()
+	if cachedResp.StatusCode != http.StatusNotModified {
+		t.Fatalf("conditional status=%d want 304", cachedResp.StatusCode)
 	}
 }

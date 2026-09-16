@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"io"
 	"mime"
 	"mime/multipart"
@@ -194,6 +195,13 @@ func (a *App) handleDownload(w http.ResponseWriter, r *http.Request) {
 	if record.ContentType != "" {
 		w.Header().Set("Content-Type", record.ContentType)
 	}
+	// Attachment IDs are immutable: replacing a file creates a new record and
+	// URL. Let the user's browser retain fetched PDF ranges without allowing a
+	// shared proxy to cache private family files.
+	w.Header().Set("Cache-Control", "private, max-age=31536000, immutable")
+	w.Header().Set("Vary", "Cookie")
+	w.Header().Set("ETag", fmt.Sprintf(`"attachment-%d-%d-%d"`,
+		record.ID, info.Size(), info.ModTime().Unix()))
 	// Images and PDFs preview in the browser; anything else downloads.
 	disposition := "attachment"
 	if strings.HasPrefix(record.ContentType, "image/") || record.ContentType == "application/pdf" {

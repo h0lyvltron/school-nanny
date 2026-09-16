@@ -324,7 +324,17 @@ async function mountViewer(root) {
 
   setStatus("Loading PDF…");
   try {
-    pdfDoc = await pdfjsLib.getDocument({ url: url, withCredentials: true }).promise;
+    pdfDoc = await pdfjsLib.getDocument({
+      url: url,
+      withCredentials: true,
+      // Hosted connections pay much more per request than LAN connections.
+      // Larger ranges avoid hundreds of 64 KiB round trips for image-heavy
+      // textbooks, while these flags prevent downloading the whole book in
+      // the background when the lesson only needs a few pages.
+      rangeChunkSize: 1024 * 1024,
+      disableAutoFetch: true,
+      disableStream: true
+    }).promise;
     if (pageEndAttr > 0) {
       pageEnd = Math.min(pageEndAttr, pdfDoc.numPages);
     } else {
