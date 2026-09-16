@@ -88,7 +88,7 @@
     <p class="muted small">
         Reads the PDF outline when present, otherwise scrapes text from the front pages
         looking for a Lesson / Unit table of contents. Creates a plan with page ranges
-        and attaches the PDF for the lesson viewer.
+        and attaches the PDF for the lesson viewer. Maximum size: 256 MB.
     </p>
     {{if .Subjects}}
         <form method="post" action="/curriculum/from-pdf" enctype="multipart/form-data" class="stack">

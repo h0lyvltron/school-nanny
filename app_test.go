@@ -3,6 +3,7 @@ package main
 import (
 	"archive/zip"
 	"bytes"
+	"errors"
 	"html"
 	"io"
 	"mime/multipart"
@@ -3817,6 +3818,19 @@ func TestCurriculumFromPDF(t *testing.T) {
 	}
 	if full.Attachments[0].ContentType != "application/pdf" {
 		t.Fatalf("attachment type=%q", full.Attachments[0].ContentType)
+	}
+}
+
+func TestCurriculumPDFUploadLimitAndError(t *testing.T) {
+	if maxCurriculumPDFBytes < 85<<20 {
+		t.Fatalf("curriculum PDF limit %d does not fit an 85 MiB textbook", maxCurriculumPDFBytes)
+	}
+	msg := pdfUploadError(&http.MaxBytesError{Limit: maxCurriculumPDFBytes})
+	if !strings.Contains(msg, "256 MB") {
+		t.Fatalf("oversize message %q does not state the PDF limit", msg)
+	}
+	if got := pdfUploadError(errors.New("multipart: unexpected EOF")); !strings.Contains(got, "incomplete") {
+		t.Fatalf("incomplete upload message: %q", got)
 	}
 }
 

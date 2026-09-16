@@ -18,6 +18,11 @@ type SubjectPlans struct {
 	Plans   []CurriculumPlan
 }
 
+// Curriculum books are commonly much larger than individual worksheets.
+// ParseMultipartForm keeps only 8 MiB in memory and spills the remainder to a
+// temporary file, so allowing a full textbook does not buffer it all in RAM.
+const maxCurriculumPDFBytes = 256 << 20
+
 type ApplyPreview struct {
 	Date  string
 	Title string
@@ -83,6 +88,14 @@ func importUploadError(err error) string {
 		return "That file is too large. Keep imports under 1 MB."
 	}
 	return "That file was too large or the upload was incomplete."
+}
+
+func pdfUploadError(err error) string {
+	var maxErr *http.MaxBytesError
+	if errors.As(err, &maxErr) || isRequestTooLarge(err) {
+		return "That PDF is too large. Keep curriculum PDFs under 256 MB."
+	}
+	return "That PDF upload was incomplete. Please try again."
 }
 
 func (a *App) handleImportCurriculum(w http.ResponseWriter, r *http.Request) {
@@ -477,9 +490,10 @@ func (a *App) handleCurriculumFromTOC(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) handleCurriculumFromPDF(w http.ResponseWriter, r *http.Request) {
-	r.Body = http.MaxBytesReader(w, r.Body, maxUploadBytes+64*1024)
+	// Leave room for multipart boundaries and the name/subject fields.
+	r.Body = http.MaxBytesReader(w, r.Body, maxCurriculumPDFBytes+(1<<20))
 	if err := r.ParseMultipartForm(8 << 20); err != nil {
-		a.renderCurriculumImportError(w, r, importUploadError(err))
+		a.renderCurriculumImportError(w, r, pdfUploadError(err))
 		return
 	}
 	if r.MultipartForm != nil {
