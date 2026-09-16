@@ -39,6 +39,17 @@ async function mountViewer(root) {
   var pendingPage = null;
   var pdfDoc = null;
   var pageEnd = pageStart;
+  var currentScale = 1;
+  var overlayOpen = false;
+  var overlayOpenedAt = 0;
+  var overlayRestore = null;
+  var pointers = new Map();
+  var drag = null;
+  var pinching = false;
+  var pinchStartDistance = 0;
+  var pinchStartScale = 1;
+  var pinchTargetScale = 1;
+  var gestureMoved = false;
 
   function setStatus(msg) {
     if (status) {
@@ -88,6 +99,7 @@ async function mountViewer(root) {
       updateChrome();
       var page = await pdfDoc.getPage(currentPage);
       var scale = computeFitScale(page);
+      currentScale = scale;
       var viewport = page.getViewport({ scale: scale });
       var outputScale = window.devicePixelRatio || 1;
       canvas.width = Math.floor(viewport.width * outputScale);
@@ -106,7 +118,7 @@ async function mountViewer(root) {
       console.error(err);
     } finally {
       rendering = false;
-      if (pendingPage != null && pendingPage !== currentPage) {
+      if (pendingPage != null) {
         var next = pendingPage;
         pendingPage = null;
         renderPage(next);
@@ -115,6 +127,154 @@ async function mountViewer(root) {
       }
     }
   }
+
+  function openOverlay() {
+    if (overlayOpen || !pdfDoc) {
+      return;
+    }
+    overlayOpen = true;
+    overlayOpenedAt = Date.now();
+    overlayRestore = { fitMode: fitMode, customScale: customScale };
+    stage.classList.add("is-overlay");
+    stage.setAttribute("role", "dialog");
+    stage.setAttribute("aria-modal", "true");
+    stage.setAttribute("aria-label", "Zoomed PDF page");
+    document.body.classList.add("pdf-overlay-open");
+    fitMode = "custom";
+    customScale = clamp(Math.max(currentScale * 1.5, 1.5), 0.25, 6);
+    requestAnimationFrame(function () {
+      renderPage(currentPage);
+      overlayClose.focus({ preventScroll: true });
+    });
+  }
+
+  function closeOverlay() {
+    if (!overlayOpen) {
+      return;
+    }
+    overlayOpen = false;
+    stage.classList.remove("is-overlay");
+    stage.removeAttribute("role");
+    stage.removeAttribute("aria-modal");
+    stage.removeAttribute("aria-label");
+    document.body.classList.remove("pdf-overlay-open");
+    if (overlayRestore) {
+      fitMode = overlayRestore.fitMode;
+      customScale = overlayRestore.customScale;
+    }
+    overlayRestore = null;
+    canvas.style.transform = "";
+    requestAnimationFrame(function () {
+      renderPage(currentPage);
+    });
+  }
+
+  function pointerDistance() {
+    var points = Array.from(pointers.values());
+    if (points.length < 2) {
+      return 0;
+    }
+    return Math.hypot(points[0].x - points[1].x, points[0].y - points[1].y);
+  }
+
+  stage.addEventListener("pointerdown", function (event) {
+    if (event.target !== canvas) {
+      return;
+    }
+    event.preventDefault();
+    stage.setPointerCapture(event.pointerId);
+    pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    if (pointers.size === 1) {
+      drag = {
+        x: event.clientX,
+        y: event.clientY,
+        left: stage.scrollLeft,
+        top: stage.scrollTop
+      };
+      gestureMoved = false;
+      stage.classList.add("is-grabbing");
+    } else if (pointers.size === 2) {
+      pinching = true;
+      gestureMoved = true;
+      pinchStartDistance = Math.max(1, pointerDistance());
+      pinchStartScale = currentScale;
+      pinchTargetScale = currentScale;
+      drag = null;
+    }
+  });
+
+  stage.addEventListener("pointermove", function (event) {
+    if (!pointers.has(event.pointerId)) {
+      return;
+    }
+    event.preventDefault();
+    pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    if (pinching && pointers.size >= 2) {
+      var factor = pointerDistance() / pinchStartDistance;
+      pinchTargetScale = clamp(pinchStartScale * factor, 0.25, 6);
+      canvas.style.transformOrigin = "top left";
+      canvas.style.transform = "scale(" + (pinchTargetScale / currentScale) + ")";
+      return;
+    }
+    if (drag && pointers.size === 1) {
+      var dx = event.clientX - drag.x;
+      var dy = event.clientY - drag.y;
+      if (Math.abs(dx) > 4 || Math.abs(dy) > 4) {
+        gestureMoved = true;
+      }
+      stage.scrollLeft = drag.left - dx;
+      stage.scrollTop = drag.top - dy;
+    }
+  });
+
+  function finishPointer(event, cancelled) {
+    if (!pointers.has(event.pointerId)) {
+      return;
+    }
+    event.preventDefault();
+    pointers.delete(event.pointerId);
+    if (pinching && pointers.size < 2) {
+      pinching = false;
+      canvas.style.transform = "";
+      fitMode = "custom";
+      customScale = pinchTargetScale;
+      renderPage(currentPage);
+    }
+    if (pointers.size === 0) {
+      stage.classList.remove("is-grabbing");
+      if (!cancelled && drag && !gestureMoved && !overlayOpen) {
+        openOverlay();
+      }
+      drag = null;
+      gestureMoved = false;
+    }
+  }
+
+  stage.addEventListener("pointerup", function (event) {
+    finishPointer(event, false);
+  });
+  stage.addEventListener("pointercancel", function (event) {
+    finishPointer(event, true);
+  });
+  stage.addEventListener("click", function (event) {
+    if (overlayOpen && event.target === stage && Date.now() - overlayOpenedAt > 250) {
+      closeOverlay();
+    }
+  });
+
+  var overlayClose = document.createElement("button");
+  overlayClose.type = "button";
+  overlayClose.className = "pdf-viewer-overlay-close";
+  overlayClose.setAttribute("aria-label", "Close zoomed PDF");
+  overlayClose.textContent = "×";
+  overlayClose.addEventListener("click", closeOverlay);
+  stage.appendChild(overlayClose);
+
+  document.addEventListener("keydown", function (event) {
+    if (overlayOpen && event.key === "Escape") {
+      closeOverlay();
+    }
+  });
 
   root.querySelector("[data-pdf-prev]")?.addEventListener("click", function () {
     renderPage(currentPage - 1);

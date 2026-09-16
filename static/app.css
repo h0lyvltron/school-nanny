@@ -1800,6 +1800,7 @@ a.plan-row:hover .muted { color: var(--ink-soft); }
 }
 
 .pdf-viewer-stage {
+    position: relative;
     overflow: auto;
     max-height: min(70vh, 52rem);
     border: 1px solid var(--line);
@@ -1810,6 +1811,8 @@ a.plan-row:hover .muted { color: var(--ink-soft); }
         linear-gradient(45deg, color-mix(in srgb, var(--surface) 92%, var(--ink) 8%) 25%, transparent 25%) 0 0 / 16px 16px,
         linear-gradient(315deg, color-mix(in srgb, var(--surface) 92%, var(--ink) 8%) 25%, var(--surface) 25%) 0 0 / 16px 16px;
     text-align: center;
+    overscroll-behavior: contain;
+    touch-action: none;
 }
 
 .pdf-viewer-stage canvas {
@@ -1818,6 +1821,54 @@ a.plan-row:hover .muted { color: var(--ink-soft); }
     max-width: none;
     box-shadow: 0 0.15rem 0.6rem color-mix(in srgb, var(--ink) 18%, transparent);
     background: #fff;
+    cursor: grab;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+.pdf-viewer-stage.is-grabbing canvas {
+    cursor: grabbing;
+}
+
+.pdf-viewer-stage.is-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    max-height: none;
+    padding: 3.5rem 1rem 1rem;
+    border: 0;
+    border-radius: 0;
+    background: color-mix(in srgb, #000 82%, transparent);
+}
+
+.pdf-viewer-stage.is-overlay canvas {
+    margin-top: 0;
+}
+
+body.pdf-overlay-open {
+    overflow: hidden;
+}
+
+.pdf-viewer-overlay-close {
+    display: none;
+}
+
+.pdf-viewer-stage.is-overlay .pdf-viewer-overlay-close {
+    position: fixed;
+    top: 0.75rem;
+    right: 0.75rem;
+    z-index: 1001;
+    display: block;
+    width: 2.75rem;
+    height: 2.75rem;
+    margin: 0;
+    padding: 0;
+    border: 1px solid rgb(255 255 255 / 45%);
+    border-radius: 999px;
+    background: rgb(0 0 0 / 70%);
+    color: #fff;
+    font-size: 1.8rem;
+    line-height: 1;
 }
 
 .pdf-viewer-status {
