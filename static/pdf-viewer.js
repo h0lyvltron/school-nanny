@@ -304,6 +304,7 @@ async function mountViewer(root) {
   overlayClose.type = "button";
   overlayClose.className = "pdf-viewer-overlay-close";
   overlayClose.setAttribute("aria-label", "Close zoomed PDF");
+  overlayClose.title = "Close the full-screen PDF view and return to the lesson.";
   overlayClose.textContent = "×";
   overlayClose.addEventListener("click", closeOverlay);
   stage.appendChild(overlayClose);

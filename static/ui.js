@@ -188,6 +188,7 @@
         "pull": "Move this future lesson onto today and pull every later planned lesson forward behind it.",
         "pull this and later": "Move this future lesson onto today and pull every later planned lesson forward behind it.",
         "double up": "Put this lesson on the same day as the previous lesson and pull later lessons forward.",
+        "shift": "Move this standalone lesson one school day later.",
         "shift remaining": "Choose a new date for the remaining planned lessons while preserving their sequence.",
         "pause and shift remaining": "Pause this curriculum schedule, then move all unfinished lessons to resume on a chosen date.",
         "shift around vacation": "Move unfinished lessons around a vacation date range without changing their order.",
@@ -208,6 +209,8 @@
         "fit width": "Scale the PDF page to fit the available viewer width.",
         "fit page": "Scale the full PDF page to fit inside the viewer.",
         "reset": "Return the PDF viewer to its default zoom and position.",
+        "move up": "Move this item one position earlier in its ordered list.",
+        "move down": "Move this item one position later in its ordered list.",
         "sign out": "End this signed-in session on this device.",
         "lock": "Lock School Nanny until the family password or PIN is entered.",
         "recently deleted": "Open Trash to restore individual lessons deleted during the last seven days.",
@@ -223,6 +226,10 @@
         var explicit = control.getAttribute("data-hint");
         if (explicit) {
             return explicit;
+        }
+        if (control.classList.contains("emoji-pick")) {
+            return "Choose " + (control.getAttribute("data-emoji") || control.textContent.trim()) +
+                " as the displayed emoji.";
         }
         var label = normalizedLabel(control);
         var key = label.toLowerCase().replace(/^[←↑↓]\s*|\s*[→]$/g, "");
