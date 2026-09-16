@@ -174,8 +174,6 @@
                  data-page-start="{{if .Lesson.PageStart}}{{.Lesson.PageStart}}{{else}}1{{end}}"
                  data-page-end="{{if .Lesson.PageEnd}}{{.Lesson.PageEnd}}{{end}}">
                 <div class="pdf-viewer-toolbar" role="toolbar" aria-label="PDF controls">
-                    <button type="button" class="secondary" data-pdf-prev>Previous</button>
-                    <button type="button" class="secondary" data-pdf-next>Next</button>
                     <label class="muted small">Jump
                         <input type="number" data-pdf-jump min="1" aria-label="Jump to page">
                     </label>
@@ -187,8 +185,14 @@
                     <span class="muted small" data-pdf-page-label></span>
                 </div>
                 <p class="muted small pdf-viewer-status" data-pdf-status></p>
-                <div class="pdf-viewer-stage" data-pdf-stage>
-                    <canvas data-pdf-canvas></canvas>
+                <div class="pdf-viewer-stage-wrap">
+                    <button type="button" class="pdf-viewer-page-arrow is-previous"
+                            data-pdf-prev aria-label="Previous page" title="Previous page">‹</button>
+                    <div class="pdf-viewer-stage" data-pdf-stage>
+                        <canvas data-pdf-canvas></canvas>
+                    </div>
+                    <button type="button" class="pdf-viewer-page-arrow is-next"
+                            data-pdf-next aria-label="Next page" title="Next page">›</button>
                 </div>
                 <p class="muted small">
                     Viewing {{.PDFFile.OriginalName}}{{if .Lesson.HasPageRange}} · {{.Lesson.PageRangeLabel}}{{end}}.

@@ -3922,6 +3922,10 @@ func TestLessonPageShowsPDFViewer(t *testing.T) {
 	mustContain(t, page, `data-pdf-viewer`, "viewer root")
 	mustContain(t, page, `data-page-start="2"`, "page start")
 	mustContain(t, page, `data-page-end="3"`, "page end")
+	mustContain(t, page, `class="pdf-viewer-page-arrow is-previous"`, "previous page arrow")
+	mustContain(t, page, `aria-label="Previous page"`, "previous arrow label")
+	mustContain(t, page, `class="pdf-viewer-page-arrow is-next"`, "next page arrow")
+	mustContain(t, page, `aria-label="Next page"`, "next arrow label")
 	mustContain(t, page, `/static/pdf-viewer.js`, "viewer script")
 	mustContain(t, page, `name="page_start"`, "edit field")
 }

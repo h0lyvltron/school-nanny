@@ -70,6 +70,10 @@ async function mountViewer(root) {
     if (next) {
       next.disabled = currentPage >= pageEnd;
     }
+    var jumpInput = root.querySelector("[data-pdf-jump]");
+    if (jumpInput) {
+      jumpInput.value = String(currentPage);
+    }
   }
 
   function computeFitScale(page) {
@@ -95,7 +99,12 @@ async function mountViewer(root) {
     }
     rendering = true;
     try {
-      currentPage = clamp(num, pageStart, pageEnd);
+      var targetPage = clamp(num, pageStart, pageEnd);
+      if (targetPage !== currentPage) {
+        stage.scrollLeft = 0;
+        stage.scrollTop = 0;
+      }
+      currentPage = targetPage;
       updateChrome();
       var page = await pdfDoc.getPage(currentPage);
       var scale = computeFitScale(page);

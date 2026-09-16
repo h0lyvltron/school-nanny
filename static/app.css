@@ -1799,6 +1799,42 @@ a.plan-row:hover .muted { color: var(--ink-soft); }
     margin: 0;
 }
 
+.pdf-viewer-stage-wrap {
+    position: relative;
+}
+
+.pdf-viewer-page-arrow {
+    position: absolute;
+    top: 50%;
+    z-index: 4;
+    display: grid;
+    place-items: center;
+    width: 3rem;
+    height: 3rem;
+    margin: 0;
+    padding: 0 0 0.15rem;
+    transform: translateY(-50%);
+    border: 1px solid rgb(255 255 255 / 55%);
+    border-radius: 999px;
+    background: rgb(0 0 0 / 62%);
+    color: #fff;
+    box-shadow: 0 0.15rem 0.5rem rgb(0 0 0 / 28%);
+    font-size: 2.25rem;
+    line-height: 1;
+}
+
+.pdf-viewer-page-arrow.is-previous {
+    left: 0.75rem;
+}
+
+.pdf-viewer-page-arrow.is-next {
+    right: 0.75rem;
+}
+
+.pdf-viewer-page-arrow:disabled {
+    opacity: 0.22;
+}
+
 .pdf-viewer-stage {
     position: relative;
     overflow: auto;
@@ -1847,6 +1883,20 @@ a.plan-row:hover .muted { color: var(--ink-soft); }
 
 body.pdf-overlay-open {
     overflow: hidden;
+}
+
+body.pdf-overlay-open .pdf-viewer-page-arrow {
+    position: fixed;
+    top: 50vh;
+    z-index: 1002;
+}
+
+body.pdf-overlay-open .pdf-viewer-page-arrow.is-previous {
+    left: max(0.75rem, env(safe-area-inset-left));
+}
+
+body.pdf-overlay-open .pdf-viewer-page-arrow.is-next {
+    right: max(0.75rem, env(safe-area-inset-right));
 }
 
 .pdf-viewer-overlay-close {
