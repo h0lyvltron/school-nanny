@@ -145,6 +145,50 @@ func TestParseColumnTOCStreamOrdersLessonsAndUnits(t *testing.T) {
 	}
 }
 
+func TestParseColumnTOCStreamHandlesOverviewUnitsAndAmpersandRanges(t *testing.T) {
+	stream := `Unit 1 Overview Page ................................ 1
+		Lesson 1—Unit 1 Review ................................ 2
+		Unit 2 Overview ................................ 4
+		Lessons 2 & 3—Writer’s Workshop ................................ 5
+		Lesson 4—Course Review ................................ 9`
+	items, err := parseColumnTOCStream(stream)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != 3 {
+		t.Fatalf("items=%d: %+v", len(items), items)
+	}
+	if items[0].Name != "Unit 1 Review" || items[0].Unit != 1 || items[0].Page != 2 {
+		t.Fatalf("first item: %+v", items[0])
+	}
+	if !items[1].IsRange || items[1].Number != 2 || items[1].End != 3 ||
+		items[1].Unit != 2 || items[1].Page != 5 {
+		t.Fatalf("range item: %+v", items[1])
+	}
+	if err := validateLessonCoverage(items); err != nil {
+		t.Fatalf("coverage: %v", err)
+	}
+}
+
+func TestSplitTOCTitleUsesFirstLeaderPage(t *testing.T) {
+	title, page := splitTOCTitleAndPage(
+		"Spelling Rule: Double S, F, L, or Z ........ 34 Important Reminder ........ 38",
+	)
+	if title != "Spelling Rule: Double S, F, L, or Z" || page != 34 {
+		t.Fatalf("title=%q page=%d", title, page)
+	}
+}
+
+func TestBookmarkTOCRejectsSourceFileArtifacts(t *testing.T) {
+	items := []TocItem{
+		{Number: 1, Name: "Pages from Course Book.pdf", Page: 1, HasPage: true},
+		{Number: 2, Name: "Unit 1 working file.pdf", Page: 2, HasPage: true},
+	}
+	if err := validateBookmarkTOC(items); err == nil {
+		t.Fatal("expected source-file bookmark titles to be rejected")
+	}
+}
+
 func TestValidatePDFTOCRejectsBadOrderAndPages(t *testing.T) {
 	items := []TocItem{
 		{Number: 1, Unit: 1, Page: 9, HasPage: true},
@@ -156,6 +200,21 @@ func TestValidatePDFTOCRejectsBadOrderAndPages(t *testing.T) {
 	items[1].Page = 8
 	if err := validatePDFTOC(items, 331); err == nil {
 		t.Fatal("expected decreasing page to fail")
+	}
+}
+
+func TestValidatePrintedPageOrderRejectsInterleavedColumns(t *testing.T) {
+	items := []TocItem{
+		{Number: 1, Page: 2, HasPage: true},
+		{Number: 2, Page: 112, HasPage: true},
+		{Number: 3, Page: 4, HasPage: true},
+	}
+	if err := validatePrintedPageOrder(items, 331); err == nil {
+		t.Fatal("expected interleaved column pages to fail")
+	}
+	items[1].Page = 3
+	if err := validatePrintedPageOrder(items, 331); err != nil {
+		t.Fatalf("ordered pages: %v", err)
 	}
 }
 

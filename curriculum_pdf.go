@@ -20,7 +20,8 @@ const maxPDFTOCPages = 40
 // Prefer the document outline/bookmarks when present; otherwise scrape text from
 // the early pages and run it through ParseTOC.
 func ExtractCurriculumFromPDF(path string) ([]TocItem, string, error) {
-	if items, err := extractTOCFromBookmarks(path); err == nil && len(items) > 0 {
+	if items, err := extractTOCFromBookmarks(path); err == nil &&
+		validateBookmarkTOC(items) == nil {
 		return items, "bookmarks", nil
 	}
 	if items, err := extractColumnTOC(path); err == nil && len(items) > 0 {
@@ -121,29 +122,24 @@ func extractTOCFromBookmarks(path string) ([]TocItem, error) {
 	if err == nil && len(items) > 0 {
 		return items, nil
 	}
+	return nil, fmt.Errorf("no numbered lesson bookmarks")
+}
 
-	// Direct conversion when bookmarks are plain lesson titles without "Lesson N:".
-	out := make([]TocItem, 0, len(flat))
-	for i, row := range flat {
-		title := strings.TrimSpace(row.Title)
-		if title == "" {
-			continue
-		}
-		lower := strings.ToLower(title)
-		if strings.HasPrefix(lower, "unit ") {
-			continue
-		}
-		it := TocItem{Number: i + 1, Name: title}
-		if row.Page > 0 {
-			it.Page = row.Page
-			it.HasPage = true
-		}
-		out = append(out, it)
+func validateBookmarkTOC(items []TocItem) error {
+	if err := validateLessonCoverage(items); err != nil {
+		return err
 	}
-	if len(out) == 0 {
-		return nil, fmt.Errorf("no lesson bookmarks")
+	lastPage := 0
+	for _, item := range items {
+		if strings.HasSuffix(strings.ToLower(strings.TrimSpace(item.Name)), ".pdf") {
+			return fmt.Errorf("bookmark %d is a source filename, not a lesson", item.Number)
+		}
+		if !item.HasPage || item.Page <= lastPage {
+			return fmt.Errorf("bookmark pages are missing or out of order near lesson %d", item.Number)
+		}
+		lastPage = item.Page
 	}
-	return out, nil
+	return nil
 }
 
 type bookmarkRow struct {

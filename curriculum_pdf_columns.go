@@ -12,10 +12,11 @@ import (
 )
 
 var (
-	pdfTOCMarkerRE      = regexp.MustCompile(`(?i)(Unit\s+\d+|Lessons?\s+\d+(?:\s*[–-]\s*\d+)?)\s*:?\s*`)
+	pdfLessonMarkerRE   = regexp.MustCompile(`(?i)Lessons?\s+\d+(?:\s*(?:[–—-]|&)\s*\d+)?\s*[:—-]?\s*`)
+	pdfUnitOverviewRE   = regexp.MustCompile(`(?i)Unit\s+\d+\s+Overview(?:\s+Page)?`)
 	pdfTOCNumberRE      = regexp.MustCompile(`\d+`)
 	pdfTOCPageRE        = regexp.MustCompile(`(?s)^(.*?)(?:\.+|\s)(\d{1,4})\s*$`)
-	pdfTOCAnyPageRE     = regexp.MustCompile(`(?s)^(.*?)\.+\s*(\d{1,4})(?:\s.*)?$`)
+	pdfTOCAnyPageRE     = regexp.MustCompile(`(?s)^(.*?)\.{2,}\s*(\d{1,4}).*$`)
 	pdfEmbeddedNumberRE = regexp.MustCompile(`[[:alpha:]]\d{2,}[[:alpha:]]|\d+[–-]\d+\s*Number`)
 )
 
@@ -29,33 +30,38 @@ func extractColumnTOC(path string) ([]TocItem, error) {
 	}
 	defer f.Close()
 
-	pageNumber, rows, markerCount, err := findTOCPage(r, min(r.NumPage(), 20))
+	tocPages, err := findTOCPages(r, min(r.NumPage(), 20))
 	if err != nil {
-		return nil, err
-	}
-	if markerCount < 8 {
-		return nil, fmt.Errorf("could not identify a table of contents page")
-	}
-
-	columnCount := 1
-	switch {
-	case markerCount >= 60:
-		columnCount = 3
-	case markerCount >= 20:
-		columnCount = 2
-	}
-	stream, err := columnOrderedText(rows, columnCount)
-	if err != nil {
-		return nil, err
-	}
-	items, err := parseColumnTOCStream(stream)
-	if err != nil {
-		return nil, err
-	}
-	if err := validateLessonCoverage(items); err != nil {
 		return nil, err
 	}
 
+	var items []TocItem
+	for columnCount := 1; columnCount <= 3; columnCount++ {
+		var stream strings.Builder
+		for _, tocPage := range tocPages {
+			text, textErr := columnOrderedText(tocPage.Rows, columnCount)
+			if textErr != nil {
+				stream.Reset()
+				break
+			}
+			stream.WriteByte(' ')
+			stream.WriteString(text)
+		}
+		if stream.Len() == 0 {
+			continue
+		}
+		candidate, parseErr := parseColumnTOCStream(stream.String())
+		if parseErr == nil && validateLessonCoverage(candidate) == nil &&
+			validatePrintedPageOrder(candidate, r.NumPage()) == nil {
+			items = candidate
+			break
+		}
+	}
+	if len(items) == 0 {
+		return nil, fmt.Errorf("could not reconstruct the table of contents in reading order")
+	}
+
+	pageNumber := tocPages[0].Number
 	offset := inferPDFPageOffset(r, pageNumber, items)
 	repairTitle := make([]bool, len(items))
 	for i := range items {
@@ -119,10 +125,14 @@ func suspiciousTOCTitle(title string) bool {
 	return pdfEmbeddedNumberRE.MatchString(title)
 }
 
-func findTOCPage(r *pdf.Reader, maxPages int) (int, pdf.Rows, int, error) {
-	bestPage := 0
-	bestCount := 0
-	var bestRows pdf.Rows
+type positionedTOCPage struct {
+	Number      int
+	Rows        pdf.Rows
+	MarkerCount int
+}
+
+func findTOCPages(r *pdf.Reader, maxPages int) ([]positionedTOCPage, error) {
+	var candidates []positionedTOCPage
 	for pageNumber := 1; pageNumber <= maxPages; pageNumber++ {
 		rows, err := r.Page(pageNumber).GetTextByRow()
 		if err != nil {
@@ -135,17 +145,33 @@ func findTOCPage(r *pdf.Reader, maxPages int) (int, pdf.Rows, int, error) {
 			}
 			text.WriteByte('\n')
 		}
-		count := len(regexp.MustCompile(`(?i)Lessons?\s+\d+`).FindAllString(text.String(), -1))
-		if count > bestCount {
-			bestPage = pageNumber
-			bestCount = count
-			bestRows = rows
+		count := len(pdfLessonMarkerRE.FindAllString(text.String(), -1))
+		if count >= 8 {
+			candidates = append(candidates, positionedTOCPage{
+				Number: pageNumber, Rows: rows, MarkerCount: count,
+			})
 		}
 	}
-	if bestPage == 0 {
-		return 0, nil, 0, fmt.Errorf("could not find lesson entries in that PDF")
+	if len(candidates) == 0 {
+		return nil, fmt.Errorf("could not find lesson entries in that PDF")
 	}
-	return bestPage, bestRows, bestCount, nil
+
+	// Painting-credit and index pages may mention many lessons. The actual TOC
+	// is the consecutive run with the most lesson markers.
+	bestStart, bestEnd, bestScore := 0, 1, candidates[0].MarkerCount
+	for start := 0; start < len(candidates); {
+		end := start + 1
+		score := candidates[start].MarkerCount
+		for end < len(candidates) && candidates[end].Number == candidates[end-1].Number+1 {
+			score += candidates[end].MarkerCount
+			end++
+		}
+		if score > bestScore {
+			bestStart, bestEnd, bestScore = start, end, score
+		}
+		start = end
+	}
+	return candidates[bestStart:bestEnd], nil
 }
 
 func columnOrderedText(rows pdf.Rows, columnCount int) (string, error) {
@@ -208,7 +234,13 @@ func cleanPDFText(s string) string {
 }
 
 func parseColumnTOCStream(stream string) ([]TocItem, error) {
-	matches := pdfTOCMarkerRE.FindAllStringIndex(stream, -1)
+	unitPattern := `Unit\s+\d+`
+	if pdfUnitOverviewRE.MatchString(stream) {
+		unitPattern = `Unit\s+\d+\s+Overview(?:\s+Page)?`
+	}
+	markerRE := regexp.MustCompile(`(?i)(` + unitPattern +
+		`|Lessons?\s+\d+(?:\s*(?:[–—-]|&)\s*\d+)?)\s*[:—-]?\s*`)
+	matches := markerRE.FindAllStringIndex(stream, -1)
 	if len(matches) == 0 {
 		return nil, fmt.Errorf("that TOC has no lesson markers")
 	}
@@ -262,9 +294,9 @@ func parseColumnTOCStream(stream string) ([]TocItem, error) {
 }
 
 func splitTOCTitleAndPage(segment string) (string, int) {
-	match := pdfTOCPageRE.FindStringSubmatch(segment)
+	match := pdfTOCAnyPageRE.FindStringSubmatch(segment)
 	if match == nil {
-		match = pdfTOCAnyPageRE.FindStringSubmatch(segment)
+		match = pdfTOCPageRE.FindStringSubmatch(segment)
 	}
 	if match == nil {
 		return strings.Trim(segment, " .:-"), 0
@@ -287,6 +319,25 @@ func validateLessonCoverage(items []TocItem) error {
 			return fmt.Errorf("the TOC lesson sequence is incomplete near lesson %d", expected)
 		}
 		expected = end + 1
+	}
+	return nil
+}
+
+func validatePrintedPageOrder(items []TocItem, pageCount int) error {
+	lastPage := 0
+	validPages := 0
+	for _, item := range items {
+		if !item.HasPage || item.Page <= 0 || item.Page > pageCount {
+			continue
+		}
+		validPages++
+		if item.Page <= lastPage {
+			return fmt.Errorf("printed pages are out of order near lesson %d", item.Number)
+		}
+		lastPage = item.Page
+	}
+	if validPages*4 < len(items)*3 {
+		return fmt.Errorf("too many lessons have no usable printed page")
 	}
 	return nil
 }
