@@ -4,6 +4,7 @@ import (
 	"archive/zip"
 	"bytes"
 	"errors"
+	"fmt"
 	"html"
 	"io"
 	"mime/multipart"
@@ -2823,6 +2824,38 @@ func TestSubjectColorReachesTheLessonTitle(t *testing.T) {
 
 	_, settings := ta.get("/settings/school")
 	mustContain(t, settings, `value="#b8437a"`, "subject color picker")
+}
+
+func TestSubjectUpcomingLimitKeepsNearestLessons(t *testing.T) {
+	ta := newTestApp(t)
+	kid := ta.addKid("Mia")
+	subject := ta.mathSubjectID()
+	start := today()
+
+	for i := 0; i < 205; i++ {
+		_, err := ta.store.CreateLesson(Lesson{
+			KidID: kid, SubjectID: subject, ScheduledOn: addDays(start, i),
+			Status: StatusPlanned, Title: fmt.Sprintf("Future lesson %d", i),
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	upcoming, _, err := ta.store.LessonsForKidSubjectSplit(kid, subject, 200, start)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(upcoming) != 200 {
+		t.Fatalf("upcoming count=%d want 200", len(upcoming))
+	}
+	if upcoming[0].ScheduledOn != start || upcoming[0].Title != "Future lesson 0" {
+		t.Fatalf("nearest upcoming lesson was dropped: %+v", upcoming[0])
+	}
+	if upcoming[len(upcoming)-1].ScheduledOn != addDays(start, 199) {
+		t.Fatalf("last displayed lesson=%s want %s",
+			upcoming[len(upcoming)-1].ScheduledOn, addDays(start, 199))
+	}
 }
 
 // schoolWeekdays is Monday to Friday, the mask every plan in these tests runs on.

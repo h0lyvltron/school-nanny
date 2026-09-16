@@ -235,29 +235,35 @@ func (s *Store) ProgressBySubject(from, to string, kidID int64) (map[int64]Progr
 	return out, rows.Err()
 }
 
-// LessonsForKidByStatus splits a child's subject work into what is still
-// coming up and what has already happened.
+// LessonsForKidSubjectSplit fetches each side in display order before applying
+// its limit. Limiting one newest-first list before splitting can hide the
+// nearest upcoming work when a curriculum has hundreds of future lessons.
 func (s *Store) LessonsForKidSubjectSplit(kidID, subjectID int64, limit int, today string) (upcoming, past []Lesson, err error) {
-	lessons, err := s.LessonsForSubject(kidID, subjectID, limit)
-	if err != nil {
-		return nil, nil, err
-	}
 	if today == "" {
 		today = time.Now().Format(dateLayout)
 	}
-	now := today
-	for _, l := range lessons {
-		if l.Status == StatusPlanned && l.ScheduledOn >= now {
-			upcoming = append(upcoming, l)
-		} else {
-			past = append(past, l)
-		}
+
+	rows, err := s.db().Query(lessonSelect+` WHERE l.kid_id = ? AND l.subject_id = ?
+			AND l.status = ? AND l.scheduled_on >= ?
+		ORDER BY l.scheduled_on, l.id LIMIT ?`,
+		kidID, subjectID, StatusPlanned, today, limit)
+	if err != nil {
+		return nil, nil, err
 	}
-	// Upcoming reads better soonest-first; the query returned newest-first.
-	for i, j := 0, len(upcoming)-1; i < j; i, j = i+1, j-1 {
-		upcoming[i], upcoming[j] = upcoming[j], upcoming[i]
+	upcoming, err = scanLessons(rows)
+	if err != nil {
+		return nil, nil, err
 	}
-	return upcoming, past, nil
+
+	rows, err = s.db().Query(lessonSelect+` WHERE l.kid_id = ? AND l.subject_id = ?
+			AND NOT (l.status = ? AND l.scheduled_on >= ?)
+		ORDER BY l.scheduled_on DESC, l.id DESC LIMIT ?`,
+		kidID, subjectID, StatusPlanned, today, limit)
+	if err != nil {
+		return nil, nil, err
+	}
+	past, err = scanLessons(rows)
+	return upcoming, past, err
 }
 
 // LessonsInRange lists the children's work in a date range, optionally for one
