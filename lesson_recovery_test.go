@@ -175,9 +175,14 @@ func TestPlannerHTMXDeleteOffersUndoAndRestore(t *testing.T) {
 		t.Fatalf("deleted=%+v err=%v", deleted, err)
 	}
 	status, planner := ta.get(back)
-	if status != http.StatusOK || !strings.Contains(planner, "Recently deleted lessons") ||
-		!strings.Contains(planner, "Undo me") {
-		t.Fatalf("planner trash status=%d", status)
+	if status != http.StatusOK || !strings.Contains(planner, `href="/trash"`) {
+		t.Fatalf("planner missing trash link status=%d", status)
+	}
+	status, trash := ta.get("/trash")
+	if status != http.StatusOK || !strings.Contains(trash, "Recently deleted") ||
+		!strings.Contains(trash, "Undo me") ||
+		!strings.Contains(trash, `name="back" value="/trash"`) {
+		t.Fatalf("trash page status=%d body=%q", status, trash)
 	}
 
 	restoreForm := url.Values{

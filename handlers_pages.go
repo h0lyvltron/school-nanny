@@ -173,11 +173,6 @@ func (a *App) handlePlanner(w http.ResponseWriter, r *http.Request) {
 		a.serverError(w, err)
 		return
 	}
-	deletedLessons, err := a.store.DeletedLessons(requestNow(r))
-	if err != nil {
-		a.serverError(w, err)
-		return
-	}
 
 	start := requestWeekStart(r, parseDateIn(r.URL.Query().Get("week"), requestLocation(r))).Format(dateLayout)
 	end := addDays(start, 6)
@@ -253,8 +248,30 @@ func (a *App) handlePlanner(w http.ResponseWriter, r *http.Request) {
 	data["NextWeek"] = addDays(start, 7)
 	data["ThisWeek"] = requestWeekStart(r, requestNow(r)).Format(dateLayout)
 	data["Progress"] = progress
-	data["DeletedLessons"] = deletedLessons
 	a.render(w, "planner", data)
+}
+
+func (a *App) handleTrash(w http.ResponseWriter, r *http.Request) {
+	if !a.requirePlanningAccess(w, r) {
+		return
+	}
+	now := requestNow(r)
+	if err := a.purgeExpiredLessonTrash(now); err != nil {
+		a.serverError(w, err)
+		return
+	}
+	deleted, err := a.store.DeletedLessons(now)
+	if err != nil {
+		a.serverError(w, err)
+		return
+	}
+	data, err := a.pageData(r, "trash")
+	if err != nil {
+		a.serverError(w, err)
+		return
+	}
+	data["DeletedLessons"] = deleted
+	a.render(w, "trash", data)
 }
 
 // plannerPersonFilter reads the week filter: a child, an adult, or everybody.

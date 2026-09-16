@@ -120,12 +120,14 @@
                     <form method="post" action="/lessons/{{.Lesson.ID}}/push" class="inline-form">
                         <input type="hidden" name="back" value="{{$back}}">
                         <button type="submit" class="link-button"
+                                title="Move this lesson and every later planned lesson to the next available school days."
                                 onclick="return confirm('Move this lesson and every later planned lesson in this plan to the next school days?')">Push this and later</button>
                     </form>
                     {{if isAhead .Lesson}}
                         <form method="post" action="/lessons/{{.Lesson.ID}}/pull" class="inline-form">
                             <input type="hidden" name="back" value="{{$back}}">
                             <button type="submit" class="link-button"
+                                    title="Move this future lesson onto today and pull every later planned lesson forward behind it."
                                     onclick="return confirm('Move this lesson and every later planned lesson in this plan onto today and the school days after it?')">Pull this and later</button>
                         </form>
                     {{end}}

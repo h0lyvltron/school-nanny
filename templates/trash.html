@@ -1,0 +1,36 @@
+{{define "content"}}
+<div class="page-head">
+    <div>
+        <p class="crumbs"><a href="/planner">Planner</a></p>
+        <h1>Recently deleted</h1>
+        <p class="muted">Individual lessons remain here for seven days before they are permanently removed.</p>
+    </div>
+</div>
+
+{{if .DeletedLessons}}
+<section class="panel">
+    <div class="settings-rows">
+        {{range .DeletedLessons}}
+        <div class="settings-row">
+            <span>
+                <strong>{{.Title}}</strong>
+                <span class="muted small">{{.PersonName}}{{if .PersonName}} · {{end}}{{prettyDate .ScheduledOn}}</span>
+            </span>
+            <form method="post" action="/lessons/restore">
+                <input type="hidden" name="token" value="{{.Token}}">
+                <input type="hidden" name="back" value="/trash">
+                <button type="submit" class="secondary"
+                        title="Restore this lesson, including its saved files and assessment links.">Restore</button>
+            </form>
+        </div>
+        {{end}}
+    </div>
+</section>
+{{else}}
+<section class="panel empty-state">
+    <h2>Trash is empty</h2>
+    <p class="muted">Deleted individual lessons will appear here when they can still be restored.</p>
+    <a href="/planner" role="button" class="secondary">Return to planner</a>
+</section>
+{{end}}
+{{end}}

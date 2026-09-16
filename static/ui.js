@@ -175,3 +175,93 @@
         showToast(stashed.toast);
     }
 })();
+
+// Every button-like control should explain its result before it is clicked.
+// Explicit title or data-hint text wins; these defaults also cover controls
+// inserted later by HTMX.
+(function () {
+    "use strict";
+
+    var exactHints = {
+        "push": "Move this lesson and every later planned lesson to the next available school days.",
+        "push this and later": "Move this lesson and every later planned lesson to the next available school days.",
+        "pull": "Move this future lesson onto today and pull every later planned lesson forward behind it.",
+        "pull this and later": "Move this future lesson onto today and pull every later planned lesson forward behind it.",
+        "double up": "Put this lesson on the same day as the previous lesson and pull later lessons forward.",
+        "shift remaining": "Choose a new date for the remaining planned lessons while preserving their sequence.",
+        "pause and shift remaining": "Pause this curriculum schedule, then move all unfinished lessons to resume on a chosen date.",
+        "shift around vacation": "Move unfinished lessons around a vacation date range without changing their order.",
+        "mark done": "Mark this lesson complete and include it in completed-work progress.",
+        "mark not done": "Return this completed lesson to its previous unfinished status.",
+        "undo": "Restore the lesson that was just deleted.",
+        "undo deletion": "Restore this deleted lesson, including its saved files and assessment links.",
+        "restore": "Restore this deleted lesson, including its saved files and assessment links.",
+        "print": "Open the browser print dialog for this page.",
+        "print today": "Open the browser print dialog for today's schedule.",
+        "print week": "Open the browser print dialog for this week's planner.",
+        "previous": "Move to the previous date range.",
+        "next": "Move to the next date range.",
+        "this week": "Return the planner to the current week.",
+        "this month": "Return the calendar to the current month.",
+        "zoom in": "Make the displayed PDF page larger.",
+        "zoom out": "Make the displayed PDF page smaller.",
+        "fit width": "Scale the PDF page to fit the available viewer width.",
+        "fit page": "Scale the full PDF page to fit inside the viewer.",
+        "reset": "Return the PDF viewer to its default zoom and position.",
+        "sign out": "End this signed-in session on this device.",
+        "lock": "Lock School Nanny until the family password or PIN is entered.",
+        "recently deleted": "Open Trash to restore individual lessons deleted during the last seven days.",
+        "return to planner": "Leave this page and return to the week planner."
+    };
+
+    function normalizedLabel(control) {
+        return (control.getAttribute("aria-label") || control.textContent || "")
+            .replace(/\s+/g, " ").trim();
+    }
+
+    function hintFor(control) {
+        var explicit = control.getAttribute("data-hint");
+        if (explicit) {
+            return explicit;
+        }
+        var label = normalizedLabel(control);
+        var key = label.toLowerCase().replace(/^[←↑↓]\s*|\s*[→]$/g, "");
+        if (exactHints[key]) {
+            return exactHints[key];
+        }
+        if (/^(save|record)/.test(key)) {
+            return "Save the information entered in this form.";
+        }
+        if (/^(add|create)/.test(key)) {
+            return "Create and save the new item described in this form.";
+        }
+        if (/^(delete|remove|revoke|stop)/.test(key)) {
+            return "Remove the selected item after any required confirmation.";
+        }
+        if (/^(import|attach|add photo|change photo)/.test(key)) {
+            return "Upload the selected file and attach its information here.";
+        }
+        if (/^(open|show|full schedule|tests|year report|plan the week)/.test(key)) {
+            return "Open " + label + ".";
+        }
+        if (control.tagName === "A") {
+            return label ? "Open the " + label + " page." : "Open this page.";
+        }
+        return label ? "Perform the “" + label + "” action." : "Perform this action.";
+    }
+
+    function addButtonHints(root) {
+        var controls = root.querySelectorAll ?
+            root.querySelectorAll('button, a[role="button"], input[type="submit"], input[type="button"]') : [];
+        for (var i = 0; i < controls.length; i++) {
+            if (!controls[i].hasAttribute("title")) {
+                controls[i].setAttribute("title", hintFor(controls[i]));
+            }
+        }
+    }
+
+    addButtonHints(document);
+    document.addEventListener("htmx:afterSwap", function (event) {
+        addButtonHints(event.target);
+    });
+})();
