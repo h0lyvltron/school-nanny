@@ -117,5 +117,60 @@ func TestNormalizePDFExtractedText(t *testing.T) {
 	}
 }
 
+func TestParseColumnTOCStreamOrdersLessonsAndUnits(t *testing.T) {
+	stream := `Unit 1 ........ 1
+		Lesson 1: Alpha ........ 2
+		Lesson 2: Beta ........ 4
+		Unit 2 ........ 10
+		Lesson 3: Gamma ........ 11
+		Lessons 4–5: Assessment ........ 14`
+	items, err := parseColumnTOCStream(stream)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != 4 {
+		t.Fatalf("items=%d: %+v", len(items), items)
+	}
+	if items[0].Number != 1 || items[0].Unit != 1 || items[0].Page != 2 || items[0].Name != "Alpha" {
+		t.Fatalf("first item: %+v", items[0])
+	}
+	if items[2].Number != 3 || items[2].Unit != 2 || items[2].Page != 11 {
+		t.Fatalf("third item: %+v", items[2])
+	}
+	if !items[3].IsRange || items[3].Number != 4 || items[3].End != 5 || items[3].Page != 14 {
+		t.Fatalf("range item: %+v", items[3])
+	}
+	if err := validateLessonCoverage(items); err != nil {
+		t.Fatalf("coverage: %v", err)
+	}
+}
 
+func TestValidatePDFTOCRejectsBadOrderAndPages(t *testing.T) {
+	items := []TocItem{
+		{Number: 1, Unit: 1, Page: 9, HasPage: true},
+		{Number: 2, Unit: 1, Page: 500, HasPage: true},
+	}
+	if err := validatePDFTOC(items, 331); err == nil {
+		t.Fatal("expected out-of-document page to fail")
+	}
+	items[1].Page = 8
+	if err := validatePDFTOC(items, 331); err == nil {
+		t.Fatal("expected decreasing page to fail")
+	}
+}
 
+func TestSuspiciousTOCTitleAndHeadingCleanup(t *testing.T) {
+	for _, title := range []string{
+		"Fact F120art 1",
+		"Coun173y 2s to 70",
+		"Using a Number Line for s 40–50Number",
+		"Title ........",
+	} {
+		if !suspiciousTOCTitle(title) {
+			t.Errorf("should be suspicious: %q", title)
+		}
+	}
+	if got := titleCasePDFHeading("COUNTING BY 2s to70"); got != "Counting by 2s to 70" {
+		t.Fatalf("heading cleanup=%q", got)
+	}
+}

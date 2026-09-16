@@ -23,6 +23,9 @@ func ExtractCurriculumFromPDF(path string) ([]TocItem, string, error) {
 	if items, err := extractTOCFromBookmarks(path); err == nil && len(items) > 0 {
 		return items, "bookmarks", nil
 	}
+	if items, err := extractColumnTOC(path); err == nil && len(items) > 0 {
+		return items, "positioned text", nil
+	}
 	text, err := extractPDFFrontMatterText(path, maxPDFTOCPages)
 	if err != nil {
 		return nil, "", err
@@ -32,7 +35,28 @@ func ExtractCurriculumFromPDF(path string) ([]TocItem, string, error) {
 	if err != nil {
 		return nil, "", fmt.Errorf("could not find lessons in that PDF: %w", err)
 	}
+	if err := validateMonotonicLessonOrder(items); err != nil {
+		return nil, "", fmt.Errorf("could not safely order that PDF table of contents: %w", err)
+	}
 	return items, "text", nil
+}
+
+func validateMonotonicLessonOrder(items []TocItem) error {
+	if len(items) == 0 {
+		return fmt.Errorf("the TOC produced no lessons")
+	}
+	last := 0
+	for _, item := range items {
+		end := item.End
+		if !item.IsRange {
+			end = item.Number
+		}
+		if item.Number <= last || end < item.Number {
+			return fmt.Errorf("lessons are out of order near lesson %d", item.Number)
+		}
+		last = end
+	}
+	return nil
 }
 
 // ExtractCurriculumFromPDFReader writes r to a temp file (pdfcpu wants a path)
