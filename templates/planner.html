@@ -61,4 +61,26 @@
         {{template "planner_day" (dict "Day" . "Kids" $kids "Subjects" $subjects "KidFilter" $kidFilter "AdultFilter" $adultFilter "Adult" $adult "Today" $today "Back" $back)}}
     {{end}}
 </div>
+
+{{if .DeletedLessons}}
+<details class="panel add-box">
+    <summary>Recently deleted lessons</summary>
+    <p class="muted small">Individual lessons can be restored for seven days.</p>
+    <div class="settings-rows">
+        {{range .DeletedLessons}}
+        <div class="settings-row">
+            <span>
+                <strong>{{.Title}}</strong>
+                <span class="muted small">{{.PersonName}} · {{prettyDate .ScheduledOn}}</span>
+            </span>
+            <form method="post" action="/lessons/restore">
+                <input type="hidden" name="token" value="{{.Token}}">
+                <input type="hidden" name="back" value="{{plannerFilterURL $.WeekStart $.KidFilter $.AdultFilter}}">
+                <button type="submit" class="secondary">Restore</button>
+            </form>
+        </div>
+        {{end}}
+    </div>
+</details>
+{{end}}
 {{end}}

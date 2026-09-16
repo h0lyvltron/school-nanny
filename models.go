@@ -155,12 +155,12 @@ type Holiday struct {
 	Emoji string
 
 	// Filled in when the calendar is drawn for one adult.
-	Notes          string
-	OverrideEmoji  string
-	LabelID        int64
-	LabelName      string
-	LabelColor     string
-	LabelEmoji     string
+	Notes         string
+	OverrideEmoji string
+	LabelID       int64
+	LabelName     string
+	LabelColor    string
+	LabelEmoji    string
 }
 
 func (h Holiday) Icon() string {
@@ -203,23 +203,24 @@ type SchoolYear struct {
 }
 
 type Lesson struct {
-	ID           int64
-	KidID        int64
-	AdultID      int64
-	SubjectID    int64
-	SchoolYearID int64
-	SeriesID     int64
-	AssignmentID int64
-	Sequence     int
-	ScheduledOn  string
-	Status       string
-	Title        string
-	Minutes      int
-	Notes        string
-	PageStart    int
-	PageEnd      int
-	CompletedAt  string
-	CreatedAt    string
+	ID               int64
+	KidID            int64
+	AdultID          int64
+	SubjectID        int64
+	SchoolYearID     int64
+	SeriesID         int64
+	AssignmentID     int64
+	CurriculumItemID int64
+	Sequence         int
+	ScheduledOn      string
+	Status           string
+	Title            string
+	Minutes          int
+	Notes            string
+	PageStart        int
+	PageEnd          int
+	CompletedAt      string
+	CreatedAt        string
 
 	// A lesson belongs to exactly one person: a child, or an adult with a
 	// schedule of her own. These carry whichever it is.
@@ -231,6 +232,16 @@ type Lesson struct {
 
 	Attachments []Attachment
 	Assessments []Assessment
+}
+
+type DeletedLesson struct {
+	Token            string
+	OriginalLessonID int64
+	Title            string
+	ScheduledOn      string
+	PersonName       string
+	DeletedAt        string
+	ExpiresAt        string
 }
 
 // HasPageRange reports whether this lesson points at one or more PDF pages.

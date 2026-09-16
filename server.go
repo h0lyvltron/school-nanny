@@ -73,7 +73,8 @@ var pageNames = []string{
 	"home", "planner", "kid", "subject", "lesson", "tests",
 	"settings_people", "settings_school", "settings_access", "settings_data",
 	"login", "signup",
-	"attendance", "curriculum", "curriculum_plan", "curriculum_apply", "archive", "series", "assignment",
+	"attendance", "curriculum", "curriculum_plan", "curriculum_apply", "curriculum_schedule",
+	"archive", "series", "assignment",
 	"adult", "adult_schedule", "transcript",
 }
 
@@ -142,6 +143,8 @@ func (a *App) Routes() http.Handler {
 	mux.HandleFunc("POST /curriculum/from-toc", h((*App).handleCurriculumFromTOC))
 	mux.HandleFunc("POST /curriculum/from-pdf", h((*App).handleCurriculumFromPDF))
 	mux.HandleFunc("GET /curriculum/export.yaml", h((*App).handleExportAllCurriculumYAML))
+	mux.HandleFunc("GET /curriculum/schedule-item", h((*App).handleScheduleCurriculumItemForm))
+	mux.HandleFunc("POST /curriculum/schedule-item", h((*App).handleScheduleCurriculumItem))
 	mux.HandleFunc("GET /curriculum/{id}", h((*App).handleCurriculumPlan))
 	mux.HandleFunc("GET /curriculum/{id}/export.yaml", h((*App).handleExportCurriculumPlanYAML))
 	mux.HandleFunc("POST /curriculum/{id}", h((*App).handleUpdateCurriculumPlan))
@@ -157,6 +160,7 @@ func (a *App) Routes() http.Handler {
 	mux.HandleFunc("POST /archive/export", h((*App).handleArchiveExport))
 
 	mux.HandleFunc("POST /lessons", h((*App).handleCreateLesson))
+	mux.HandleFunc("POST /lessons/restore", h((*App).handleRestoreLesson))
 	mux.HandleFunc("GET /lessons/{id}", h((*App).handleLesson))
 	mux.HandleFunc("POST /lessons/{id}", h((*App).handleUpdateLesson))
 	mux.HandleFunc("POST /lessons/{id}/status", h((*App).handleLessonStatus))

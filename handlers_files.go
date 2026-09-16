@@ -243,6 +243,19 @@ func (a *App) deleteLessonFiles(lessonID int64) error {
 	return nil
 }
 
+func (a *App) purgeExpiredLessonTrash(now time.Time) error {
+	paths, err := a.store.PurgeExpiredDeletedLessons(now)
+	if err != nil {
+		return err
+	}
+	for _, stored := range paths {
+		if path, ok := a.resolveUpload(stored); ok {
+			_ = os.Remove(path)
+		}
+	}
+	return nil
+}
+
 func (a *App) deleteAssessmentFiles(assessmentID int64) error {
 	records, err := a.store.AttachmentsForAssessment(assessmentID)
 	if err != nil {

@@ -169,6 +169,15 @@ func (a *App) handlePlanner(w http.ResponseWriter, r *http.Request) {
 		a.serverError(w, err)
 		return
 	}
+	if err := a.purgeExpiredLessonTrash(requestNow(r)); err != nil {
+		a.serverError(w, err)
+		return
+	}
+	deletedLessons, err := a.store.DeletedLessons(requestNow(r))
+	if err != nil {
+		a.serverError(w, err)
+		return
+	}
 
 	start := requestWeekStart(r, parseDateIn(r.URL.Query().Get("week"), requestLocation(r))).Format(dateLayout)
 	end := addDays(start, 6)
@@ -244,6 +253,7 @@ func (a *App) handlePlanner(w http.ResponseWriter, r *http.Request) {
 	data["NextWeek"] = addDays(start, 7)
 	data["ThisWeek"] = requestWeekStart(r, requestNow(r)).Format(dateLayout)
 	data["Progress"] = progress
+	data["DeletedLessons"] = deletedLessons
 	a.render(w, "planner", data)
 }
 
@@ -566,6 +576,21 @@ func (a *App) handleLesson(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		pdfFile, hasPDF = firstPDFAttachment(planFiles)
+	}
+	if !hasPDF && lesson.CurriculumItemID != 0 {
+		item, err := a.store.CurriculumItem(lesson.CurriculumItemID)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			a.serverError(w, err)
+			return
+		}
+		if item.PlanID != 0 {
+			planFiles, err := a.store.AttachmentsForPlan(item.PlanID)
+			if err != nil {
+				a.serverError(w, err)
+				return
+			}
+			pdfFile, hasPDF = firstPDFAttachment(planFiles)
+		}
 	}
 	data["PDFFile"] = pdfFile
 	data["HasPDF"] = hasPDF

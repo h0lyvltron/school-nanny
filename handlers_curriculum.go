@@ -404,6 +404,87 @@ func (a *App) handleApplyCurriculum(w http.ResponseWriter, r *http.Request) {
 	a.redirect(w, r, "/planner?week="+requestWeekStart(r, parseDate(first)).Format(dateLayout)+"&kid="+r.FormValue("kid_id"))
 }
 
+func (a *App) handleScheduleCurriculumItemForm(w http.ResponseWriter, r *http.Request) {
+	a.renderScheduleCurriculumItem(w, r, "")
+}
+
+func (a *App) handleScheduleCurriculumItem(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "Could not read that form.", http.StatusBadRequest)
+		return
+	}
+	kidID := formID(r, "kid_id")
+	itemID := formID(r, "item_id")
+	date := formDate(r, "scheduled_on")
+	if kidID == 0 || itemID == 0 {
+		a.renderScheduleCurriculumItem(w, r, "Choose a child and a curriculum lesson.")
+		return
+	}
+	if _, err := a.store.ScheduleCurriculumItem(kidID, itemID, date); err != nil {
+		if errors.Is(err, errCurriculumLessonExists) {
+			a.renderScheduleCurriculumItem(w, r,
+				"That curriculum lesson is already scheduled for this child on that date.")
+			return
+		}
+		if errors.Is(err, sql.ErrNoRows) {
+			a.renderScheduleCurriculumItem(w, r, "That child or curriculum lesson no longer exists.")
+			return
+		}
+		a.serverError(w, err)
+		return
+	}
+	fallback := plannerURL(requestWeekStart(r, parseDate(date)).Format(dateLayout), kidID)
+	a.redirect(w, r, safeRedirect(r.FormValue("back"), fallback))
+}
+
+func (a *App) renderScheduleCurriculumItem(w http.ResponseWriter, r *http.Request, message string) {
+	data, err := a.pageData(r, "curriculum")
+	if err != nil {
+		a.serverError(w, err)
+		return
+	}
+	kids, err := a.store.Kids(false)
+	if err != nil {
+		a.serverError(w, err)
+		return
+	}
+	plans, err := a.store.CurriculumPlans()
+	if err != nil {
+		a.serverError(w, err)
+		return
+	}
+	for i := range plans {
+		plans[i].Items, err = a.store.CurriculumItems(plans[i].ID)
+		if err != nil {
+			a.serverError(w, err)
+			return
+		}
+	}
+	date := strings.TrimSpace(r.FormValue("scheduled_on"))
+	if date == "" {
+		date = strings.TrimSpace(r.URL.Query().Get("date"))
+	}
+	if _, err := time.Parse(dateLayout, date); err != nil {
+		date = requestToday(r)
+	}
+	back := r.FormValue("back")
+	if back == "" {
+		back = r.URL.Query().Get("back")
+	}
+	data["Kids"] = kids
+	data["Plans"] = plans
+	data["Date"] = date
+	data["Back"] = safeRedirect(back, "/planner")
+	data["Error"] = message
+	selectedKidID := formID(r, "kid_id")
+	if selectedKidID == 0 {
+		selectedKidID = parseInt64(r.URL.Query().Get("kid"))
+	}
+	data["SelectedKidID"] = selectedKidID
+	data["SelectedItemID"] = formID(r, "item_id")
+	a.render(w, "curriculum_schedule", data)
+}
+
 func curriculumPreview(plan CurriculumPlan, start, weekdays string) ([]ApplyPreview, string, error) {
 	if len(plan.Items) == 0 {
 		return nil, "", errors.New("this plan has no lessons to apply")

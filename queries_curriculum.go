@@ -103,6 +103,17 @@ func (s *Store) CurriculumItems(planID int64) ([]CurriculumItem, error) {
 	return out, rows.Err()
 }
 
+func (s *Store) CurriculumItem(id int64) (CurriculumItem, error) {
+	var item CurriculumItem
+	err := s.db().QueryRow(`SELECT id, plan_id, sort_order, title, notes, minutes,
+			COALESCE(week_number, 0), COALESCE(page_start, 0), COALESCE(page_end, 0), created_at
+		FROM curriculum_items WHERE id = ?`, id).
+		Scan(&item.ID, &item.PlanID, &item.SortOrder, &item.Title, &item.Notes,
+			&item.Minutes, &item.WeekNumber, &item.PageStart, &item.PageEnd,
+			&item.CreatedAt)
+	return item, err
+}
+
 func (s *Store) CreateCurriculumItem(it CurriculumItem) (int64, error) {
 	var next int
 	if err := s.db().QueryRow(`SELECT COALESCE(MAX(sort_order), 0) + 1 FROM curriculum_items WHERE plan_id = ?`,

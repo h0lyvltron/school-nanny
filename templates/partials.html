@@ -360,6 +360,18 @@
         <h3>{{dayName .Day.Date}}</h3>
         <span class="day-date">{{monthDay .Day.Date}}</span>
     </header>
+    {{if .Undo}}
+    <div class="saved-flash lesson-undo">
+        <span>Deleted {{.Undo.Title}}.</span>
+        <form hx-post="/lessons/restore" hx-target="#day-{{.Day.Date}}" hx-swap="outerHTML">
+            <input type="hidden" name="token" value="{{.Undo.Token}}">
+            <input type="hidden" name="view" value="planner">
+            <input type="hidden" name="kid_filter" value="{{.KidFilter}}">
+            <input type="hidden" name="adult_filter" value="{{.AdultFilter}}">
+            <button type="submit" class="link-button">Undo</button>
+        </form>
+    </div>
+    {{end}}
 
     {{if .Day.Events}}
     <div class="day-events">
@@ -431,6 +443,7 @@
             <button type="submit">Add</button>
         </form>
     </details>
+    <a class="muted small" href="/curriculum/schedule-item?date={{.Day.Date}}&amp;kid={{.KidFilter}}&amp;back={{urlquery .Back}}">Add from curriculum</a>
     {{else if and .AdultFilter .Adult .Adult.ID}}
     <details class="add-box">
         <summary>Add to this day</summary>

@@ -107,10 +107,10 @@ func (s *Store) ApplyCurriculum(plan CurriculumPlan, kidID int64, dates []string
 			seq = i + 1
 		}
 		if _, err := tx.Exec(`INSERT INTO lessons
-			(kid_id, subject_id, school_year_id, series_id, assignment_id, sequence,
+			(kid_id, subject_id, school_year_id, series_id, assignment_id, curriculum_item_id, sequence,
 			 scheduled_on, status, title, minutes, notes, page_start, page_end, completed_at, created_at)
-			VALUES (?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?)`,
-			kidID, plan.SubjectID, nullableID(yearID), assignmentID, seq, dates[i], StatusPlanned,
+			VALUES (?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?)`,
+			kidID, plan.SubjectID, nullableID(yearID), assignmentID, it.ID, seq, dates[i], StatusPlanned,
 			it.Title, it.Minutes, it.Notes,
 			nullablePage(it.PageStart), nullablePage(it.PageEnd), now); err != nil {
 			return err

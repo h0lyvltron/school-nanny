@@ -10,7 +10,8 @@ import (
 // are joined in from whichever side is filled and read as one.
 const lessonSelect = `SELECT l.id, COALESCE(l.kid_id, 0), COALESCE(l.adult_id, 0),
 		l.subject_id, COALESCE(l.school_year_id, 0),
-		COALESCE(l.series_id, 0), COALESCE(l.assignment_id, 0), COALESCE(l.sequence, 0),
+		COALESCE(l.series_id, 0), COALESCE(l.assignment_id, 0),
+		COALESCE(l.curriculum_item_id, 0), COALESCE(l.sequence, 0),
 		l.scheduled_on, l.status, l.title, l.minutes, l.notes,
 		COALESCE(l.page_start, 0), COALESCE(l.page_end, 0),
 		COALESCE(l.completed_at, ''), l.created_at,
@@ -31,7 +32,7 @@ func scanLessons(rows *sql.Rows) ([]Lesson, error) {
 	for rows.Next() {
 		var l Lesson
 		if err := rows.Scan(&l.ID, &l.KidID, &l.AdultID, &l.SubjectID, &l.SchoolYearID, &l.SeriesID,
-			&l.AssignmentID, &l.Sequence,
+			&l.AssignmentID, &l.CurriculumItemID, &l.Sequence,
 			&l.ScheduledOn, &l.Status, &l.Title, &l.Minutes, &l.Notes,
 			&l.PageStart, &l.PageEnd,
 			&l.CompletedAt, &l.CreatedAt,
@@ -117,11 +118,12 @@ func (s *Store) CreateLesson(l Lesson) (int64, error) {
 		completedAt = time.Now().Format(time.RFC3339)
 	}
 	res, err := s.db().Exec(`INSERT INTO lessons
-		(kid_id, adult_id, subject_id, school_year_id, series_id, assignment_id, sequence,
+		(kid_id, adult_id, subject_id, school_year_id, series_id, assignment_id, curriculum_item_id, sequence,
 		 scheduled_on, status, title, minutes, notes, page_start, page_end, completed_at, created_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		nullableID(l.KidID), nullableID(l.AdultID),
-		l.SubjectID, nullableID(yearID), nullableID(l.SeriesID), nullableID(l.AssignmentID), l.Sequence,
+		l.SubjectID, nullableID(yearID), nullableID(l.SeriesID), nullableID(l.AssignmentID),
+		nullableID(l.CurriculumItemID), l.Sequence,
 		l.ScheduledOn, l.Status, l.Title, l.Minutes, l.Notes,
 		nullablePage(l.PageStart), nullablePage(l.PageEnd),
 		completedAt, time.Now().Format(time.RFC3339))

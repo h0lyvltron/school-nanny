@@ -238,25 +238,45 @@ func (a *App) handleCloneLesson(w http.ResponseWriter, r *http.Request) {
 
 func (a *App) handleDeleteLesson(w http.ResponseWriter, r *http.Request) {
 	id := pathID(r, "id")
-	lesson, err := a.store.Lesson(id)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		a.serverError(w, err)
-		return
-	}
-	if err := a.deleteLessonFiles(id); err != nil {
-		a.serverError(w, err)
-		return
-	}
-	if err := a.store.DeleteLesson(id); err != nil {
+	deleted, err := a.store.TrashLesson(id, requestNow(r))
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			a.notFound(w)
+			return
+		}
 		a.serverError(w, err)
 		return
 	}
 
 	if r.Header.Get("HX-Request") == "true" && r.FormValue("view") == "planner" {
-		a.renderPlannerDay(w, r, lesson.ScheduledOn, formID(r, "kid_filter"), formID(r, "adult_filter"))
+		a.renderPlannerDayWithUndo(w, r, deleted.ScheduledOn,
+			formID(r, "kid_filter"), formID(r, "adult_filter"), deleted)
 		return
 	}
 	a.redirect(w, r, safeRedirect(r.FormValue("back"), "/planner"))
+}
+
+func (a *App) handleRestoreLesson(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "Could not read that form.", http.StatusBadRequest)
+		return
+	}
+	lesson, err := a.store.RestoreLesson(strings.TrimSpace(r.FormValue("token")), requestNow(r))
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) || errors.Is(err, errDeletedLessonExpired) {
+			http.Error(w, "That deleted lesson is no longer available.", http.StatusGone)
+			return
+		}
+		a.serverError(w, err)
+		return
+	}
+	if r.Header.Get("HX-Request") == "true" && r.FormValue("view") == "planner" {
+		a.renderPlannerDay(w, r, lesson.ScheduledOn,
+			formID(r, "kid_filter"), formID(r, "adult_filter"))
+		return
+	}
+	fallback := plannerURL(requestWeekStart(r, parseDate(lesson.ScheduledOn)).Format(dateLayout), lesson.KidID)
+	a.redirect(w, r, safeRedirect(r.FormValue("back"), fallback))
 }
 
 // renderPlannerDay re-renders one day of the week grid after it changed.
@@ -264,10 +284,20 @@ func (a *App) renderPlannerDay(w http.ResponseWriter, r *http.Request, date stri
 	a.renderPlannerDays(w, r, kidFilter, adultFilter, date)
 }
 
+func (a *App) renderPlannerDayWithUndo(w http.ResponseWriter, r *http.Request, date string,
+	kidFilter, adultFilter int64, deleted DeletedLesson) {
+	a.renderPlannerDaysWithUndo(w, r, kidFilter, adultFilter, &deleted, date)
+}
+
 // renderPlannerDays re-renders one or more days of the week grid. The first
 // day goes into whatever the request targeted; the rest ride along as
 // out-of-band swaps, which is how a dragged lesson updates both ends at once.
 func (a *App) renderPlannerDays(w http.ResponseWriter, r *http.Request, kidFilter, adultFilter int64, dates ...string) {
+	a.renderPlannerDaysWithUndo(w, r, kidFilter, adultFilter, nil, dates...)
+}
+
+func (a *App) renderPlannerDaysWithUndo(w http.ResponseWriter, r *http.Request,
+	kidFilter, adultFilter int64, undo *DeletedLesson, dates ...string) {
 	kids, err := a.store.Kids(false)
 	if err != nil {
 		a.serverError(w, err)
@@ -324,6 +354,7 @@ func (a *App) renderPlannerDays(w http.ResponseWriter, r *http.Request, kidFilte
 			"Today":       requestToday(r),
 			"Back":        plannerFilterURL(requestWeekStart(r, parseDate(date)).Format(dateLayout), kidFilter, adultFilter),
 			"OOB":         i > 0,
+			"Undo":        undo,
 		})
 	}
 }

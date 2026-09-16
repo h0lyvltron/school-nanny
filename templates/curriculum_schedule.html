@@ -1,0 +1,48 @@
+{{define "content"}}
+<div class="page-head">
+    <div>
+        <p class="crumbs"><a href="{{.Back}}">Planner</a> &middot; <a href="/curriculum">Curriculum</a></p>
+        <h1>Add from curriculum</h1>
+        <p class="muted">Schedule one lesson without applying or rebuilding the whole curriculum.</p>
+    </div>
+</div>
+
+<section class="panel">
+    {{if .Error}}<p class="form-error">{{.Error}}</p>{{end}}
+    {{if and .Kids .Plans}}
+    <form method="post" action="/curriculum/schedule-item" class="stack">
+        <input type="hidden" name="back" value="{{.Back}}">
+        <label>Child
+            <select name="kid_id" required>
+                <option value="">Choose a child</option>
+                {{$selectedKid := .SelectedKidID}}
+                {{range .Kids}}
+                    <option value="{{.ID}}" {{if eq .ID $selectedKid}}selected{{end}}>{{.Name}}</option>
+                {{end}}
+            </select>
+        </label>
+        <label>Curriculum lesson
+            <select name="item_id" required>
+                <option value="">Choose a lesson</option>
+                {{$selectedItem := .SelectedItemID}}
+                {{range .Plans}}
+                    {{if .Items}}
+                    <optgroup label="{{.Name}} · {{.SubjectName}}">
+                        {{range .Items}}
+                            <option value="{{.ID}}" {{if eq .ID $selectedItem}}selected{{end}}>{{.Title}}</option>
+                        {{end}}
+                    </optgroup>
+                    {{end}}
+                {{end}}
+            </select>
+        </label>
+        <label>Date
+            <input type="date" name="scheduled_on" value="{{.Date}}" required>
+        </label>
+        <button type="submit">Add lesson</button>
+    </form>
+    {{else}}
+        <p>Add a child and a curriculum plan before scheduling an individual curriculum lesson.</p>
+    {{end}}
+</section>
+{{end}}

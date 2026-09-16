@@ -1125,6 +1125,20 @@ body.is-dragging-lesson .drop-kids { display: flex; }
     font-size: 0.9rem;
 }
 
+.lesson-undo {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.lesson-undo form,
+.lesson-undo button {
+    width: auto;
+    margin: 0;
+}
+
 .form-error {
     background: var(--danger-bg);
     border: 1px solid var(--danger-border);
