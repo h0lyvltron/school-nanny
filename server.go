@@ -70,7 +70,7 @@ type App struct {
 // pageNames are the full-page templates; each one defines a "content" block
 // that the shared layout renders.
 var pageNames = []string{
-	"home", "planner", "kid", "subject", "lesson", "tests",
+	"home", "planner", "kid", "subject", "lesson", "lesson_deleted", "tests",
 	"settings_people", "settings_school", "settings_access", "settings_data",
 	"login", "signup",
 	"attendance", "curriculum", "curriculum_plan", "curriculum_apply", "curriculum_schedule",
@@ -161,6 +161,7 @@ func (a *App) Routes() http.Handler {
 
 	mux.HandleFunc("POST /lessons", h((*App).handleCreateLesson))
 	mux.HandleFunc("POST /lessons/restore", h((*App).handleRestoreLesson))
+	mux.HandleFunc("GET /lessons/deleted", h((*App).handleDeletedLesson))
 	mux.HandleFunc("GET /lessons/{id}", h((*App).handleLesson))
 	mux.HandleFunc("POST /lessons/{id}", h((*App).handleUpdateLesson))
 	mux.HandleFunc("POST /lessons/{id}/status", h((*App).handleLessonStatus))

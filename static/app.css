@@ -1139,6 +1139,20 @@ body.is-dragging-lesson .drop-kids { display: flex; }
     margin: 0;
 }
 
+.deletion-undo-panel {
+    display: grid;
+    gap: 0.75rem;
+    max-width: 36rem;
+}
+
+.deletion-undo-panel > * {
+    margin: 0;
+}
+
+.deletion-undo-panel button {
+    width: auto;
+}
+
 .form-error {
     background: var(--danger-bg);
     border: 1px solid var(--danger-border);

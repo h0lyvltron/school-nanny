@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"errors"
 	"net/http"
+	"net/url"
 	"strings"
 )
 
@@ -253,7 +254,30 @@ func (a *App) handleDeleteLesson(w http.ResponseWriter, r *http.Request) {
 			formID(r, "kid_filter"), formID(r, "adult_filter"), deleted)
 		return
 	}
-	a.redirect(w, r, safeRedirect(r.FormValue("back"), "/planner"))
+	back := safeRedirect(r.FormValue("back"), "/planner")
+	a.redirect(w, r, "/lessons/deleted?token="+url.QueryEscape(deleted.Token)+
+		"&back="+url.QueryEscape(back))
+}
+
+func (a *App) handleDeletedLesson(w http.ResponseWriter, r *http.Request) {
+	token := strings.TrimSpace(r.URL.Query().Get("token"))
+	deleted, err := a.store.DeletedLesson(token, requestNow(r))
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			http.Error(w, "That deleted lesson is no longer available.", http.StatusGone)
+			return
+		}
+		a.serverError(w, err)
+		return
+	}
+	data, err := a.pageData(r, "")
+	if err != nil {
+		a.serverError(w, err)
+		return
+	}
+	data["DeletedLesson"] = deleted
+	data["Back"] = safeRedirect(r.URL.Query().Get("back"), "/planner")
+	a.render(w, "lesson_deleted", data)
 }
 
 func (a *App) handleRestoreLesson(w http.ResponseWriter, r *http.Request) {

@@ -3491,9 +3491,7 @@ func TestSaveAndDeleteReturnToTheWeek(t *testing.T) {
 	}
 
 	deleted := ta.redirectAfterPost("/lessons/"+itoa64(lesson)+"/delete", url.Values{"back": {back}})
-	if deleted != back {
-		t.Errorf("deleting redirected to %q, want %q", deleted, back)
-	}
+	assertLessonUndoRedirect(t, ta, deleted, back)
 }
 
 // Opened cold - from a bookmark or a shared link - there is no week to return
@@ -3515,9 +3513,25 @@ func TestDeletingALessonWithoutABackLandsOnItsWeek(t *testing.T) {
 		t.Error("delete still points at the subject page")
 	}
 
-	if got := ta.redirectAfterPost("/lessons/"+itoa64(lesson)+"/delete", url.Values{"back": {week}}); got != week {
-		t.Errorf("deleting redirected to %q, want %q", got, week)
+	got := ta.redirectAfterPost("/lessons/"+itoa64(lesson)+"/delete", url.Values{"back": {week}})
+	assertLessonUndoRedirect(t, ta, got, week)
+}
+
+func assertLessonUndoRedirect(t *testing.T, ta *testApp, target, wantBack string) {
+	t.Helper()
+	parsed, err := url.Parse(target)
+	if err != nil {
+		t.Fatalf("parsing delete redirect %q: %v", target, err)
 	}
+	if parsed.Path != "/lessons/deleted" || parsed.Query().Get("token") == "" ||
+		parsed.Query().Get("back") != wantBack {
+		t.Fatalf("delete redirect=%q want visible undo with back=%q", target, wantBack)
+	}
+	status, page := ta.get(target)
+	if status != http.StatusOK {
+		t.Fatalf("undo page returned %d", status)
+	}
+	mustContain(t, page, "Undo deletion", "visible undo action")
 }
 
 func TestLessonBackIgnoresOffsiteReturns(t *testing.T) {

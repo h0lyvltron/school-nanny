@@ -267,6 +267,18 @@ func (s *Store) DeletedLessons(now time.Time) ([]DeletedLesson, error) {
 	return out, rows.Err()
 }
 
+func (s *Store) DeletedLesson(token string, now time.Time) (DeletedLesson, error) {
+	var deleted DeletedLesson
+	err := s.db().QueryRow(`SELECT token, original_lesson_id, title, scheduled_on,
+			person_name, deleted_at, expires_at
+		FROM deleted_lessons WHERE token = ? AND expires_at > ?`,
+		token, now.UTC().Format(time.RFC3339)).
+		Scan(&deleted.Token, &deleted.OriginalLessonID, &deleted.Title,
+			&deleted.ScheduledOn, &deleted.PersonName, &deleted.DeletedAt,
+			&deleted.ExpiresAt)
+	return deleted, err
+}
+
 func (s *Store) PurgeExpiredDeletedLessons(now time.Time) ([]string, error) {
 	tx, err := s.db().Begin()
 	if err != nil {
