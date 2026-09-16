@@ -6,6 +6,8 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/ledongthuc/pdf"
 )
 
 func TestExtractCurriculumFromPDFText(t *testing.T) {
@@ -49,6 +51,10 @@ func writeMinimalTOCPDF(path string) error {
 		},
 		{"Lesson body page 2"},
 	}
+	return writeTextPDF(path, pages)
+}
+
+func writeTextPDF(path string, pages [][]string) error {
 	var out []byte
 	offsets := map[int]int{}
 	write := func(s string) { out = append(out, s...) }
@@ -114,6 +120,35 @@ func TestNormalizePDFExtractedText(t *testing.T) {
 	}
 	if !strings.Contains(out, "\nLesson 1:") || !strings.Contains(out, "\nLesson 2:") {
 		t.Fatalf("lesson breaks missing: %q", out)
+	}
+}
+
+func TestInferPDFPageOffsetIgnoresTOCContinuationPages(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "offset.pdf")
+	pages := [][]string{
+		{"Table of Contents", "Lesson 1: Alpha Lesson ........ 2"},
+		{"Table of Contents continued", "Alpha Lesson", "Beta Lesson"},
+		{"Front matter"},
+		{"More front matter"},
+		{"Lesson 1", "Alpha Lesson"},
+		{"Activity page"},
+		{"Lesson 2", "Beta Lesson"},
+	}
+	if err := writeTextPDF(path, pages); err != nil {
+		t.Fatal(err)
+	}
+	f, reader, err := pdf.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+
+	items := []TocItem{
+		{Number: 1, Name: "Alpha Lesson", Page: 2, HasPage: true},
+		{Number: 2, Name: "Beta Lesson", Page: 4, HasPage: true},
+	}
+	if offset := inferPDFPageOffset(reader, 2, items); offset != 3 {
+		t.Fatalf("offset=%d want 3", offset)
 	}
 }
 

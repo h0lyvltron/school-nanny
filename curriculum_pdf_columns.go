@@ -61,8 +61,8 @@ func extractColumnTOC(path string) ([]TocItem, error) {
 		return nil, fmt.Errorf("could not reconstruct the table of contents in reading order")
 	}
 
-	pageNumber := tocPages[0].Number
-	offset := inferPDFPageOffset(r, pageNumber, items)
+	tocEndPage := tocPages[len(tocPages)-1].Number
+	offset := inferPDFPageOffset(r, tocEndPage, items)
 	repairTitle := make([]bool, len(items))
 	for i := range items {
 		printed := items[i].Page
@@ -79,7 +79,7 @@ func extractColumnTOC(path string) ([]TocItem, error) {
 		if items[i].HasPage {
 			continue
 		}
-		from := pageNumber + 1
+		from := tocEndPage + 1
 		if i > 0 && items[i-1].HasPage {
 			from = items[i-1].Page + 1
 		}
@@ -359,7 +359,10 @@ func validatePDFTOC(items []TocItem, pageCount int) error {
 	return nil
 }
 
-func inferPDFPageOffset(r *pdf.Reader, tocPage int, items []TocItem) int {
+func inferPDFPageOffset(r *pdf.Reader, tocEndPage int, items []TocItem) int {
+	const maxOffset = 60
+	counts := make([]int, maxOffset+1)
+	pageText := make(map[int]string)
 	for _, item := range items {
 		if !item.HasPage || item.Page <= 0 || item.Name == "" {
 			continue
@@ -368,17 +371,28 @@ func inferPDFPageOffset(r *pdf.Reader, tocPage int, items []TocItem) int {
 		if len(needle) < 8 {
 			continue
 		}
-		limit := min(r.NumPage(), tocPage+60)
-		for pageNumber := tocPage + 1; pageNumber <= limit; pageNumber++ {
-			if strings.Contains(normalizedPageText(r.Page(pageNumber)), needle) {
-				offset := pageNumber - item.Page
-				if offset >= 0 && offset <= 60 {
-					return offset
-				}
+		for offset := 0; offset <= maxOffset; offset++ {
+			pageNumber := item.Page + offset
+			if pageNumber <= tocEndPage || pageNumber > r.NumPage() {
+				continue
+			}
+			text, ok := pageText[pageNumber]
+			if !ok {
+				text = normalizedPageText(r.Page(pageNumber))
+				pageText[pageNumber] = text
+			}
+			if strings.Contains(text, needle) {
+				counts[offset]++
 			}
 		}
 	}
-	return 0
+	bestOffset, bestCount := 0, 0
+	for offset, count := range counts {
+		if count > bestCount {
+			bestOffset, bestCount = offset, count
+		}
+	}
+	return bestOffset
 }
 
 func normalizedPageText(page pdf.Page) string {
