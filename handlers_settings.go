@@ -158,7 +158,12 @@ func (a *App) handleDeleteKid(w http.ResponseWriter, r *http.Request) {
 		a.serverError(w, err)
 		return
 	}
+	if err := a.store.ClearHistory(); err != nil {
+		a.serverError(w, err)
+		return
+	}
 	a.removeUpload(kid.AvatarPath)
+	_ = a.gcHistoryFiles()
 	a.redirect(w, r, "/settings/people?saved=kid-removed")
 }
 
@@ -195,6 +200,11 @@ func (a *App) handleDeleteSubject(w http.ResponseWriter, r *http.Request) {
 		a.serverError(w, err)
 		return
 	}
+	if err := a.store.ClearHistory(); err != nil {
+		a.serverError(w, err)
+		return
+	}
+	_ = a.gcHistoryFiles()
 	a.redirect(w, r, "/settings/school?saved=subject-removed")
 }
 
@@ -233,6 +243,11 @@ func (a *App) handleDeleteSchoolYear(w http.ResponseWriter, r *http.Request) {
 		a.serverError(w, err)
 		return
 	}
+	if err := a.store.ClearHistory(); err != nil {
+		a.serverError(w, err)
+		return
+	}
+	_ = a.gcHistoryFiles()
 	a.redirect(w, r, "/settings/school?saved=year-removed")
 }
 

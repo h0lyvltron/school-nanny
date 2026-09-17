@@ -73,6 +73,9 @@ Local mode still has an optional house password for one computer.
 - **Backups:** automatic daily database snapshots, plus Back up now, Restore, and
   Download in Settings. Those snapshots are the database only. Use family export
   when you need the attached files too.
+- **Branching History:** planner and calendar changes support persistent
+  undo/redo. Undoing and editing creates another branch; see
+  [`docs/HISTORY.md`](docs/HISTORY.md).
 - **Installable:** the browser can install the app. A light service worker keeps
   the static shell around for revisits.
 

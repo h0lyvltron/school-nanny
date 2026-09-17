@@ -822,6 +822,8 @@ func (a *App) handleSaveAdult(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) handleAdultAvatarUpload(w http.ResponseWriter, r *http.Request) {
+	a.filesMu.Lock()
+	defer a.filesMu.Unlock()
 	adult, ok := a.lookupAdult(w, r)
 	if !ok {
 		return
@@ -850,6 +852,8 @@ func (a *App) handleAdultAvatarUpload(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) handleAdultAvatarDelete(w http.ResponseWriter, r *http.Request) {
+	a.filesMu.Lock()
+	defer a.filesMu.Unlock()
 	previous, err := a.store.SetAdultAvatar(pathID(r, "id"), "")
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {

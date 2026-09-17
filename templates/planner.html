@@ -8,8 +8,8 @@
         <span><strong>{{.Progress.Done}}</strong> done</span>
         <span><strong>{{.Progress.Planned}}</strong> planned</span>
         {{if .Progress.Minutes}}<span><strong>{{.Progress.HoursLabel}}</strong> logged</span>{{end}}
-        <a href="/trash" role="button" class="secondary"
-           title="Open Trash to restore individual lessons deleted during the last seven days.">Recently deleted</a>
+        <a href="/history" role="button" class="secondary"
+           title="Review, undo, redo, and branch planner changes.">History</a>
         <button type="button" class="secondary" onclick="window.print()">Print week</button>
     </div>
 </div>

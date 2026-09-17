@@ -298,6 +298,29 @@ func (s *Store) CreateAttachment(a Attachment) (int64, error) {
 	return res.LastInsertId()
 }
 
+func (s *Store) CreateAttachments(entries []Attachment) error {
+	if len(entries) == 0 {
+		return nil
+	}
+	tx, err := s.db().Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	for _, a := range entries {
+		if _, err := tx.Exec(`INSERT INTO attachments
+			(owner_type, lesson_id, assessment_id, kid_id, subject_id, curriculum_plan_id,
+			 original_name, stored_path, size_bytes, content_type, created_at)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			a.OwnerType, nullableID(a.LessonID), nullableID(a.AssessmentID), nullableID(a.KidID),
+			nullableID(a.SubjectID), nullableID(a.CurriculumPlanID), a.OriginalName, a.StoredPath,
+			a.SizeBytes, a.ContentType, time.Now().Format(time.RFC3339)); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
+}
+
 func (s *Store) DeleteAttachment(id int64) error {
 	_, err := s.db().Exec(`DELETE FROM attachments WHERE id = ?`, id)
 	return err

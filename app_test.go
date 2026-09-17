@@ -1838,8 +1838,8 @@ func TestFileRoundTrip(t *testing.T) {
 		t.Errorf("expected the file to be gone, %d remain", len(files))
 	}
 	if path, ok := ta.resolveUpload(stored.StoredPath); ok {
-		if _, err := readFileIfExists(path); err == nil {
-			t.Error("deleting an attachment should remove it from disk too")
+		if _, err := readFileIfExists(path); err != nil {
+			t.Error("deleting an undoable attachment should retain immutable bytes")
 		}
 	}
 }
@@ -3552,19 +3552,13 @@ func TestDeletingALessonWithoutABackLandsOnItsWeek(t *testing.T) {
 
 func assertLessonUndoRedirect(t *testing.T, ta *testApp, target, wantBack string) {
 	t.Helper()
-	parsed, err := url.Parse(target)
-	if err != nil {
-		t.Fatalf("parsing delete redirect %q: %v", target, err)
+	if target != wantBack {
+		t.Fatalf("delete redirect=%q want back=%q", target, wantBack)
 	}
-	if parsed.Path != "/lessons/deleted" || parsed.Query().Get("token") == "" ||
-		parsed.Query().Get("back") != wantBack {
-		t.Fatalf("delete redirect=%q want visible undo with back=%q", target, wantBack)
+	pos, err := ta.store.HistoryPosition()
+	if err != nil || !pos.CanUndo || pos.UndoLabel != "Delete lesson" {
+		t.Fatalf("delete history position=%+v err=%v", pos, err)
 	}
-	status, page := ta.get(target)
-	if status != http.StatusOK {
-		t.Fatalf("undo page returned %d", status)
-	}
-	mustContain(t, page, "Undo deletion", "visible undo action")
 }
 
 func TestLessonBackIgnoresOffsiteReturns(t *testing.T) {

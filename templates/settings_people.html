@@ -60,7 +60,7 @@
                             <form method="post" action="/settings/kids/{{.ID}}/delete" class="settings-row">
                                 <span>{{.Name}}</span>
                                 <button type="submit" class="link-button danger"
-                                        onclick="return confirm('Remove {{.Name}} and everything recorded for them?')">Remove</button>
+                                        onclick="return confirm('Remove {{.Name}} and everything recorded for them? This also clears planner History because its older branches depend on this person.')">Remove</button>
                             </form>
                         {{end}}
                     </div>

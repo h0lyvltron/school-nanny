@@ -1968,3 +1968,22 @@ body.pdf-overlay-open .pdf-viewer-page-arrow.is-next {
     margin: 0;
     min-height: 1.2em;
 }
+
+.history-actions {
+    display: flex;
+    gap: .5rem;
+    flex-wrap: wrap;
+}
+
+.history-tree .history-node.current {
+    border-inline-start: .25rem solid var(--pico-primary);
+}
+
+.history-branch {
+    color: var(--pico-muted-color);
+    white-space: pre;
+}
+
+.history-nav-action button:disabled {
+    opacity: .4;
+}

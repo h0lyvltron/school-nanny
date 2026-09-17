@@ -266,6 +266,48 @@ func (s *Store) ImportCurriculum(plans []CurriculumPlan) (int, error) {
 	return len(plans), tx.Commit()
 }
 
+func (s *Store) ImportCurriculumPDF(plan CurriculumPlan, attachment Attachment) (int64, error) {
+	tx, err := s.db().Begin()
+	if err != nil {
+		return 0, err
+	}
+	defer tx.Rollback()
+	now := time.Now().Format(time.RFC3339)
+	res, err := tx.Exec(`INSERT INTO curriculum_plans
+		(name, subject_id, kind, source_kid_id, source_year_id, notes, created_at)
+		VALUES (?, ?, ?, NULL, NULL, ?, ?)`,
+		plan.Name, plan.SubjectID, PlanAuthored, plan.Notes, now)
+	if err != nil {
+		return 0, err
+	}
+	planID, err := res.LastInsertId()
+	if err != nil {
+		return 0, err
+	}
+	for i, item := range plan.Items {
+		order := item.SortOrder
+		if order <= 0 {
+			order = i + 1
+		}
+		if _, err := tx.Exec(`INSERT INTO curriculum_items
+			(plan_id, sort_order, title, notes, minutes, week_number, page_start, page_end, created_at)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			planID, order, item.Title, item.Notes, item.Minutes, nullableWeek(item.WeekNumber),
+			nullablePage(item.PageStart), nullablePage(item.PageEnd), now); err != nil {
+			return 0, err
+		}
+	}
+	if _, err := tx.Exec(`INSERT INTO attachments
+		(owner_type, lesson_id, assessment_id, kid_id, subject_id, curriculum_plan_id,
+		 original_name, stored_path, size_bytes, content_type, created_at)
+		VALUES (?, NULL, NULL, NULL, NULL, ?, ?, ?, ?, ?, ?)`,
+		OwnerCurriculum, planID, attachment.OriginalName, attachment.StoredPath,
+		attachment.SizeBytes, attachment.ContentType, now); err != nil {
+		return 0, err
+	}
+	return planID, tx.Commit()
+}
+
 func nullableWeek(n int) any {
 	if n <= 0 {
 		return nil

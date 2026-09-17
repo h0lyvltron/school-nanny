@@ -193,6 +193,24 @@ func (s *Store) CreateAdultEvent(e AdultEvent) (int64, error) {
 	return res.LastInsertId()
 }
 
+func (s *Store) CreateAdultEvents(events []AdultEvent) error {
+	tx, err := s.db().Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	now := time.Now().Format(time.RFC3339)
+	for _, e := range events {
+		if _, err := tx.Exec(`INSERT INTO adult_events
+			(adult_id, label_id, starts_on, ends_on, title, body, created_at)
+			VALUES (?, ?, ?, ?, ?, ?, ?)`,
+			e.AdultID, nullableID(e.LabelID), e.StartsOn, e.EndsOn, e.Title, e.Body, now); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
+}
+
 // UpdateAdultEvent rewrites an existing event in place: title, notes, dates,
 // and which label it wears. That is how a note written last month still gets a
 // birthday cake when she invents the label later.

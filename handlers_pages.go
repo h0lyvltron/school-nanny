@@ -251,29 +251,6 @@ func (a *App) handlePlanner(w http.ResponseWriter, r *http.Request) {
 	a.render(w, "planner", data)
 }
 
-func (a *App) handleTrash(w http.ResponseWriter, r *http.Request) {
-	if !a.requirePlanningAccess(w, r) {
-		return
-	}
-	now := requestNow(r)
-	if err := a.purgeExpiredLessonTrash(now); err != nil {
-		a.serverError(w, err)
-		return
-	}
-	deleted, err := a.store.DeletedLessons(now)
-	if err != nil {
-		a.serverError(w, err)
-		return
-	}
-	data, err := a.pageData(r, "trash")
-	if err != nil {
-		a.serverError(w, err)
-		return
-	}
-	data["DeletedLessons"] = deleted
-	a.render(w, "trash", data)
-}
-
 // plannerPersonFilter reads the week filter: a child, an adult, or everybody.
 // Adult wins if both somehow arrive, so the URL stays unambiguous.
 func plannerPersonFilter(query url.Values) (kidID, adultID int64) {

@@ -63,6 +63,7 @@
     <script src="/static/ui.js" defer></script>
     <script src="/static/planner.js" defer></script>
     <script src="/static/calendar.js" defer></script>
+    <script src="/static/history.js" defer></script>
 </head>
 <body>
 <header class="app-bar">
@@ -75,8 +76,24 @@
             <a href="/curriculum" class="{{if eq .Active "curriculum"}}current{{end}}">Curriculum</a>
             <a href="/attendance" class="{{if eq .Active "attendance"}}current{{end}}">Attendance</a>
             <a href="/archive" class="{{if eq .Active "archive"}}current{{end}}">Archive</a>
-            <a href="/trash" class="{{if eq .Active "trash"}}current{{end}}"
-               title="View and restore individual lessons deleted during the last seven days.">Trash</a>
+            <a href="/history" class="{{if eq .Active "history"}}current{{end}}"
+               title="Review, undo, redo, and branch family changes.">History</a>
+            {{with .History}}
+            <form method="post" action="/history/undo" class="inline-form history-nav-action">
+                <input type="hidden" name="expected" value="{{.CurrentID}}">
+                <input type="hidden" name="expected_revision" value="{{.Revision}}">
+                <input type="hidden" name="back" value="{{$.CurrentURL}}">
+                <button class="link-button" type="submit" title="Ctrl+Shift+Z{{if .UndoLabel}} — {{.UndoLabel}}{{end}}"
+                        {{if not .CanUndo}}disabled{{end}}>Undo</button>
+            </form>
+            <form method="post" action="/history/redo" class="inline-form history-nav-action">
+                <input type="hidden" name="expected" value="{{.CurrentID}}">
+                <input type="hidden" name="expected_revision" value="{{.Revision}}">
+                <input type="hidden" name="back" value="{{$.CurrentURL}}">
+                <button class="link-button" type="submit" title="Ctrl+Shift+Y{{if .RedoLabel}} — {{.RedoLabel}}{{end}}"
+                        {{if not .CanRedo}}disabled{{end}}>Redo</button>
+            </form>
+            {{end}}
             {{end}}
             {{range .NavKids}}
                 <a href="/kids/{{.ID}}" class="nav-kid">

@@ -74,17 +74,9 @@ func (a *App) handleUpdateAssignment(w http.ResponseWriter, r *http.Request) {
 	}
 
 	scheduleChanged := existing.Weekdays != weekdays
-	if err := a.store.UpdateAssignment(id, name, weekdays); err != nil {
+	if err := a.store.UpdateAssignmentCommand(id, name, weekdays, requestToday(r), scheduleChanged); err != nil {
 		a.serverError(w, err)
 		return
-	}
-	if scheduleChanged {
-		existing.Name = name
-		existing.Weekdays = weekdays
-		if err := a.store.RelayoutPlannedFrom(existing, requestToday(r), 0); err != nil {
-			a.serverError(w, err)
-			return
-		}
 	}
 	a.redirect(w, r, "/assignments/"+r.PathValue("id"))
 }

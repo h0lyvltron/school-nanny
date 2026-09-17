@@ -67,14 +67,12 @@ func (a *App) handleAdultCalendarImport(w http.ResponseWriter, r *http.Request) 
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	var n int
-	for _, e := range events {
-		e.AdultID = adult.ID
-		if _, err := a.store.CreateAdultEvent(e); err != nil {
-			a.serverError(w, err)
-			return
-		}
-		n++
+	for i := range events {
+		events[i].AdultID = adult.ID
 	}
-	a.redirect(w, r, fmt.Sprintf("/adults/%d?imported=%d", adult.ID, n))
+	if err := a.store.CreateAdultEvents(events); err != nil {
+		a.serverError(w, err)
+		return
+	}
+	a.redirect(w, r, fmt.Sprintf("/adults/%d?imported=%d", adult.ID, len(events)))
 }

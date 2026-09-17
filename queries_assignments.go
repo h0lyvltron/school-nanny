@@ -125,6 +125,49 @@ func (s *Store) UpdateAssignment(id int64, name, weekdays string) error {
 	return err
 }
 
+func (s *Store) UpdateAssignmentCommand(id int64, name, weekdays, from string, relayout bool) error {
+	tx, err := s.db().Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if _, err := tx.Exec(`UPDATE plan_assignments SET name=?, weekdays=? WHERE id=?`,
+		name, weekdays, id); err != nil {
+		return err
+	}
+	if relayout {
+		rows, err := tx.Query(`SELECT id FROM lessons
+			WHERE assignment_id=? AND status=? AND sequence>=0
+			ORDER BY sequence,id`, id, StatusPlanned)
+		if err != nil {
+			return err
+		}
+		var ids []int64
+		for rows.Next() {
+			var lessonID int64
+			if err := rows.Scan(&lessonID); err != nil {
+				rows.Close()
+				return err
+			}
+			ids = append(ids, lessonID)
+		}
+		if err := rows.Close(); err != nil {
+			return err
+		}
+		start := nextMatchingWeekdayOnOrAfter(from, parseWeekdays(weekdays))
+		dates, err := occurrenceDates(start, "", len(ids), parseWeekdays(weekdays))
+		if err != nil {
+			return err
+		}
+		for i, lessonID := range ids {
+			if _, err := tx.Exec(`UPDATE lessons SET scheduled_on=? WHERE id=?`, dates[i], lessonID); err != nil {
+				return err
+			}
+		}
+	}
+	return tx.Commit()
+}
+
 func (s *Store) PlannedAssignmentIDsFrom(assignmentID int64, fromSequence int) ([]int64, error) {
 	rows, err := s.db().Query(`SELECT id FROM lessons
 		WHERE assignment_id = ? AND status = ? AND sequence >= ?`,
@@ -249,10 +292,99 @@ func (s *Store) PullAssignmentLesson(lesson Lesson, today string) error {
 // school days that follow. It reports whether anything besides the dragged
 // lesson moved, which is what tells the planner how much of the week to redraw.
 func (s *Store) RescheduleAssignmentLesson(lesson Lesson, date string) (bool, error) {
-	if err := s.RescheduleLesson(lesson.ID, date); err != nil {
+	tx, err := s.db().Begin()
+	if err != nil {
 		return false, err
 	}
-	return s.CascadeAssignmentAfterMove(lesson, date)
+	defer tx.Rollback()
+	if _, err := tx.Exec(`UPDATE lessons SET scheduled_on = ? WHERE id = ?`, date, lesson.ID); err != nil {
+		return false, err
+	}
+	cascaded, err := cascadeAssignmentAfterMoveTx(tx, lesson, date)
+	if err != nil {
+		return false, err
+	}
+	return cascaded, tx.Commit()
+}
+
+// UpdateLessonCommand keeps the lesson edit, status stamp, and any curriculum
+// schedule cascade in one database transaction.
+func (s *Store) UpdateLessonCommand(before, next Lesson, status string) error {
+	tx, err := s.db().Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	var completedAt any
+	if status == StatusDone {
+		if status == before.Status && before.CompletedAt != "" {
+			completedAt = before.CompletedAt
+		} else {
+			completedAt = time.Now().Format(time.RFC3339)
+		}
+	}
+	if _, err := tx.Exec(`UPDATE lessons
+		SET kid_id=?, adult_id=?, subject_id=?, scheduled_on=?, title=?, minutes=?, notes=?,
+		    page_start=?, page_end=?, status=?, completed_at=?
+		WHERE id=?`,
+		nullableID(next.KidID), nullableID(next.AdultID), next.SubjectID, next.ScheduledOn,
+		next.Title, next.Minutes, next.Notes, nullablePage(next.PageStart), nullablePage(next.PageEnd),
+		status, completedAt, before.ID); err != nil {
+		return err
+	}
+	if status == StatusPlanned && next.ScheduledOn != before.ScheduledOn {
+		if _, err := cascadeAssignmentAfterMoveTx(tx, before, next.ScheduledOn); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
+}
+
+func cascadeAssignmentAfterMoveTx(tx *sql.Tx, lesson Lesson, date string) (bool, error) {
+	if !lesson.HasAssignment() || lesson.Status != StatusPlanned ||
+		lesson.Sequence == 0 || date == lesson.ScheduledOn {
+		return false, nil
+	}
+	rows, err := tx.Query(`SELECT id, sequence, scheduled_on, status FROM lessons
+		WHERE assignment_id=? AND id<>? AND status=? ORDER BY sequence,id`,
+		lesson.AssignmentID, lesson.ID, StatusPlanned)
+	if err != nil {
+		return false, err
+	}
+	var siblings []Lesson
+	for rows.Next() {
+		var sibling Lesson
+		if err := rows.Scan(&sibling.ID, &sibling.Sequence, &sibling.ScheduledOn, &sibling.Status); err != nil {
+			rows.Close()
+			return false, err
+		}
+		siblings = append(siblings, sibling)
+	}
+	if err := rows.Close(); err != nil {
+		return false, err
+	}
+	follow := lessonsClosingUpBehind(lesson, siblings, date)
+	if len(follow) == 0 {
+		return false, nil
+	}
+	var weekdays string
+	if err := tx.QueryRow(`SELECT weekdays FROM plan_assignments WHERE id=?`, lesson.AssignmentID).Scan(&weekdays); err != nil {
+		return false, err
+	}
+	start := nextMatchingWeekdayOnOrAfter(addDays(date, 1), parseWeekdays(weekdays))
+	dates, err := occurrenceDates(start, "", len(follow), parseWeekdays(weekdays))
+	if err != nil {
+		return false, err
+	}
+	if len(dates) < len(follow) {
+		return false, fmt.Errorf("not enough school days to shift %d remaining lessons", len(follow))
+	}
+	for i, sibling := range follow {
+		if _, err := tx.Exec(`UPDATE lessons SET scheduled_on=? WHERE id=?`, dates[i], sibling.ID); err != nil {
+			return false, err
+		}
+	}
+	return true, nil
 }
 
 // CascadeAssignmentAfterMove reshuffles the rest of a plan once one lesson has

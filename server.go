@@ -58,6 +58,7 @@ type App struct {
 	cookieSecure bool
 	tenantsMu    sync.Mutex
 	tenants      map[string]*App
+	filesMu      sync.Mutex
 
 	// Templates are parsed per calendar date, because helpers like isToday and
 	// prettyDate have to be fixed to a day and html/template will not let a
@@ -70,7 +71,7 @@ type App struct {
 // pageNames are the full-page templates; each one defines a "content" block
 // that the shared layout renders.
 var pageNames = []string{
-	"home", "planner", "trash", "kid", "subject", "lesson", "lesson_deleted", "tests",
+	"home", "planner", "history", "kid", "subject", "lesson", "lesson_deleted", "tests",
 	"settings_people", "settings_school", "settings_access", "settings_data",
 	"login", "signup",
 	"attendance", "curriculum", "curriculum_plan", "curriculum_apply", "curriculum_schedule",
@@ -133,7 +134,11 @@ func (a *App) Routes() http.Handler {
 
 	mux.HandleFunc("GET /{$}", h((*App).handleHome))
 	mux.HandleFunc("GET /planner", h((*App).handlePlanner))
-	mux.HandleFunc("GET /trash", h((*App).handleTrash))
+	mux.HandleFunc("GET /history", h((*App).handleHistory))
+	mux.HandleFunc("POST /history/undo", h((*App).handleHistoryUndo))
+	mux.HandleFunc("POST /history/redo", h((*App).handleHistoryRedo))
+	mux.HandleFunc("POST /history/checkout/{id}", h((*App).handleHistoryCheckout))
+	mux.HandleFunc("GET /trash", h((*App).handleTrashRedirect))
 
 	mux.HandleFunc("GET /attendance", h((*App).handleAttendance))
 	mux.HandleFunc("POST /attendance", h((*App).handleSaveAttendance))
@@ -249,13 +254,75 @@ func (a *App) Routes() http.Handler {
 	mux.HandleFunc("POST /settings/pins/{id}/reset", h((*App).handleResetPIN))
 	mux.HandleFunc("POST /settings/pins/{id}/revoke", h((*App).handleRevokePIN))
 
-	stack := a.withTimezone(mux)
+	stack := a.withTimezone(a.withHistory(mux))
 	if a.hosted {
 		stack = a.hostedGate(stack)
 	} else {
 		stack = a.bindApp(a.requireLogin(stack))
 	}
 	return a.recoverPanic(a.sameSiteOnly(stack))
+}
+
+func (a *App) withHistory(mux *http.ServeMux) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			mux.ServeHTTP(w, r)
+			return
+		}
+		app := appFrom(r)
+		_, pattern := mux.Handler(r)
+		label, tracked := historyRouteLabels[pattern]
+		if !tracked || app.store == nil {
+			mux.ServeHTTP(w, r)
+			return
+		}
+		app.store.historyMu.Lock()
+		defer app.store.historyMu.Unlock()
+		nodeID, err := app.store.beginHistory(label, pattern)
+		if err != nil {
+			app.serverError(w, err)
+			return
+		}
+		buffer := newHistoryResponseBuffer()
+		var panicValue any
+		func() {
+			defer func() { panicValue = recover() }()
+			mux.ServeHTTP(buffer, r)
+		}()
+		changed, pruned, err := app.store.finishHistory(nodeID)
+		if err != nil {
+			if changed {
+				// The action and its node committed; pruning is maintenance and
+				// must not turn a successful edit into a misleading failure.
+				log.Printf("could not prune history after %q: %v", label, err)
+			} else {
+				log.Printf("could not finish history action %q: %v", label, err)
+				app.store.discardHistory(nodeID)
+				if panicValue != nil {
+					panic(panicValue)
+				}
+				http.Error(w, "The change could not be added to History.", http.StatusInternalServerError)
+				return
+			}
+		}
+		if changed {
+			if pos, posErr := app.store.HistoryPosition(); posErr == nil {
+				buffer.Header().Set("X-School-Nanny-History", strconv.FormatInt(pos.CurrentID, 10))
+				buffer.Header().Set("X-School-Nanny-History-Revision", strconv.FormatInt(pos.Revision, 10))
+			}
+		} else {
+			pruned = false
+		}
+		if pruned {
+			if err := app.gcHistoryFiles(); err != nil {
+				log.Printf("could not clean retained history files: %v", err)
+			}
+		}
+		if panicValue != nil {
+			panic(panicValue)
+		}
+		buffer.flushTo(w)
+	})
 }
 
 // withTimezone hangs the reader's calendar zone on the request so every
@@ -398,6 +465,7 @@ func (a *App) pageData(r *http.Request, active string) (map[string]any, error) {
 		"Hosted":               a.hosted,
 		"IsOwner":              true,
 		"Role":                 roleOwner,
+		"CurrentURL":           r.URL.Path,
 	}
 	if a.hosted {
 		if sess := sessionFrom(r); sess != nil {
@@ -423,6 +491,9 @@ func (a *App) pageData(r *http.Request, active string) (map[string]any, error) {
 				data["NavAdults"] = []Adult{}
 			}
 		}
+	}
+	if pos, err := a.store.HistoryPosition(); err == nil {
+		data["History"] = pos
 	}
 	return data, nil
 }

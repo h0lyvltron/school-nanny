@@ -1,0 +1,80 @@
+{{define "content"}}
+<div class="page-head">
+    <div>
+        <p class="crumbs"><a href="/planner">Planner</a></p>
+        <h1>History</h1>
+        <p class="muted">Walk back through up to 128 family changes. Editing after undo creates another branch.</p>
+    </div>
+    <div class="history-actions">
+        <form method="post" action="/history/undo" class="inline-form">
+            <input type="hidden" name="expected" value="{{.History.CurrentID}}">
+            <input type="hidden" name="expected_revision" value="{{.History.Revision}}">
+            <input type="hidden" name="back" value="/history">
+            <button type="submit" class="secondary" {{if not .History.CanUndo}}disabled{{end}}>
+                Undo{{if .History.UndoLabel}}: {{.History.UndoLabel}}{{end}}
+            </button>
+        </form>
+        <form method="post" action="/history/redo" class="inline-form">
+            <input type="hidden" name="expected" value="{{.History.CurrentID}}">
+            <input type="hidden" name="expected_revision" value="{{.History.Revision}}">
+            <input type="hidden" name="back" value="/history">
+            <button type="submit" class="secondary" {{if not .History.CanRedo}}disabled{{end}}>
+                Redo{{if .History.RedoLabel}}: {{.History.RedoLabel}}{{end}}
+            </button>
+        </form>
+    </div>
+</div>
+
+{{if .HistoryNodes}}
+<section class="panel">
+    <h2>Change tree</h2>
+    <div class="settings-rows history-tree">
+        {{range .HistoryNodes}}
+        <div class="settings-row history-node {{if .Current}}current{{end}}" data-depth="{{.Depth}}">
+            <span>
+                <span class="history-branch">{{.BranchPrefix}}</span>
+                <strong>{{.Label}}</strong>
+                {{if .Current}}<span class="pill">current</span>{{end}}
+                <span class="muted small">{{.CreatedLabel}}</span>
+            </span>
+            {{if not .Current}}
+            <form method="post" action="/history/checkout/{{.ID}}" class="inline-form">
+                <input type="hidden" name="expected" value="{{$.History.CurrentID}}">
+                <input type="hidden" name="expected_revision" value="{{$.History.Revision}}">
+                <input type="hidden" name="back" value="/history">
+                <button type="submit" class="link-button">Go here</button>
+            </form>
+            {{end}}
+        </div>
+        {{end}}
+    </div>
+</section>
+{{else}}
+<section class="panel empty-state">
+    <h2>No changes yet</h2>
+    <p class="muted">Planner, curriculum, attendance, test, note, attachment, and calendar changes will appear here.</p>
+</section>
+{{end}}
+
+{{if .DeletedLessons}}
+<section class="panel">
+    <h2>Legacy recently deleted</h2>
+    <p class="muted small">Lessons deleted before History was enabled remain restorable for their original seven-day window.</p>
+    <div class="settings-rows">
+        {{range .DeletedLessons}}
+        <div class="settings-row">
+            <span>
+                <strong>{{.Title}}</strong>
+                <span class="muted small">{{.PersonName}}{{if .PersonName}} · {{end}}{{prettyDate .ScheduledOn}}</span>
+            </span>
+            <form method="post" action="/lessons/restore">
+                <input type="hidden" name="token" value="{{.Token}}">
+                <input type="hidden" name="back" value="/history">
+                <button type="submit" class="secondary">Restore</button>
+            </form>
+        </div>
+        {{end}}
+    </div>
+</section>
+{{end}}
+{{end}}

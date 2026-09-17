@@ -213,7 +213,7 @@
         "move down": "Move this item one position later in its ordered list.",
         "sign out": "End this signed-in session on this device.",
         "lock": "Lock School Nanny until the family password or PIN is entered.",
-        "recently deleted": "Open Trash to restore individual lessons deleted during the last seven days.",
+        "history": "Review, undo, redo, and branch planner changes.",
         "return to planner": "Leave this page and return to the week planner."
     };
 

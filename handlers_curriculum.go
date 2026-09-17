@@ -662,32 +662,20 @@ func (a *App) handleCurriculumFromPDF(w http.ResponseWriter, r *http.Request) {
 	}
 	plan.Items = ItemsFromTOC(tocItems, name)
 
-	planID, err := a.store.CreateCurriculumPlan(plan)
-	if err != nil {
-		a.serverError(w, err)
-		return
-	}
-	for _, it := range plan.Items {
-		it.PlanID = planID
-		if _, err := a.store.CreateCurriculumItem(it); err != nil {
-			a.serverError(w, err)
-			return
-		}
-	}
-
+	a.filesMu.Lock()
+	defer a.filesMu.Unlock()
 	stored, contentType, err := a.saveUpload(header.Filename, header)
 	if err != nil {
 		a.serverError(w, err)
 		return
 	}
-	if _, err := a.store.CreateAttachment(Attachment{
-		OwnerType:        OwnerCurriculum,
-		CurriculumPlanID: planID,
-		OriginalName:     filepath.Base(header.Filename),
-		StoredPath:       stored,
-		SizeBytes:        header.Size,
-		ContentType:      contentType,
-	}); err != nil {
+	planID, err := a.store.ImportCurriculumPDF(plan, Attachment{
+		OriginalName: filepath.Base(header.Filename),
+		StoredPath:   stored,
+		SizeBytes:    header.Size,
+		ContentType:  contentType,
+	})
+	if err != nil {
 		os.Remove(filepath.Join(a.uploadDir, stored))
 		a.serverError(w, err)
 		return

@@ -109,6 +109,40 @@ func (s *Store) UpdateFutureSeriesLessons(seriesID int64, sr LessonSeries, from 
 	return err
 }
 
+func (s *Store) UpdateSeriesCommand(id int64, sr LessonSeries, from string, reschedule bool) error {
+	tx, err := s.db().Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if _, err := tx.Exec(`UPDATE lesson_series
+		SET kid_id=?, subject_id=?, title=?, minutes=?, notes=?, weekdays=?,
+			starts_on=?, ends_on=?, occurrence_count=?
+		WHERE id=?`,
+		sr.KidID, sr.SubjectID, sr.Title, sr.Minutes, sr.Notes, sr.Weekdays,
+		sr.StartsOn, sr.EndsOn, sr.OccurrenceCount, id); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`UPDATE lessons
+		SET kid_id=?, subject_id=?, title=?, minutes=?, notes=?
+		WHERE series_id=? AND status=? AND scheduled_on>=?`,
+		sr.KidID, sr.SubjectID, sr.Title, sr.Minutes, sr.Notes,
+		id, StatusPlanned, from); err != nil {
+		return err
+	}
+	if reschedule {
+		if _, err := tx.Exec(`DELETE FROM lessons
+			WHERE series_id=? AND status=? AND scheduled_on>=?`, id, StatusPlanned, from); err != nil {
+			return err
+		}
+		sr.ID = id
+		if err := materializeSeriesTx(tx, sr, from); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
+}
+
 func (s *Store) PlannedSeriesIDsFrom(seriesID int64, from string) ([]int64, error) {
 	rows, err := s.db().Query(`SELECT id FROM lessons
 		WHERE series_id = ? AND status = ? AND scheduled_on >= ?`,
@@ -136,34 +170,46 @@ func (s *Store) DeletePlannedSeriesFrom(seriesID int64, from string) error {
 }
 
 func (s *Store) RematerializeSeries(sr LessonSeries, from string) error {
-	existing, err := s.LessonsForSeries(sr.ID)
-	if err != nil {
-		return err
-	}
-	taken := map[string]bool{}
-	for _, l := range existing {
-		if l.Status != StatusPlanned || l.ScheduledOn < from {
-			taken[l.ScheduledOn] = true
-		}
-	}
-
-	dates, err := occurrenceDates(sr.StartsOn, sr.EndsOn, sr.OccurrenceCount, parseWeekdays(sr.Weekdays))
-	if err != nil {
-		return err
-	}
-
-	yearID, err := s.currentYearID()
-	if err != nil {
-		return err
-	}
-	now := time.Now().Format(time.RFC3339)
-
 	tx, err := s.db().Begin()
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
+	if err := materializeSeriesTx(tx, sr, from); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
 
+func materializeSeriesTx(tx *sql.Tx, sr LessonSeries, from string) error {
+	rows, err := tx.Query(`SELECT scheduled_on,status FROM lessons WHERE series_id=?`, sr.ID)
+	if err != nil {
+		return err
+	}
+	taken := map[string]bool{}
+	for rows.Next() {
+		var date, status string
+		if err := rows.Scan(&date, &status); err != nil {
+			rows.Close()
+			return err
+		}
+		if status != StatusPlanned || date < from {
+			taken[date] = true
+		}
+	}
+	if err := rows.Close(); err != nil {
+		return err
+	}
+	dates, err := occurrenceDates(sr.StartsOn, sr.EndsOn, sr.OccurrenceCount, parseWeekdays(sr.Weekdays))
+	if err != nil {
+		return err
+	}
+	var yearID int64
+	if err := tx.QueryRow(`SELECT id FROM school_years
+		WHERE is_current=1 ORDER BY starts_on DESC LIMIT 1`).Scan(&yearID); err != nil && err != sql.ErrNoRows {
+		return err
+	}
+	now := time.Now().Format(time.RFC3339)
 	for _, date := range dates {
 		if date < from || taken[date] {
 			continue
@@ -177,5 +223,5 @@ func (s *Store) RematerializeSeries(sr LessonSeries, from string) error {
 			return err
 		}
 	}
-	return tx.Commit()
+	return nil
 }

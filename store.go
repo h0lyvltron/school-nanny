@@ -35,9 +35,19 @@ const dbFileName = "school.db"
 // database file underneath a running app: the only safe way to do that is to
 // close every connection, replace the file, and open it again.
 type Store struct {
-	mu   sync.RWMutex
-	pool *sql.DB
-	path string
+	mu        sync.RWMutex
+	historyMu sync.Mutex
+	pool      *sql.DB
+	path      string
+}
+
+// DBTX is the common execution surface shared by *sql.DB and *sql.Tx. New
+// multi-row commands use it so their query helpers can participate in one
+// transaction instead of falling back to autocommit.
+type DBTX interface {
+	Exec(query string, args ...any) (sql.Result, error)
+	Query(query string, args ...any) (*sql.Rows, error)
+	QueryRow(query string, args ...any) *sql.Row
 }
 
 func OpenStore(dbPath string) (*Store, error) {
@@ -268,7 +278,10 @@ func (s *Store) Migrate() error {
 	if err := s.BackfillSubjectColors(); err != nil {
 		return err
 	}
-	return s.BackfillPlanAssignments()
+	if err := s.BackfillPlanAssignments(); err != nil {
+		return err
+	}
+	return s.RecoverHistory()
 }
 
 // applyMigration runs one migration file and records it, all or nothing.

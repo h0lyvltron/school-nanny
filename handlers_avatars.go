@@ -40,6 +40,8 @@ var (
 )
 
 func (a *App) handleKidAvatarUpload(w http.ResponseWriter, r *http.Request) {
+	a.filesMu.Lock()
+	defer a.filesMu.Unlock()
 	kid, err := a.store.Kid(pathID(r, "id"))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -74,6 +76,8 @@ func (a *App) handleKidAvatarUpload(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) handleKidAvatarDelete(w http.ResponseWriter, r *http.Request) {
+	a.filesMu.Lock()
+	defer a.filesMu.Unlock()
 	previous, err := a.store.SetKidAvatar(pathID(r, "id"), "")
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {

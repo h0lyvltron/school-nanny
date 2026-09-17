@@ -23,6 +23,8 @@ import (
 const maxUploadBytes = 64 << 20
 
 func (a *App) handleUpload(w http.ResponseWriter, r *http.Request) {
+	a.filesMu.Lock()
+	defer a.filesMu.Unlock()
 	r.Body = http.MaxBytesReader(w, r.Body, maxUploadBytes)
 	if err := r.ParseMultipartForm(8 << 20); err != nil {
 		http.Error(w, "That file was too large or the upload was incomplete.", http.StatusBadRequest)
@@ -71,25 +73,35 @@ func (a *App) handleUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var entries []Attachment
+	var staged []string
+	cleanup := func() {
+		for _, stored := range staged {
+			_ = os.Remove(filepath.Join(a.uploadDir, filepath.FromSlash(stored)))
+		}
+	}
 	for _, header := range files {
 		if header.Size == 0 {
 			continue
 		}
 		stored, contentType, err := a.saveUpload(header.Filename, header)
 		if err != nil {
+			cleanup()
 			a.serverError(w, err)
 			return
 		}
+		staged = append(staged, stored)
 		entry := record
 		entry.OriginalName = filepath.Base(header.Filename)
 		entry.StoredPath = stored
 		entry.SizeBytes = header.Size
 		entry.ContentType = contentType
-		if _, err := a.store.CreateAttachment(entry); err != nil {
-			os.Remove(filepath.Join(a.uploadDir, stored))
-			a.serverError(w, err)
-			return
-		}
+		entries = append(entries, entry)
+	}
+	if err := a.store.CreateAttachments(entries); err != nil {
+		cleanup()
+		a.serverError(w, err)
+		return
 	}
 	a.redirect(w, r, back)
 }
@@ -224,9 +236,6 @@ func (a *App) handleDeleteFile(w http.ResponseWriter, r *http.Request) {
 		a.serverError(w, err)
 		return
 	}
-	if path, ok := a.resolveUpload(record.StoredPath); ok {
-		os.Remove(path)
-	}
 	if err := a.store.DeleteAttachment(record.ID); err != nil {
 		a.serverError(w, err)
 		return
@@ -235,42 +244,28 @@ func (a *App) handleDeleteFile(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) deleteLessonFiles(lessonID int64) error {
-	records, err := a.store.AttachmentsForLesson(lessonID)
-	if err != nil {
-		return err
-	}
-	a.removeFiles(records)
+	// Attachment bytes are immutable history objects. The attachment rows are
+	// removed by the lesson cascade and history GC reclaims bytes only after no
+	// live row or retained branch references them.
 	return nil
 }
 
 func (a *App) purgeExpiredLessonTrash(now time.Time) error {
-	paths, err := a.store.PurgeExpiredDeletedLessons(now)
+	_, err := a.store.PurgeExpiredDeletedLessons(now)
 	if err != nil {
 		return err
 	}
-	for _, stored := range paths {
-		if path, ok := a.resolveUpload(stored); ok {
-			_ = os.Remove(path)
-		}
-	}
-	return nil
+	return a.gcHistoryFiles()
 }
 
 func (a *App) deleteAssessmentFiles(assessmentID int64) error {
-	records, err := a.store.AttachmentsForAssessment(assessmentID)
-	if err != nil {
-		return err
-	}
-	a.removeFiles(records)
+	// See deleteLessonFiles: retain bytes until history GC proves them unused.
 	return nil
 }
 
 func (a *App) removeFiles(records []Attachment) {
-	for _, record := range records {
-		if path, ok := a.resolveUpload(record.StoredPath); ok {
-			os.Remove(path)
-		}
-	}
+	// SQL cascades remove the metadata. Immutable bytes remain available to
+	// undo branches and are reclaimed by history garbage collection.
 }
 
 // resolveUpload turns a stored relative path into an absolute one, refusing

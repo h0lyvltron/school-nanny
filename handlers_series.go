@@ -85,30 +85,10 @@ func (a *App) handleUpdateSeries(w http.ResponseWriter, r *http.Request) {
 		existing.EndsOn != series.EndsOn ||
 		existing.OccurrenceCount != series.OccurrenceCount
 
-	if err := a.store.UpdateSeries(id, series); err != nil {
-		a.serverError(w, err)
-		return
-	}
-	series.ID = id
-
 	from := requestToday(r)
-	if err := a.store.UpdateFutureSeriesLessons(id, series, from); err != nil {
+	if err := a.store.UpdateSeriesCommand(id, series, from, scheduleChanged); err != nil {
 		a.serverError(w, err)
 		return
-	}
-	if scheduleChanged {
-		if err := a.deletePlannedSeriesFiles(id, from); err != nil {
-			a.serverError(w, err)
-			return
-		}
-		if err := a.store.DeletePlannedSeriesFrom(id, from); err != nil {
-			a.serverError(w, err)
-			return
-		}
-		if err := a.store.RematerializeSeries(series, from); err != nil {
-			a.serverError(w, err)
-			return
-		}
 	}
 	a.redirect(w, r, "/series/"+r.PathValue("id"))
 }

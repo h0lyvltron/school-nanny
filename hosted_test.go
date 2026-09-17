@@ -180,8 +180,8 @@ func TestHostedFamilyExportImport(t *testing.T) {
 	})
 
 	code, body := ta.postFile("/settings/import", "archive", "family.zip", zipBytes, url.Values{
-		"mode":             {"replace"},
-		"confirm_replace":  {"REPLACE"},
+		"mode":            {"replace"},
+		"confirm_replace": {"REPLACE"},
 	})
 	if code != 200 {
 		t.Fatalf("import status %d body=%s", code, body)
@@ -321,6 +321,10 @@ func TestHostedPINLoginAndOwnerGates(t *testing.T) {
 	if code != 403 {
 		t.Fatalf("kid export want 403 got %d", code)
 	}
+	code, _ = ta.get("/history")
+	if code != 403 {
+		t.Fatalf("kid history want 403 got %d", code)
+	}
 
 	ta.post("/logout", url.Values{})
 	code, _, path = ta.postForm("/login", url.Values{
@@ -339,6 +343,10 @@ func TestHostedPINLoginAndOwnerGates(t *testing.T) {
 	code, _ = ta.get("/curriculum")
 	if code != 403 {
 		t.Fatalf("caregiver curriculum want 403 got %d", code)
+	}
+	code, _ = ta.get("/history")
+	if code != 403 {
+		t.Fatalf("caregiver history want 403 got %d", code)
 	}
 
 	ta.post("/logout", url.Values{})

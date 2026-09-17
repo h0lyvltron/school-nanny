@@ -4,7 +4,6 @@ import (
 	"database/sql"
 	"errors"
 	"net/http"
-	"net/url"
 	"strings"
 )
 
@@ -96,25 +95,13 @@ func (a *App) handleUpdateLesson(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "A lesson needs a person, a subject, and a title.", http.StatusBadRequest)
 		return
 	}
-	if err := a.store.UpdateLesson(id, lesson); err != nil {
-		a.serverError(w, err)
-		return
-	}
 	status := before.Status
 	if raw := r.FormValue("status"); raw != "" {
 		status = normalizeStatus(raw)
-		if err := a.store.SetLessonStatus(id, status); err != nil {
-			a.serverError(w, err)
-			return
-		}
 	}
-	// Changing the date on a planned curriculum lesson is the same move as
-	// dragging its card: the rest of the set closes up behind it.
-	if status == StatusPlanned && lesson.ScheduledOn != before.ScheduledOn {
-		if _, err := a.store.CascadeAssignmentAfterMove(before, lesson.ScheduledOn); err != nil {
-			a.serverError(w, err)
-			return
-		}
+	if err := a.store.UpdateLessonCommand(before, lesson, status); err != nil {
+		a.serverError(w, err)
+		return
 	}
 	a.redirect(w, r, safeRedirect(r.FormValue("back"), "/lessons/"+r.PathValue("id")))
 }
@@ -239,7 +226,7 @@ func (a *App) handleCloneLesson(w http.ResponseWriter, r *http.Request) {
 
 func (a *App) handleDeleteLesson(w http.ResponseWriter, r *http.Request) {
 	id := pathID(r, "id")
-	deleted, err := a.store.TrashLesson(id, requestNow(r))
+	lesson, err := a.store.Lesson(id)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			a.notFound(w)
@@ -248,15 +235,17 @@ func (a *App) handleDeleteLesson(w http.ResponseWriter, r *http.Request) {
 		a.serverError(w, err)
 		return
 	}
-
-	if r.Header.Get("HX-Request") == "true" && r.FormValue("view") == "planner" {
-		a.renderPlannerDayWithUndo(w, r, deleted.ScheduledOn,
-			formID(r, "kid_filter"), formID(r, "adult_filter"), deleted)
+	if err := a.store.DeleteLesson(id); err != nil {
+		a.serverError(w, err)
 		return
 	}
-	back := safeRedirect(r.FormValue("back"), "/planner")
-	a.redirect(w, r, "/lessons/deleted?token="+url.QueryEscape(deleted.Token)+
-		"&back="+url.QueryEscape(back))
+
+	if r.Header.Get("HX-Request") == "true" && r.FormValue("view") == "planner" {
+		a.renderPlannerDay(w, r, lesson.ScheduledOn,
+			formID(r, "kid_filter"), formID(r, "adult_filter"))
+		return
+	}
+	a.redirect(w, r, safeRedirect(r.FormValue("back"), "/planner"))
 }
 
 func (a *App) handleDeletedLesson(w http.ResponseWriter, r *http.Request) {

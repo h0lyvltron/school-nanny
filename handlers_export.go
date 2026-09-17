@@ -204,6 +204,11 @@ func (a *App) importFamilyArchive(zipPath string) error {
 	if err := a.store.RestoreFrom(dbDest, ""); err != nil {
 		return err
 	}
+	// Replace import is an operational boundary, not a branchable planner
+	// action. Do not inherit a tree whose snapshots describe the source family.
+	if err := a.store.ClearHistory(); err != nil {
+		return err
+	}
 
 	liveUploads := filepath.Join(a.dataDir, uploadsFolderName)
 	backupUploads := liveUploads + ".before-import"

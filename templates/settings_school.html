@@ -59,13 +59,13 @@
             {{if .Years}}
                 <details class="add-box">
                     <summary class="danger">Remove a year</summary>
-                    <p class="muted small">Lessons stay, but Archive can no longer name that stretch. There is no undo.</p>
+                    <p class="muted small">Lessons stay, but Archive can no longer name that stretch. Removing a year also clears planner History.</p>
                     <div class="settings-rows">
                         {{range .Years}}
                             <form method="post" action="/settings/years/{{.ID}}/delete" class="settings-row">
                                 <span>{{.Name}}</span>
                                 <button type="submit" class="link-button danger"
-                                        onclick="return confirm('Remove the {{.Name}} school year label?')">Remove</button>
+                                        onclick="return confirm('Remove the {{.Name}} school year label? This also clears planner History because older branches may depend on it.')">Remove</button>
                             </form>
                         {{end}}
                     </div>

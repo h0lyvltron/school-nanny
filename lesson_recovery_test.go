@@ -142,7 +142,7 @@ func TestStandaloneCurriculumLessonUsesPlanPDF(t *testing.T) {
 	}
 }
 
-func TestPlannerHTMXDeleteOffersUndoAndRestore(t *testing.T) {
+func TestPlannerHTMXDeleteEntersHistoryAndCanUndo(t *testing.T) {
 	ta := newTestApp(t)
 	kid := ta.addKid("Mia")
 	lessonID := ta.insertUnassignedLesson(kid, ta.mathSubjectID(), today(), "Undo me", "")
@@ -166,45 +166,24 @@ func TestPlannerHTMXDeleteOffersUndoAndRestore(t *testing.T) {
 	}
 	body, _ := io.ReadAll(resp.Body)
 	resp.Body.Close()
-	if resp.StatusCode != http.StatusOK || !strings.Contains(string(body), "Undo") ||
-		!strings.Contains(string(body), `/lessons/restore`) {
+	if resp.StatusCode != http.StatusOK || !strings.Contains(string(body), "Nothing planned") {
 		t.Fatalf("delete response status=%d body=%q", resp.StatusCode, body)
 	}
-	deleted, err := ta.store.DeletedLessons(time.Now())
-	if err != nil || len(deleted) != 1 {
-		t.Fatalf("deleted=%+v err=%v", deleted, err)
+	pos, err := ta.store.HistoryPosition()
+	if err != nil || !pos.CanUndo || pos.UndoLabel != "Delete lesson" {
+		t.Fatalf("history=%+v err=%v", pos, err)
 	}
 	status, planner := ta.get(back)
-	if status != http.StatusOK || !strings.Contains(planner, `href="/trash"`) {
-		t.Fatalf("planner missing trash link status=%d", status)
+	if status != http.StatusOK || !strings.Contains(planner, `href="/history"`) {
+		t.Fatalf("planner missing history link status=%d", status)
 	}
-	status, trash := ta.get("/trash")
-	if status != http.StatusOK || !strings.Contains(trash, "Recently deleted") ||
-		!strings.Contains(trash, "Undo me") ||
-		!strings.Contains(trash, `name="back" value="/trash"`) {
-		t.Fatalf("trash page status=%d body=%q", status, trash)
+	status, history := ta.get("/history")
+	if status != http.StatusOK || !strings.Contains(history, "Delete lesson") {
+		t.Fatalf("history page status=%d body=%q", status, history)
 	}
 
-	restoreForm := url.Values{
-		"token":      {deleted[0].Token},
-		"view":       {"planner"},
-		"kid_filter": {itoa64(kid)},
-	}
-	req, err = http.NewRequest(http.MethodPost, ta.server.URL+"/lessons/restore",
-		strings.NewReader(restoreForm.Encode()))
-	if err != nil {
+	if err := ta.store.Undo(pos.CurrentID); err != nil {
 		t.Fatal(err)
-	}
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	req.Header.Set("HX-Request", "true")
-	resp, err = ta.client.Do(req)
-	if err != nil {
-		t.Fatal(err)
-	}
-	body, _ = io.ReadAll(resp.Body)
-	resp.Body.Close()
-	if resp.StatusCode != http.StatusOK || !strings.Contains(string(body), "Undo me") {
-		t.Fatalf("restore response status=%d body=%q", resp.StatusCode, body)
 	}
 	if _, err := ta.store.Lesson(lessonID); err != nil {
 		t.Fatalf("restored lesson: %v", err)
