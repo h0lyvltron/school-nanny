@@ -2018,17 +2018,20 @@ body.pdf-overlay-open .pdf-viewer-page-arrow.is-next {
 }
 
 .history-tree .history-node {
-    --history-step: 1.25rem;
+    --history-gutter: 0.25rem;
+    --history-step: 1.85rem;
+    --history-rail: 1.35rem;
     position: relative;
-    padding-inline-start: calc(0.15rem + (var(--history-depth, 0) * var(--history-step)));
+    border-inline-start: var(--history-gutter) solid transparent;
+    padding-inline-start: calc(0.55rem + (var(--history-depth, 0) * var(--history-step)));
 }
 
 .history-tree .history-node.current {
-    border-inline-start: .25rem solid var(--pico-primary);
+    border-inline-start-color: var(--pico-primary);
 }
 
 .history-tree .history-node.preferred:not(.current) {
-    border-inline-start: .25rem solid color-mix(in srgb, var(--pico-primary) 35%, transparent);
+    border-inline-start-color: color-mix(in srgb, var(--pico-primary) 35%, transparent);
 }
 
 .history-tree .history-node.preferred strong {
@@ -2037,10 +2040,10 @@ body.pdf-overlay-open .pdf-viewer-page-arrow.is-next {
 
 .history-branch {
     position: absolute;
-    left: calc(0.2rem + ((var(--history-depth, 1) - 1) * var(--history-step)));
+    left: calc(0.45rem + ((var(--history-depth, 1) - 1) * var(--history-step)));
     top: 50%;
-    width: 1.05rem;
-    height: 0.55rem;
+    width: var(--history-rail);
+    height: 0.7rem;
     transform: translateY(-50%);
     pointer-events: none;
 }
@@ -2049,10 +2052,10 @@ body.pdf-overlay-open .pdf-viewer-page-arrow.is-next {
     content: "";
     position: absolute;
     left: 0;
-    right: 0.28rem;
+    right: 0.32rem;
     top: 50%;
     border-top: 2px solid var(--ink-soft);
-    opacity: 0.55;
+    opacity: 0.65;
 }
 
 .history-branch::after {
@@ -2060,11 +2063,11 @@ body.pdf-overlay-open .pdf-viewer-page-arrow.is-next {
     position: absolute;
     right: 0;
     top: 50%;
-    width: 0.36rem;
-    height: 0.36rem;
+    width: 0.4rem;
+    height: 0.4rem;
     border-right: 2px solid var(--ink-soft);
     border-bottom: 2px solid var(--ink-soft);
-    opacity: 0.55;
+    opacity: 0.65;
     transform: translateY(-50%) rotate(-45deg);
 }
 
