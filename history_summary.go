@@ -405,6 +405,15 @@ func markPreferredHistoryPathFrom(byID map[int64]*HistoryNode, pos HistoryPositi
 		n.OnPreferredPath = true
 		id = n.PreferredChildID
 	}
+	for id := start; id != 0 && byID[id] != nil; {
+		n := byID[id]
+		n.OnPreferredPath = true
+		if n.ParentID == 0 || seen[n.ParentID] {
+			break
+		}
+		seen[n.ParentID] = true
+		id = n.ParentID
+	}
 }
 
 func loadHistoryChangeCounts(db DBTX) (map[int64]int, error) {

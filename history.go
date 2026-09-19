@@ -32,7 +32,6 @@ type HistoryNode struct {
 	Children         []*HistoryNode
 	Current          bool
 	Depth            int
-	BranchPrefix     string
 	ChangeCount      int
 	OnPreferredPath  bool
 }
@@ -785,7 +784,6 @@ func historyFlat(roots []*HistoryNode) []*HistoryNode {
 			walk(child, childDepth)
 		}
 		n.Depth = depth
-		n.BranchPrefix = strings.Repeat("↳ ", depth)
 		out = append(out, n)
 	}
 	for i := len(roots) - 1; i >= 0; i-- {

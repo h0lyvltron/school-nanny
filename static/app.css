@@ -2017,6 +2017,12 @@ body.pdf-overlay-open .pdf-viewer-page-arrow.is-next {
     flex-wrap: wrap;
 }
 
+.history-tree .history-node {
+    --history-step: 1.25rem;
+    position: relative;
+    padding-inline-start: calc(0.15rem + (var(--history-depth, 0) * var(--history-step)));
+}
+
 .history-tree .history-node.current {
     border-inline-start: .25rem solid var(--pico-primary);
 }
@@ -2030,8 +2036,36 @@ body.pdf-overlay-open .pdf-viewer-page-arrow.is-next {
 }
 
 .history-branch {
-    color: var(--pico-muted-color);
-    white-space: pre;
+    position: absolute;
+    left: calc(0.2rem + ((var(--history-depth, 1) - 1) * var(--history-step)));
+    top: 50%;
+    width: 1.05rem;
+    height: 0.55rem;
+    transform: translateY(-50%);
+    pointer-events: none;
+}
+
+.history-branch::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0.28rem;
+    top: 50%;
+    border-top: 2px solid var(--ink-soft);
+    opacity: 0.55;
+}
+
+.history-branch::after {
+    content: "";
+    position: absolute;
+    right: 0;
+    top: 50%;
+    width: 0.36rem;
+    height: 0.36rem;
+    border-right: 2px solid var(--ink-soft);
+    border-bottom: 2px solid var(--ink-soft);
+    opacity: 0.55;
+    transform: translateY(-50%) rotate(-45deg);
 }
 
 .history-nav-action button:disabled {

@@ -678,6 +678,68 @@ func TestHistoryFlatListsNewestFirst(t *testing.T) {
 	}
 }
 
+func TestHistorySideBranchIndentsOnce(t *testing.T) {
+	ta := newTestApp(t)
+	kid := ta.addKid("Mia")
+	subject := ta.mathSubjectID()
+	first := historyAction(t, ta.store, "Add lesson", func() {
+		if _, err := ta.store.CreateLesson(Lesson{
+			KidID: kid, SubjectID: subject, ScheduledOn: today(),
+			Status: StatusPlanned, Title: "Kept",
+		}); err != nil {
+			t.Fatal(err)
+		}
+	})
+	undone := historyAction(t, ta.store, "Add lesson", func() {
+		if _, err := ta.store.CreateLesson(Lesson{
+			KidID: kid, SubjectID: subject, ScheduledOn: today(),
+			Status: StatusPlanned, Title: "Undone",
+		}); err != nil {
+			t.Fatal(err)
+		}
+	})
+	if err := ta.store.Undo(undone); err != nil {
+		t.Fatal(err)
+	}
+	branch := historyAction(t, ta.store, "Add lesson", func() {
+		if _, err := ta.store.CreateLesson(Lesson{
+			KidID: kid, SubjectID: subject, ScheduledOn: today(),
+			Status: StatusPlanned, Title: "Branch",
+		}); err != nil {
+			t.Fatal(err)
+		}
+	})
+	roots, _, err := ta.store.HistoryTree()
+	if err != nil {
+		t.Fatal(err)
+	}
+	flat := historyFlat(roots)
+	byID := map[int64]*HistoryNode{}
+	for _, n := range flat {
+		byID[n.ID] = n
+	}
+	if byID[first].Depth != 0 || !byID[first].OnPreferredPath {
+		t.Fatalf("spine=%+v", byID[first])
+	}
+	if byID[branch].Depth != 0 || !byID[branch].OnPreferredPath {
+		t.Fatalf("current branch=%+v", byID[branch])
+	}
+	if byID[undone].Depth != 1 || byID[undone].OnPreferredPath {
+		t.Fatalf("side branch=%+v", byID[undone])
+	}
+
+	status, page := ta.get("/history")
+	if status != http.StatusOK {
+		t.Fatalf("history returned %d", status)
+	}
+	if !strings.Contains(page, `data-depth="1"`) || !strings.Contains(page, `--history-depth: 1`) {
+		t.Fatalf("history missing side-branch depth\n%s", page)
+	}
+	if strings.Contains(page, "↳") {
+		t.Fatalf("history still used arrow characters")
+	}
+}
+
 func TestHistoryCreatedLabelUsesFamilyTimezone(t *testing.T) {
 	pacific := loadLocation("America/Los_Angeles")
 	if pacific == nil {
