@@ -1,9 +1,7 @@
 package main
 
 import (
-	"fmt"
 	"net/http"
-	"net/url"
 	"strconv"
 )
 
@@ -42,8 +40,8 @@ func (a *App) handleCreatePIN(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	a.redirect(w, r, fmt.Sprintf("/settings/access?saved=pin-created&pin=%s&who=%s",
-		url.QueryEscape(pin), url.QueryEscape(mem.DisplayName)))
+	a.setPINFlash(w, pin, mem.DisplayName)
+	a.redirect(w, r, "/settings/access?saved=pin-created")
 }
 
 func (a *App) handleResetPIN(w http.ResponseWriter, r *http.Request) {
@@ -84,7 +82,8 @@ func (a *App) handleResetPIN(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	a.redirect(w, r, "/settings/access?saved=pin-reset&pin="+url.QueryEscape(pin))
+	a.setPINFlash(w, pin, "")
+	a.redirect(w, r, "/settings/access?saved=pin-reset")
 }
 
 func (a *App) handleRevokePIN(w http.ResponseWriter, r *http.Request) {

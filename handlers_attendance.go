@@ -27,7 +27,7 @@ type KidAttendanceReport struct {
 }
 
 func (a *App) handleAttendance(w http.ResponseWriter, r *http.Request) {
-	if !a.requirePlanningAccess(w, r) {
+	if !a.requireDayOps(w, r) {
 		return
 	}
 	data, err := a.pageData(r, "attendance")
@@ -50,6 +50,9 @@ func (a *App) handleAttendance(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) handleSaveAttendance(w http.ResponseWriter, r *http.Request) {
+	if !a.requireDayOps(w, r) {
+		return
+	}
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "Could not read that form.", http.StatusBadRequest)
 		return

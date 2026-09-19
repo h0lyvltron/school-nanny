@@ -1979,6 +1979,14 @@ body.pdf-overlay-open .pdf-viewer-page-arrow.is-next {
     border-inline-start: .25rem solid var(--pico-primary);
 }
 
+.history-tree .history-node.preferred:not(.current) {
+    border-inline-start: .25rem solid color-mix(in srgb, var(--pico-primary) 35%, transparent);
+}
+
+.history-tree .history-node.preferred strong {
+    font-weight: 600;
+}
+
 .history-branch {
     color: var(--pico-muted-color);
     white-space: pre;

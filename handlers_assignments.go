@@ -8,6 +8,9 @@ import (
 )
 
 func (a *App) handleAssignment(w http.ResponseWriter, r *http.Request) {
+	if !a.requirePlanningAccess(w, r) {
+		return
+	}
 	asg, ok := a.lookupAssignment(w, r)
 	if !ok {
 		return
@@ -47,6 +50,9 @@ func (a *App) handleAssignment(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) handleUpdateAssignment(w http.ResponseWriter, r *http.Request) {
+	if !a.requirePlanningAccess(w, r) {
+		return
+	}
 	id := pathID(r, "id")
 	existing, err := a.store.Assignment(id)
 	if err != nil {
@@ -82,6 +88,9 @@ func (a *App) handleUpdateAssignment(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) handlePauseAssignment(w http.ResponseWriter, r *http.Request) {
+	if !a.requirePlanningAccess(w, r) {
+		return
+	}
 	id := pathID(r, "id")
 	if _, err := a.store.Assignment(id); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -104,6 +113,9 @@ func (a *App) handlePauseAssignment(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) handleStopAssignment(w http.ResponseWriter, r *http.Request) {
+	if !a.requirePlanningAccess(w, r) {
+		return
+	}
 	id := pathID(r, "id")
 	from := requestToday(r)
 	if err := a.deletePlannedAssignmentFilesByDate(id, from); err != nil {
@@ -132,6 +144,9 @@ func (a *App) handlePullLesson(w http.ResponseWriter, r *http.Request) {
 // shiftAssignmentLesson runs whichever way the plan is being moved and lands
 // back on the week the lesson started in, so the parent keeps her place.
 func (a *App) shiftAssignmentLesson(w http.ResponseWriter, r *http.Request, shift func(Lesson) error) {
+	if !a.requirePlanningAccess(w, r) {
+		return
+	}
 	lesson, err := a.store.Lesson(pathID(r, "id"))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {

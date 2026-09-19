@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"net/http"
+	"net/url"
 	"strings"
 )
 
@@ -251,6 +252,13 @@ func (a *App) handleChangeAccountPassword(w http.ResponseWriter, r *http.Request
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+	_ = a.control.KillSessionsForAccount(sess.AccountID)
+	fresh, err := a.control.CreateSession(sess.AccountID, sess.FamilyID, sessionLifetime)
+	if err != nil {
+		a.serverError(w, err)
+		return
+	}
+	a.issueHostedSession(w, fresh)
 	a.redirect(w, r, "/settings/access?saved=account-password")
 }
 
@@ -279,7 +287,8 @@ func (a *App) requireNotKid(w http.ResponseWriter, r *http.Request) bool {
 	return true
 }
 
-// requirePlanningAccess blocks kids and caregivers from curriculum/attendance/archive/settings.
+// requirePlanningAccess is the planner gate: owner, co-parent, and teacher.
+// Kids and caregivers are blocked. Local mode always passes.
 func (a *App) requirePlanningAccess(w http.ResponseWriter, r *http.Request) bool {
 	if !a.hosted {
 		return true
@@ -289,6 +298,20 @@ func (a *App) requirePlanningAccess(w http.ResponseWriter, r *http.Request) bool
 		return true
 	}
 	if sess.IsKid() || sess.Role == roleCaregiver {
+		http.Error(w, "That page is for grown-ups.", http.StatusForbidden)
+		return false
+	}
+	return true
+}
+
+// requireDayOps allows planners and caregivers (today, planner, attendance,
+// lesson status). Kids are blocked. Local mode always passes.
+func (a *App) requireDayOps(w http.ResponseWriter, r *http.Request) bool {
+	if !a.hosted {
+		return true
+	}
+	sess := sessionFrom(r)
+	if sess != nil && sess.IsKid() {
 		http.Error(w, "That page is for grown-ups.", http.StatusForbidden)
 		return false
 	}
@@ -306,4 +329,114 @@ func (a *App) enforceKidScope(w http.ResponseWriter, r *http.Request, kidID int6
 		return false
 	}
 	return true
+}
+
+// enforceLessonAccess rejects kids viewing or touching another child's lesson
+// or any adult-only lesson.
+func (a *App) enforceLessonAccess(w http.ResponseWriter, r *http.Request, lesson Lesson) bool {
+	if !a.hosted {
+		return true
+	}
+	sess := sessionFrom(r)
+	if sess == nil || !sess.IsKid() {
+		return true
+	}
+	if lesson.KidID == 0 || lesson.KidID != sess.KidID {
+		http.Error(w, "That page is not yours.", http.StatusForbidden)
+		return false
+	}
+	return true
+}
+
+// requireLessonStatusWrite allows planners and caregivers for kid lessons, and
+// kids for their own lessons only. Adult lessons stay planner-only.
+func (a *App) requireLessonStatusWrite(w http.ResponseWriter, r *http.Request, lesson Lesson) bool {
+	if !a.hosted {
+		return true
+	}
+	sess := sessionFrom(r)
+	if sess == nil {
+		return true
+	}
+	if sess.IsKid() {
+		return a.enforceLessonAccess(w, r, lesson)
+	}
+	if sess.Role == roleCaregiver && lesson.KidID == 0 {
+		http.Error(w, "That page is for grown-ups.", http.StatusForbidden)
+		return false
+	}
+	return true
+}
+
+// enforceAttachmentAccess limits kid downloads to their own lesson/assessment/
+// resource files. Curriculum PDFs stay readable (course books used in lessons).
+func (a *App) enforceAttachmentAccess(w http.ResponseWriter, r *http.Request, att Attachment) bool {
+	if !a.hosted {
+		return true
+	}
+	sess := sessionFrom(r)
+	if sess == nil || !sess.IsKid() {
+		return true
+	}
+	if att.OwnerType == OwnerCurriculum {
+		return true
+	}
+	kidID := att.KidID
+	if kidID == 0 && att.LessonID != 0 {
+		lesson, err := a.store.Lesson(att.LessonID)
+		if err != nil {
+			http.Error(w, "That page is not yours.", http.StatusForbidden)
+			return false
+		}
+		kidID = lesson.KidID
+	}
+	if kidID == 0 && att.AssessmentID != 0 {
+		assessment, err := a.store.Assessment(att.AssessmentID)
+		if err != nil {
+			http.Error(w, "That page is not yours.", http.StatusForbidden)
+			return false
+		}
+		kidID = assessment.KidID
+	}
+	if kidID == 0 || kidID != sess.KidID {
+		http.Error(w, "That page is not yours.", http.StatusForbidden)
+		return false
+	}
+	return true
+}
+
+const pinFlashCookie = "sn_pin_flash"
+
+func (a *App) setPINFlash(w http.ResponseWriter, pin, who string) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     pinFlashCookie,
+		Value:    url.QueryEscape(pin) + "|" + url.QueryEscape(who),
+		Path:     "/settings",
+		HttpOnly: true,
+		Secure:   a.cookieSecure,
+		SameSite: http.SameSiteLaxMode,
+		MaxAge:   120,
+	})
+}
+
+func (a *App) takePINFlash(w http.ResponseWriter, r *http.Request) (pin, who string) {
+	c, err := r.Cookie(pinFlashCookie)
+	if err != nil || c.Value == "" {
+		return "", ""
+	}
+	http.SetCookie(w, &http.Cookie{
+		Name:     pinFlashCookie,
+		Value:    "",
+		Path:     "/settings",
+		HttpOnly: true,
+		Secure:   a.cookieSecure,
+		SameSite: http.SameSiteLaxMode,
+		MaxAge:   -1,
+	})
+	parts := strings.SplitN(c.Value, "|", 2)
+	pin, _ = url.QueryUnescape(parts[0])
+	if len(parts) > 1 {
+		who, _ = url.QueryUnescape(parts[1])
+	}
+	return pin, who
 }

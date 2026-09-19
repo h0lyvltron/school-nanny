@@ -483,3 +483,158 @@ func TestHistoryHTTPRejectsStaleTab(t *testing.T) {
 		t.Fatalf("same-node stale revision status=%d body=%q", status, body)
 	}
 }
+
+func TestHistoryEnrichesLessonLabels(t *testing.T) {
+	ta := newTestApp(t)
+	kid := ta.addKid("Mia")
+	date := today()
+	ta.post("/lessons", url.Values{
+		"kid_id": {itoa64(kid)}, "subject_id": {itoa64(ta.mathSubjectID())},
+		"scheduled_on": {date}, "title": {"Fractions"}, "status": {"planned"},
+	})
+	var label string
+	if err := ta.store.db().QueryRow(`SELECT label FROM history_nodes ORDER BY id DESC LIMIT 1`).
+		Scan(&label); err != nil {
+		t.Fatal(err)
+	}
+	wantDate := historyShortDate(date)
+	if !strings.Contains(label, "Add lesson") || !strings.Contains(label, "Mia") ||
+		!strings.Contains(label, "Fractions") || !strings.Contains(label, wantDate) {
+		t.Fatalf("enriched add label=%q", label)
+	}
+
+	var lessonID int64
+	if err := ta.store.db().QueryRow(`SELECT id FROM lessons WHERE title='Fractions'`).Scan(&lessonID); err != nil {
+		t.Fatal(err)
+	}
+	ta.redirectAfterPost("/lessons/"+itoa64(lessonID)+"/delete", url.Values{"back": {"/planner"}})
+	if err := ta.store.db().QueryRow(`SELECT label FROM history_nodes ORDER BY id DESC LIMIT 1`).
+		Scan(&label); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(label, "Delete lesson") || !strings.Contains(label, "Mia") ||
+		!strings.Contains(label, "Fractions") {
+		t.Fatalf("enriched delete label=%q", label)
+	}
+
+	pos, err := ta.store.HistoryPosition()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if pos.UndoLabel != label {
+		t.Fatalf("undo label=%q want %q", pos.UndoLabel, label)
+	}
+}
+
+func TestHistoryBulkLessonLabelAndChangeCount(t *testing.T) {
+	ta := newTestApp(t)
+	kid := ta.addKid("Mia")
+	subject := ta.mathSubjectID()
+	node := historyAction(t, ta.store, "Push remaining lessons", func() {
+		for i := 0; i < 3; i++ {
+			if _, err := ta.store.CreateLesson(Lesson{
+				KidID: kid, SubjectID: subject, ScheduledOn: addDays(today(), i),
+				Status: StatusPlanned, Title: "Week work",
+			}); err != nil {
+				t.Fatal(err)
+			}
+		}
+	})
+	var label string
+	var changes int
+	if err := ta.store.db().QueryRow(`SELECT label,
+		(SELECT COUNT(*) FROM history_changes WHERE node_id=history_nodes.id)
+		FROM history_nodes WHERE id=?`, node).Scan(&label, &changes); err != nil {
+		t.Fatal(err)
+	}
+	if changes != 3 || !strings.Contains(label, "3 lessons") || !strings.Contains(label, "Mia") {
+		t.Fatalf("bulk label=%q changes=%d", label, changes)
+	}
+
+	roots, _, err := ta.store.HistoryTree()
+	if err != nil {
+		t.Fatal(err)
+	}
+	flat := historyFlat(roots)
+	if len(flat) != 1 || flat[0].ChangeCount != 3 || !flat[0].OnPreferredPath {
+		t.Fatalf("tree node=%+v", flat[0])
+	}
+	status, page := ta.get("/history")
+	if status != http.StatusOK || !strings.Contains(page, "3 changes") ||
+		!strings.Contains(page, "3 lessons") {
+		t.Fatalf("history page missing cues status=%d", status)
+	}
+}
+
+func TestHistoryPreferredPathAfterBranch(t *testing.T) {
+	ta := newTestApp(t)
+	kid := ta.addKid("Mia")
+	subject := ta.mathSubjectID()
+	first := historyAction(t, ta.store, "Add lesson", func() {
+		if _, err := ta.store.CreateLesson(Lesson{
+			KidID: kid, SubjectID: subject, ScheduledOn: today(),
+			Status: StatusPlanned, Title: "First",
+		}); err != nil {
+			t.Fatal(err)
+		}
+	})
+	if err := ta.store.Undo(first); err != nil {
+		t.Fatal(err)
+	}
+	branch := historyAction(t, ta.store, "Add lesson", func() {
+		if _, err := ta.store.CreateLesson(Lesson{
+			KidID: kid, SubjectID: subject, ScheduledOn: today(),
+			Status: StatusPlanned, Title: "Branch",
+		}); err != nil {
+			t.Fatal(err)
+		}
+	})
+	if err := ta.store.Checkout(branch, first); err != nil {
+		t.Fatal(err)
+	}
+	roots, pos, err := ta.store.HistoryTree()
+	if err != nil {
+		t.Fatal(err)
+	}
+	flat := historyFlat(roots)
+	byID := map[int64]*HistoryNode{}
+	for _, n := range flat {
+		byID[n.ID] = n
+	}
+	if !byID[first].OnPreferredPath || byID[first].Current != true {
+		t.Fatalf("first preferred/current=%+v", byID[first])
+	}
+	if byID[branch].OnPreferredPath {
+		t.Fatalf("side branch should not be preferred: %+v", byID[branch])
+	}
+	if pos.CurrentID != first {
+		t.Fatalf("current=%d want %d", pos.CurrentID, first)
+	}
+}
+
+func TestHistoryBackfillBareLabels(t *testing.T) {
+	ta := newTestApp(t)
+	kid := ta.addKid("Mia")
+	subject := ta.mathSubjectID()
+	node := historyAction(t, ta.store, "Add lesson", func() {
+		if _, err := ta.store.CreateLesson(Lesson{
+			KidID: kid, SubjectID: subject, ScheduledOn: today(),
+			Status: StatusPlanned, Title: "Backfill me",
+		}); err != nil {
+			t.Fatal(err)
+		}
+	})
+	if _, err := ta.store.db().Exec(`UPDATE history_nodes SET label='Add lesson' WHERE id=?`, node); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := ta.store.HistoryTree(); err != nil {
+		t.Fatal(err)
+	}
+	var label string
+	if err := ta.store.db().QueryRow(`SELECT label FROM history_nodes WHERE id=?`, node).Scan(&label); err != nil {
+		t.Fatal(err)
+	}
+	if label == "Add lesson" || !strings.Contains(label, "Backfill me") || !strings.Contains(label, "Mia") {
+		t.Fatalf("backfill label=%q", label)
+	}
+}

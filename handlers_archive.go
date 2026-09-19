@@ -140,6 +140,9 @@ func (a *App) handleArchive(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) handleArchiveExport(w http.ResponseWriter, r *http.Request) {
+	if !a.requirePlanningAccess(w, r) {
+		return
+	}
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "Could not read that form.", http.StatusBadRequest)
 		return

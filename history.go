@@ -33,6 +33,8 @@ type HistoryNode struct {
 	Current          bool
 	Depth            int
 	BranchPrefix     string
+	ChangeCount      int
+	OnPreferredPath  bool
 }
 
 func (n HistoryNode) CreatedLabel() string {
@@ -261,6 +263,9 @@ func (s *Store) finishHistory(id int64) (changed, pruned bool, err error) {
 			return false, false, err
 		}
 		return false, false, tx.Commit()
+	}
+	if err := s.enrichHistoryLabel(tx, id); err != nil {
+		return false, false, err
 	}
 	var parent sql.NullInt64
 	if err := tx.QueryRow(`SELECT parent_id FROM history_nodes WHERE id=?`, id).Scan(&parent); err != nil {
@@ -618,10 +623,15 @@ func applyHistoryChange(tx DBTX, c historyChange, forward bool) error {
 }
 
 func (s *Store) HistoryTree() ([]*HistoryNode, HistoryPosition, error) {
+	if err := s.backfillHistoryLabels(); err != nil {
+		return nil, HistoryPosition{}, err
+	}
 	pos, err := s.HistoryPosition()
 	if err != nil {
 		return nil, pos, err
 	}
+	var preferredRoot sql.NullInt64
+	_ = s.db().QueryRow(`SELECT preferred_root_id FROM history_state WHERE id=1`).Scan(&preferredRoot)
 	rows, err := s.db().Query(`SELECT id,COALESCE(parent_id,0),COALESCE(preferred_child_id,0),
 		label,route,created_at,visited_at,status FROM history_nodes
 		WHERE status='complete' ORDER BY id`)
@@ -641,6 +651,17 @@ func (s *Store) HistoryTree() ([]*HistoryNode, HistoryPosition, error) {
 		byID[n.ID] = n
 		ordered = append(ordered, n)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, pos, err
+	}
+	counts, err := loadHistoryChangeCounts(s.db())
+	if err != nil {
+		return nil, pos, err
+	}
+	for id, n := range byID {
+		n.ChangeCount = counts[id]
+	}
+	markPreferredHistoryPathFrom(byID, pos, preferredRoot.Int64)
 	var roots []*HistoryNode
 	for _, n := range ordered {
 		if parent := byID[n.ParentID]; parent != nil {
@@ -649,7 +670,7 @@ func (s *Store) HistoryTree() ([]*HistoryNode, HistoryPosition, error) {
 			roots = append(roots, n)
 		}
 	}
-	return roots, pos, rows.Err()
+	return roots, pos, nil
 }
 
 func (s *Store) pruneHistory() (bool, error) {

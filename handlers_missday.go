@@ -13,6 +13,9 @@ func (a *App) handleDoubleUpLesson(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) handleShiftLesson(w http.ResponseWriter, r *http.Request) {
+	if !a.requirePlanningAccess(w, r) {
+		return
+	}
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "Could not read that form.", http.StatusBadRequest)
 		return
@@ -37,6 +40,9 @@ func (a *App) handleShiftLesson(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) handleVacationAssignment(w http.ResponseWriter, r *http.Request) {
+	if !a.requirePlanningAccess(w, r) {
+		return
+	}
 	id := pathID(r, "id")
 	if _, err := a.store.Assignment(id); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {

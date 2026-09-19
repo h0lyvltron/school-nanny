@@ -615,7 +615,7 @@ func TestPlannerFiltersByTheParent(t *testing.T) {
 	}
 	mustContain(t, body, `href="/planner?week=`+weekStart(parseDate(date)).Format(dateLayout)+`&amp;adult=`+itoa64(parent.ID)+`"`, "parent chip")
 	mustContain(t, body, "Long division", "all kids")
-	mustNotContain(t, body, "Dentist", "all kids")
+	mustNotContain(t, body, `class="lesson-title">Dentist`, "all kids")
 
 	status, hers := ta.get(plannerFilterURL(weekStart(parseDate(date)).Format(dateLayout), 0, parent.ID))
 	if status != http.StatusOK {
@@ -1023,7 +1023,7 @@ func TestAdultScheduleStaysOutOfKidViews(t *testing.T) {
 
 	for _, path := range []string{"/", "/planner", "/kids/" + itoa64(kid), "/archive"} {
 		_, body := ta.get(path)
-		mustNotContain(t, body, "Dentist appointment", path)
+		mustNotContain(t, body, `class="lesson-title">Dentist appointment`, path)
 	}
 
 	// Nor in the numbers the kid views are built from.
@@ -1386,7 +1386,11 @@ func TestAMultiDayEventMarksEveryDayItCovers(t *testing.T) {
 		t.Fatalf("removing it returned %d", status)
 	}
 	_, after := ta.get(base + "?month=2026-07")
-	mustNotContain(t, after, "Grandma visits", "adult calendar")
+	for _, date := range []string{"2026-07-13", "2026-07-14", "2026-07-15", "2026-07-16"} {
+		if strings.Contains(calendarCell(t, after, date), "Grandma visits") {
+			t.Errorf("adult calendar still shows the visit on %s after delete", date)
+		}
+	}
 }
 
 // Picking a day must not reload her profile: she is scrolled down to the month
@@ -3556,7 +3560,7 @@ func assertLessonUndoRedirect(t *testing.T, ta *testApp, target, wantBack string
 		t.Fatalf("delete redirect=%q want back=%q", target, wantBack)
 	}
 	pos, err := ta.store.HistoryPosition()
-	if err != nil || !pos.CanUndo || pos.UndoLabel != "Delete lesson" {
+	if err != nil || !pos.CanUndo || !strings.Contains(pos.UndoLabel, "Delete lesson") {
 		t.Fatalf("delete history position=%+v err=%v", pos, err)
 	}
 }

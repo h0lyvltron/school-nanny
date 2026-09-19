@@ -99,6 +99,9 @@ func pdfUploadError(err error) string {
 }
 
 func (a *App) handleImportCurriculum(w http.ResponseWriter, r *http.Request) {
+	if !a.requirePlanningAccess(w, r) {
+		return
+	}
 	r.Body = http.MaxBytesReader(w, r.Body, maxImportBytes+64*1024)
 	if err := r.ParseMultipartForm(maxImportBytes); err != nil {
 		a.renderCurriculumImportError(w, r, importUploadError(err))
@@ -150,6 +153,9 @@ func (a *App) handleImportCurriculum(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) handleCreateCurriculumPlan(w http.ResponseWriter, r *http.Request) {
+	if !a.requirePlanningAccess(w, r) {
+		return
+	}
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "Could not read that form.", http.StatusBadRequest)
 		return
@@ -173,6 +179,9 @@ func (a *App) handleCreateCurriculumPlan(w http.ResponseWriter, r *http.Request)
 }
 
 func (a *App) handleCurriculumPlan(w http.ResponseWriter, r *http.Request) {
+	if !a.requirePlanningAccess(w, r) {
+		return
+	}
 	plan, ok := a.lookupPlan(w, r)
 	if !ok {
 		return
@@ -211,6 +220,9 @@ func (a *App) handleCurriculumPlan(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) handleUpdateCurriculumPlan(w http.ResponseWriter, r *http.Request) {
+	if !a.requirePlanningAccess(w, r) {
+		return
+	}
 	id := pathID(r, "id")
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "Could not read that form.", http.StatusBadRequest)
@@ -233,6 +245,9 @@ func (a *App) handleUpdateCurriculumPlan(w http.ResponseWriter, r *http.Request)
 }
 
 func (a *App) handleDeleteCurriculumPlan(w http.ResponseWriter, r *http.Request) {
+	if !a.requirePlanningAccess(w, r) {
+		return
+	}
 	id := pathID(r, "id")
 	files, err := a.store.AttachmentsForPlan(id)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
@@ -248,6 +263,9 @@ func (a *App) handleDeleteCurriculumPlan(w http.ResponseWriter, r *http.Request)
 }
 
 func (a *App) handleCreateCurriculumItem(w http.ResponseWriter, r *http.Request) {
+	if !a.requirePlanningAccess(w, r) {
+		return
+	}
 	planID := pathID(r, "id")
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "Could not read that form.", http.StatusBadRequest)
@@ -274,6 +292,9 @@ func (a *App) handleCreateCurriculumItem(w http.ResponseWriter, r *http.Request)
 }
 
 func (a *App) handleUpdateCurriculumItem(w http.ResponseWriter, r *http.Request) {
+	if !a.requirePlanningAccess(w, r) {
+		return
+	}
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "Could not read that form.", http.StatusBadRequest)
 		return
@@ -298,6 +319,9 @@ func (a *App) handleUpdateCurriculumItem(w http.ResponseWriter, r *http.Request)
 }
 
 func (a *App) handleDeleteCurriculumItem(w http.ResponseWriter, r *http.Request) {
+	if !a.requirePlanningAccess(w, r) {
+		return
+	}
 	if err := a.store.DeleteCurriculumItem(pathID(r, "itemID")); err != nil {
 		a.serverError(w, err)
 		return
@@ -306,6 +330,9 @@ func (a *App) handleDeleteCurriculumItem(w http.ResponseWriter, r *http.Request)
 }
 
 func (a *App) handleMoveCurriculumItem(w http.ResponseWriter, r *http.Request) {
+	if !a.requirePlanningAccess(w, r) {
+		return
+	}
 	dir := 1
 	if r.FormValue("dir") == "up" {
 		dir = -1
@@ -318,6 +345,9 @@ func (a *App) handleMoveCurriculumItem(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) handleApplyCurriculumForm(w http.ResponseWriter, r *http.Request) {
+	if !a.requirePlanningAccess(w, r) {
+		return
+	}
 	plan, ok := a.lookupPlan(w, r)
 	if !ok {
 		return
@@ -364,6 +394,9 @@ func (a *App) handleApplyCurriculumForm(w http.ResponseWriter, r *http.Request) 
 }
 
 func (a *App) handleApplyCurriculum(w http.ResponseWriter, r *http.Request) {
+	if !a.requirePlanningAccess(w, r) {
+		return
+	}
 	plan, ok := a.lookupPlan(w, r)
 	if !ok {
 		return
@@ -405,10 +438,16 @@ func (a *App) handleApplyCurriculum(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) handleScheduleCurriculumItemForm(w http.ResponseWriter, r *http.Request) {
+	if !a.requirePlanningAccess(w, r) {
+		return
+	}
 	a.renderScheduleCurriculumItem(w, r, "")
 }
 
 func (a *App) handleScheduleCurriculumItem(w http.ResponseWriter, r *http.Request) {
+	if !a.requirePlanningAccess(w, r) {
+		return
+	}
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "Could not read that form.", http.StatusBadRequest)
 		return
@@ -552,6 +591,9 @@ func (a *App) lookupPlan(w http.ResponseWriter, r *http.Request) (CurriculumPlan
 }
 
 func (a *App) handleCurriculumFromTOC(w http.ResponseWriter, r *http.Request) {
+	if !a.requirePlanningAccess(w, r) {
+		return
+	}
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "Could not read that form.", http.StatusBadRequest)
 		return
@@ -601,6 +643,9 @@ func (a *App) handleCurriculumFromTOC(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) handleCurriculumFromPDF(w http.ResponseWriter, r *http.Request) {
+	if !a.requirePlanningAccess(w, r) {
+		return
+	}
 	// Leave room for multipart boundaries and the name/subject fields.
 	r.Body = http.MaxBytesReader(w, r.Body, maxCurriculumPDFBytes+(1<<20))
 	if err := r.ParseMultipartForm(8 << 20); err != nil {
@@ -685,6 +730,9 @@ func (a *App) handleCurriculumFromPDF(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) handleExportCurriculumPlanYAML(w http.ResponseWriter, r *http.Request) {
+	if !a.requirePlanningAccess(w, r) {
+		return
+	}
 	plan, ok := a.lookupPlan(w, r)
 	if !ok {
 		return
@@ -701,6 +749,9 @@ func (a *App) handleExportCurriculumPlanYAML(w http.ResponseWriter, r *http.Requ
 }
 
 func (a *App) handleExportAllCurriculumYAML(w http.ResponseWriter, r *http.Request) {
+	if !a.requirePlanningAccess(w, r) {
+		return
+	}
 	summaries, err := a.store.CurriculumPlans()
 	if err != nil {
 		a.serverError(w, err)

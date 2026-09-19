@@ -30,10 +30,11 @@
     <h2>Change tree</h2>
     <div class="settings-rows history-tree">
         {{range .HistoryNodes}}
-        <div class="settings-row history-node {{if .Current}}current{{end}}" data-depth="{{.Depth}}">
+        <div class="settings-row history-node{{if .Current}} current{{end}}{{if .OnPreferredPath}} preferred{{end}}" data-depth="{{.Depth}}">
             <span>
                 <span class="history-branch">{{.BranchPrefix}}</span>
                 <strong>{{.Label}}</strong>
+                {{if gt .ChangeCount 1}}<span class="muted small">· {{.ChangeCount}} changes</span>{{end}}
                 {{if .Current}}<span class="pill">current</span>{{end}}
                 <span class="muted small">{{.CreatedLabel}}</span>
             </span>

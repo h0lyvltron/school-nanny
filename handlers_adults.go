@@ -13,6 +13,9 @@ import (
 // lookupAdult resolves the adult in the URL, answering 404 rather than an
 // error when there is no such person.
 func (a *App) lookupAdult(w http.ResponseWriter, r *http.Request) (Adult, bool) {
+	if !a.requirePlanningAccess(w, r) {
+		return Adult{}, false
+	}
 	adult, err := a.store.Adult(pathID(r, "id"))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -796,6 +799,9 @@ func (a *App) backToAdult(r *http.Request, adult Adult) string {
 // Settings and photo -----------------------------------------------------
 
 func (a *App) handleSaveAdult(w http.ResponseWriter, r *http.Request) {
+	if !a.requirePlanningAccess(w, r) {
+		return
+	}
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "Could not read that form.", http.StatusBadRequest)
 		return
@@ -852,6 +858,9 @@ func (a *App) handleAdultAvatarUpload(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) handleAdultAvatarDelete(w http.ResponseWriter, r *http.Request) {
+	if !a.requirePlanningAccess(w, r) {
+		return
+	}
 	a.filesMu.Lock()
 	defer a.filesMu.Unlock()
 	previous, err := a.store.SetAdultAvatar(pathID(r, "id"), "")
@@ -868,8 +877,15 @@ func (a *App) handleAdultAvatarDelete(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) handleAdultAvatarImage(w http.ResponseWriter, r *http.Request) {
-	adult, ok := a.lookupAdult(w, r)
-	if !ok {
+	// Avatar bytes appear on shared surfaces (today/planner chips); do not
+	// apply the adult-page planning gate here.
+	adult, err := a.store.Adult(pathID(r, "id"))
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			a.notFound(w)
+			return
+		}
+		a.serverError(w, err)
 		return
 	}
 	a.serveAvatar(w, r, adult.AvatarPath)

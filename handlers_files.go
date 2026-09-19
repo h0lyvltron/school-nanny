@@ -23,6 +23,9 @@ import (
 const maxUploadBytes = 64 << 20
 
 func (a *App) handleUpload(w http.ResponseWriter, r *http.Request) {
+	if !a.requirePlanningAccess(w, r) {
+		return
+	}
 	a.filesMu.Lock()
 	defer a.filesMu.Unlock()
 	r.Body = http.MaxBytesReader(w, r.Body, maxUploadBytes)
@@ -186,6 +189,9 @@ func (a *App) handleDownload(w http.ResponseWriter, r *http.Request) {
 		a.serverError(w, err)
 		return
 	}
+	if !a.enforceAttachmentAccess(w, r, record) {
+		return
+	}
 
 	path, ok := a.resolveUpload(record.StoredPath)
 	if !ok {
@@ -214,9 +220,12 @@ func (a *App) handleDownload(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Vary", "Cookie")
 	w.Header().Set("ETag", fmt.Sprintf(`"attachment-%d-%d-%d"`,
 		record.ID, info.Size(), info.ModTime().Unix()))
-	// Images and PDFs preview in the browser; anything else downloads.
+	// Images and PDFs preview in the browser; SVG is never inline (stored XSS).
+	// Anything else downloads.
 	disposition := "attachment"
-	if strings.HasPrefix(record.ContentType, "image/") || record.ContentType == "application/pdf" {
+	isSVG := strings.EqualFold(record.ContentType, "image/svg+xml") ||
+		strings.EqualFold(filepath.Ext(record.OriginalName), ".svg")
+	if !isSVG && (strings.HasPrefix(record.ContentType, "image/") || record.ContentType == "application/pdf") {
 		disposition = "inline"
 	}
 	w.Header().Set("Content-Disposition",
@@ -227,6 +236,9 @@ func (a *App) handleDownload(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) handleDeleteFile(w http.ResponseWriter, r *http.Request) {
+	if !a.requirePlanningAccess(w, r) {
+		return
+	}
 	record, err := a.store.Attachment(pathID(r, "id"))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {

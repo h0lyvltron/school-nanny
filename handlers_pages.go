@@ -314,9 +314,6 @@ func (a *App) handleKid(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if !a.enforceKidScope(w, r, kid.ID) {
-		return
-	}
 	data, err := a.pageData(r, "kids")
 	if err != nil {
 		a.serverError(w, err)
@@ -502,6 +499,9 @@ func (a *App) handleLesson(w http.ResponseWriter, r *http.Request) {
 		a.serverError(w, err)
 		return
 	}
+	if !a.enforceLessonAccess(w, r, lesson) {
+		return
+	}
 	data, err := a.pageData(r, "")
 	if err != nil {
 		a.serverError(w, err)
@@ -684,6 +684,9 @@ func (a *App) lookupKid(w http.ResponseWriter, r *http.Request) (Kid, bool) {
 			return Kid{}, false
 		}
 		a.serverError(w, err)
+		return Kid{}, false
+	}
+	if !a.enforceKidScope(w, r, kid.ID) {
 		return Kid{}, false
 	}
 	return kid, true

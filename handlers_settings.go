@@ -40,7 +40,7 @@ func (a *App) handleSettingsSection(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data, err := a.settingsPageData(r, section)
+	data, err := a.settingsPageData(w, r, section)
 	if err != nil {
 		a.serverError(w, err)
 		return
@@ -48,7 +48,7 @@ func (a *App) handleSettingsSection(w http.ResponseWriter, r *http.Request) {
 	a.render(w, "settings_"+section, data)
 }
 
-func (a *App) settingsPageData(r *http.Request, section string) (map[string]any, error) {
+func (a *App) settingsPageData(w http.ResponseWriter, r *http.Request, section string) (map[string]any, error) {
 	data, err := a.pageData(r, "settings")
 	if err != nil {
 		return nil, err
@@ -84,8 +84,11 @@ func (a *App) settingsPageData(r *http.Request, section string) (map[string]any,
 	data["NextColor"] = kidPalette[len(kids)%len(kidPalette)]
 	data["NextSubjectColor"] = subjectPalette[len(subjects)%len(subjectPalette)]
 	data["Saved"] = r.URL.Query().Get("saved")
-	data["NewPIN"] = r.URL.Query().Get("pin")
-	data["NewPINWho"] = r.URL.Query().Get("who")
+	data["NewPIN"], data["NewPINWho"] = a.takePINFlash(w, r)
+	if data["NewPIN"] == "" {
+		// Legacy query-param flash (pre-hardening redirects) — ignore for security.
+		_ = r.URL.Query().Get("pin")
+	}
 	data["Backups"] = backups
 	data["SettingsSection"] = section
 	data["ShowDataNav"] = !a.hosted || data["IsOwner"] == true
@@ -116,6 +119,9 @@ var subjectPalette = []string{
 }
 
 func (a *App) handleSaveKid(w http.ResponseWriter, r *http.Request) {
+	if !a.requirePlanningAccess(w, r) {
+		return
+	}
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "Could not read that form.", http.StatusBadRequest)
 		return
@@ -146,6 +152,9 @@ func (a *App) handleSaveKid(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) handleDeleteKid(w http.ResponseWriter, r *http.Request) {
+	if !a.requirePlanningAccess(w, r) {
+		return
+	}
 	id := pathID(r, "id")
 	// The database cascade takes the records; the photo is a file on disk and
 	// has to be cleaned up here.
@@ -168,6 +177,9 @@ func (a *App) handleDeleteKid(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) handleSaveSubject(w http.ResponseWriter, r *http.Request) {
+	if !a.requirePlanningAccess(w, r) {
+		return
+	}
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "Could not read that form.", http.StatusBadRequest)
 		return
@@ -196,6 +208,9 @@ func (a *App) handleSaveSubject(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) handleDeleteSubject(w http.ResponseWriter, r *http.Request) {
+	if !a.requirePlanningAccess(w, r) {
+		return
+	}
 	if err := a.store.DeleteSubject(pathID(r, "id")); err != nil {
 		a.serverError(w, err)
 		return
@@ -209,6 +224,9 @@ func (a *App) handleDeleteSubject(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) handleSaveSchoolYear(w http.ResponseWriter, r *http.Request) {
+	if !a.requirePlanningAccess(w, r) {
+		return
+	}
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "Could not read that form.", http.StatusBadRequest)
 		return
@@ -239,6 +257,9 @@ func (a *App) handleSaveSchoolYear(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) handleDeleteSchoolYear(w http.ResponseWriter, r *http.Request) {
+	if !a.requirePlanningAccess(w, r) {
+		return
+	}
 	if err := a.store.DeleteSchoolYear(pathID(r, "id")); err != nil {
 		a.serverError(w, err)
 		return
@@ -286,6 +307,9 @@ func (a *App) handleSavePassword(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) handleSaveTimezone(w http.ResponseWriter, r *http.Request) {
+	if !a.requirePlanningAccess(w, r) {
+		return
+	}
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "Could not read that form.", http.StatusBadRequest)
 		return
@@ -314,6 +338,9 @@ func (a *App) handleSaveTimezone(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) handleSaveWeekStart(w http.ResponseWriter, r *http.Request) {
+	if !a.requirePlanningAccess(w, r) {
+		return
+	}
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "Could not read that form.", http.StatusBadRequest)
 		return

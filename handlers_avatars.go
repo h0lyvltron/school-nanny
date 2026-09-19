@@ -40,6 +40,9 @@ var (
 )
 
 func (a *App) handleKidAvatarUpload(w http.ResponseWriter, r *http.Request) {
+	if !a.requirePlanningAccess(w, r) {
+		return
+	}
 	a.filesMu.Lock()
 	defer a.filesMu.Unlock()
 	kid, err := a.store.Kid(pathID(r, "id"))
@@ -76,6 +79,9 @@ func (a *App) handleKidAvatarUpload(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) handleKidAvatarDelete(w http.ResponseWriter, r *http.Request) {
+	if !a.requirePlanningAccess(w, r) {
+		return
+	}
 	a.filesMu.Lock()
 	defer a.filesMu.Unlock()
 	previous, err := a.store.SetKidAvatar(pathID(r, "id"), "")

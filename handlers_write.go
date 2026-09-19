@@ -10,6 +10,9 @@ import (
 // handleCreateLesson covers both halves of the workflow: scheduling something
 // for later and recording something that already happened today.
 func (a *App) handleCreateLesson(w http.ResponseWriter, r *http.Request) {
+	if !a.requirePlanningAccess(w, r) {
+		return
+	}
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "Could not read that form.", http.StatusBadRequest)
 		return
@@ -60,6 +63,9 @@ func (a *App) handleCreateLesson(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) handleUpdateLesson(w http.ResponseWriter, r *http.Request) {
+	if !a.requirePlanningAccess(w, r) {
+		return
+	}
 	id := pathID(r, "id")
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "Could not read that form.", http.StatusBadRequest)
@@ -112,6 +118,18 @@ func (a *App) handleLessonStatus(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Could not read that form.", http.StatusBadRequest)
 		return
 	}
+	lesson, err := a.store.Lesson(id)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			a.notFound(w)
+			return
+		}
+		a.serverError(w, err)
+		return
+	}
+	if !a.requireLessonStatusWrite(w, r, lesson) {
+		return
+	}
 	status := normalizeStatus(r.FormValue("status"))
 	minutes := -1
 	if raw := strings.TrimSpace(r.FormValue("minutes")); raw != "" {
@@ -130,7 +148,7 @@ func (a *App) handleLessonStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	lesson, err := a.store.Lesson(id)
+	lesson, err = a.store.Lesson(id)
 	if err != nil {
 		a.serverError(w, err)
 		return
@@ -145,6 +163,9 @@ func (a *App) handleLessonStatus(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) handleRescheduleLesson(w http.ResponseWriter, r *http.Request) {
+	if !a.requirePlanningAccess(w, r) {
+		return
+	}
 	id := pathID(r, "id")
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "Could not read that form.", http.StatusBadRequest)
@@ -184,6 +205,9 @@ func (a *App) handleRescheduleLesson(w http.ResponseWriter, r *http.Request) {
 // child. A clone is deliberately standalone: it keeps the wording and length
 // but drops the series and curriculum links, so repeating plans stay intact.
 func (a *App) handleCloneLesson(w http.ResponseWriter, r *http.Request) {
+	if !a.requirePlanningAccess(w, r) {
+		return
+	}
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "Could not read that form.", http.StatusBadRequest)
 		return
@@ -225,6 +249,9 @@ func (a *App) handleCloneLesson(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) handleDeleteLesson(w http.ResponseWriter, r *http.Request) {
+	if !a.requirePlanningAccess(w, r) {
+		return
+	}
 	id := pathID(r, "id")
 	lesson, err := a.store.Lesson(id)
 	if err != nil {
@@ -249,6 +276,9 @@ func (a *App) handleDeleteLesson(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) handleDeletedLesson(w http.ResponseWriter, r *http.Request) {
+	if !a.requirePlanningAccess(w, r) {
+		return
+	}
 	token := strings.TrimSpace(r.URL.Query().Get("token"))
 	deleted, err := a.store.DeletedLesson(token, requestNow(r))
 	if err != nil {
@@ -270,6 +300,9 @@ func (a *App) handleDeletedLesson(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) handleRestoreLesson(w http.ResponseWriter, r *http.Request) {
+	if !a.requirePlanningAccess(w, r) {
+		return
+	}
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "Could not read that form.", http.StatusBadRequest)
 		return
@@ -373,6 +406,9 @@ func (a *App) renderPlannerDaysWithUndo(w http.ResponseWriter, r *http.Request,
 }
 
 func (a *App) handleCreateAssessment(w http.ResponseWriter, r *http.Request) {
+	if !a.requirePlanningAccess(w, r) {
+		return
+	}
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "Could not read that form.", http.StatusBadRequest)
 		return
@@ -401,6 +437,9 @@ func (a *App) handleCreateAssessment(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) handleDeleteAssessment(w http.ResponseWriter, r *http.Request) {
+	if !a.requirePlanningAccess(w, r) {
+		return
+	}
 	id := pathID(r, "id")
 	if err := a.deleteAssessmentFiles(id); err != nil {
 		a.serverError(w, err)
@@ -414,6 +453,9 @@ func (a *App) handleDeleteAssessment(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) handleCreateNote(w http.ResponseWriter, r *http.Request) {
+	if !a.requirePlanningAccess(w, r) {
+		return
+	}
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "Could not read that form.", http.StatusBadRequest)
 		return
@@ -441,6 +483,9 @@ func (a *App) handleCreateNote(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) handleDeleteNote(w http.ResponseWriter, r *http.Request) {
+	if !a.requirePlanningAccess(w, r) {
+		return
+	}
 	if err := a.store.DeleteNote(pathID(r, "id")); err != nil {
 		a.serverError(w, err)
 		return

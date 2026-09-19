@@ -8,6 +8,9 @@ import (
 )
 
 func (a *App) handleSeries(w http.ResponseWriter, r *http.Request) {
+	if !a.requirePlanningAccess(w, r) {
+		return
+	}
 	series, ok := a.lookupSeries(w, r)
 	if !ok {
 		return
@@ -37,6 +40,9 @@ func (a *App) handleSeries(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) handleUpdateSeries(w http.ResponseWriter, r *http.Request) {
+	if !a.requirePlanningAccess(w, r) {
+		return
+	}
 	id := pathID(r, "id")
 	existing, err := a.store.Series(id)
 	if err != nil {
@@ -94,6 +100,9 @@ func (a *App) handleUpdateSeries(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) handleStopSeries(w http.ResponseWriter, r *http.Request) {
+	if !a.requirePlanningAccess(w, r) {
+		return
+	}
 	id := pathID(r, "id")
 	from := requestToday(r)
 	if err := a.deletePlannedSeriesFiles(id, from); err != nil {
@@ -108,6 +117,9 @@ func (a *App) handleStopSeries(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) handleDeleteSeriesFuture(w http.ResponseWriter, r *http.Request) {
+	if !a.requirePlanningAccess(w, r) {
+		return
+	}
 	lesson, err := a.store.Lesson(pathID(r, "id"))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {

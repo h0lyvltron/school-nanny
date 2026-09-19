@@ -170,7 +170,7 @@ func TestPlannerHTMXDeleteEntersHistoryAndCanUndo(t *testing.T) {
 		t.Fatalf("delete response status=%d body=%q", resp.StatusCode, body)
 	}
 	pos, err := ta.store.HistoryPosition()
-	if err != nil || !pos.CanUndo || pos.UndoLabel != "Delete lesson" {
+	if err != nil || !pos.CanUndo || !strings.Contains(pos.UndoLabel, "Delete lesson") {
 		t.Fatalf("history=%+v err=%v", pos, err)
 	}
 	status, planner := ta.get(back)
