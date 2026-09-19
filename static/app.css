@@ -379,62 +379,47 @@ h3 { font-size: 1rem; }
 .app-nav a:hover { color: var(--accent); }
 .app-nav a.current { border-bottom-color: var(--accent); color: var(--accent); }
 
-[data-nav="tabs"] .app-bar-inner {
-    align-items: flex-end;
-    padding-bottom: 0;
-}
-
-[data-nav="tabs"] .brand {
-    padding-bottom: 0.45rem;
-}
-
-[data-nav="tabs"] .app-nav {
-    gap: 0.15rem 0.2rem;
-    align-items: flex-end;
-}
-
-[data-nav="tabs"] .app-nav a {
+/* Page-tab looks apply to Today/Week/Settings and the other section links,
+   not the kid/adult chips, so the bar keeps its usual wrap. Extra padding
+   lands on the current page only. */
+[data-nav="tabs"] .app-nav > a:not(.nav-kid) {
     border: 1px solid transparent;
-    border-bottom-width: 0;
-    border-radius: 0.5rem 0.5rem 0 0;
-    padding: 0.4rem 0.7rem 0.5rem;
-    margin-bottom: -1px;
+    border-bottom: none;
+    border-radius: 0.45rem 0.45rem 0 0;
+    padding: 0.25rem 0.1rem 0.3rem;
 }
 
-[data-nav="tabs"] .app-nav a:hover:not(.current) {
+[data-nav="tabs"] .app-nav > a:not(.nav-kid):hover:not(.current) {
     background: var(--accent-soft);
 }
 
-[data-nav="tabs"] .app-nav a.current {
+[data-nav="tabs"] .app-nav > a.current:not(.nav-kid) {
     background: var(--paper);
     border-color: var(--line);
     color: var(--ink);
     font-weight: 600;
+    padding-inline: 0.6rem;
 }
 
-[data-nav="tabs"] .app-nav .theme-toggle,
-[data-nav="tabs"] .app-nav .inline-form {
-    margin-bottom: 0.4rem;
-}
-
-[data-nav="pills"] .app-nav {
-    gap: 0.35rem;
-}
-
-[data-nav="pills"] .app-nav a {
+[data-nav="pills"] .app-nav > a:not(.nav-kid) {
     border-bottom: none;
     border-radius: 999px;
-    padding: 0.3rem 0.8rem;
+    padding: 0.2rem 0.1rem;
 }
 
-[data-nav="pills"] .app-nav a:hover:not(.current) {
+[data-nav="pills"] .app-nav > a.nav-kid {
+    border-bottom: none;
+}
+
+[data-nav="pills"] .app-nav > a:not(.nav-kid):hover:not(.current) {
     background: var(--muted-surface);
 }
 
-[data-nav="pills"] .app-nav a.current {
+[data-nav="pills"] .app-nav > a.current:not(.nav-kid) {
     background: var(--accent-soft);
     color: var(--accent);
     font-weight: 600;
+    padding-inline: 0.65rem;
 }
 
 /* Theme switch: cycles automatic, light, dark. Only the icon for the current
@@ -563,14 +548,13 @@ img.avatar-nav { width: 1.4rem; height: 1.4rem; }
 }
 
 [data-cards="folder"] .panel {
-    border-top-left-radius: 0;
-    margin-top: 2.1rem;
+    margin-top: 1.85rem;
 }
 
 [data-cards="folder"] .panel > h2:first-of-type {
     display: table;
-    margin: -1.1rem 0 0.9rem -1.2rem;
-    padding: 0.35rem 0.9rem;
+    margin: -1.1rem 0 0.85rem 0;
+    padding: 0.3rem 0.85rem;
     background: var(--card);
     border: 1px solid var(--line);
     border-bottom-color: var(--card);
@@ -1951,7 +1935,6 @@ a.plan-row:hover .muted { color: var(--ink-soft); }
 
     [data-cards="folder"] .panel {
         margin-top: 0;
-        border-top-left-radius: 0.8rem;
     }
 
     [data-cards="folder"] .panel > h2:first-of-type,
