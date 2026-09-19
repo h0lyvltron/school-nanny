@@ -1,4 +1,5 @@
 {{define "content"}}
+<div id="planner-week">
 <div class="page-head">
     <div>
         <h1>Week planner</h1>
@@ -8,17 +9,27 @@
         <span><strong>{{.Progress.Done}}</strong> done</span>
         <span><strong>{{.Progress.Planned}}</strong> planned</span>
         {{if .Progress.Minutes}}<span><strong>{{.Progress.HoursLabel}}</strong> logged</span>{{end}}
-        <a href="/history" role="button" class="secondary"
-           title="Review, undo, redo, and branch planner changes.">History</a>
         <button type="button" class="secondary" onclick="window.print()">Print week</button>
     </div>
 </div>
 
 <div class="planner-controls">
     <div class="week-nav">
-        <a role="button" class="secondary" href="{{plannerFilterURL .PrevWeek .KidFilter .AdultFilter}}">&larr; Previous</a>
-        <a role="button" class="secondary" href="{{plannerFilterURL .ThisWeek .KidFilter .AdultFilter}}">This week</a>
-        <a role="button" class="secondary" href="{{plannerFilterURL .NextWeek .KidFilter .AdultFilter}}">Next &rarr;</a>
+        <a role="button" class="secondary" data-week-shift="prev"
+           href="{{plannerFilterURL .PrevWeek .KidFilter .AdultFilter}}"
+           hx-get="{{plannerFilterURL .PrevWeek .KidFilter .AdultFilter}}"
+           hx-target="#planner-week" hx-select="#planner-week"
+           hx-swap="outerHTML" hx-push-url="true">&larr; Previous</a>
+        <a role="button" class="secondary" data-week-shift="this"
+           href="{{plannerFilterURL .ThisWeek .KidFilter .AdultFilter}}"
+           hx-get="{{plannerFilterURL .ThisWeek .KidFilter .AdultFilter}}"
+           hx-target="#planner-week" hx-select="#planner-week"
+           hx-swap="outerHTML" hx-push-url="true">This week</a>
+        <a role="button" class="secondary" data-week-shift="next"
+           href="{{plannerFilterURL .NextWeek .KidFilter .AdultFilter}}"
+           hx-get="{{plannerFilterURL .NextWeek .KidFilter .AdultFilter}}"
+           hx-target="#planner-week" hx-select="#planner-week"
+           hx-swap="outerHTML" hx-push-url="true">Next &rarr;</a>
     </div>
     <div class="planner-filters">
         <div class="kid-filter">
@@ -62,6 +73,7 @@
     {{range .Days}}
         {{template "planner_day" (dict "Day" . "Kids" $kids "Subjects" $subjects "KidFilter" $kidFilter "AdultFilter" $adultFilter "Adult" $adult "Today" $today "Back" $back)}}
     {{end}}
+</div>
 </div>
 
 {{end}}

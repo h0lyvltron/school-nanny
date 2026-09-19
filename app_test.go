@@ -584,7 +584,11 @@ func TestPlannerMarkupIsDraggable(t *testing.T) {
 	mustContain(t, body, `data-kid-filter="0"`, "planner")
 	mustContain(t, body, `data-adult-filter="0"`, "planner")
 	mustContain(t, body, `data-events-toggle`, "planner")
+	mustContain(t, body, `id="planner-week"`, "planner")
+	mustContain(t, body, `data-week-shift="prev"`, "planner")
+	mustContain(t, body, `hx-select="#planner-week"`, "planner")
 	mustContain(t, body, "/static/planner.js", "planner")
+	mustNotContain(t, body, "branch planner changes", "planner header")
 
 	status, js := ta.get("/static/planner.js")
 	if status != http.StatusOK {
@@ -592,7 +596,9 @@ func TestPlannerMarkupIsDraggable(t *testing.T) {
 	}
 	mustContain(t, js, "pointerdown", "touch long-press")
 	mustContain(t, js, "LONG_PRESS_MS", "touch long-press")
+	mustContain(t, js, "WEEK_SHIFT_MS", "week shift while dragging")
 	mustContain(t, js, "data-events-toggle", "events toggle")
+	mustContain(t, js, "planner-week", "in-place week swap")
 }
 
 // The parent sits in the week filter next to the children, and picking her
@@ -2919,6 +2925,7 @@ func TestDoubleUpStacksWithoutMovingSiblings(t *testing.T) {
 	mustContain(t, page, "Double up", "double-up action")
 	mustContain(t, page, ">Drop<", "drop action")
 	mustContain(t, page, "Print Today", "print today")
+	mustNotContain(t, page, ">Plan the week</a>", "today header")
 
 	// Someone else already has work on Thursday; double-up should stack there.
 	status, _ = ta.post("/lessons/"+itoa64(lessons[0].ID)+"/double-up", url.Values{"back": {"/"}})
@@ -3007,6 +3014,7 @@ func TestPlannerOffersPrintWeek(t *testing.T) {
 		t.Fatalf("planner returned %d", status)
 	}
 	mustContain(t, page, "Print week", "print week")
+	mustNotContain(t, page, "branch planner changes", "planner header history")
 }
 
 func TestPushMovesThisAndLaterPlanned(t *testing.T) {

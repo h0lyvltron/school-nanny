@@ -317,12 +317,15 @@ img.avatar-nav { width: 1.4rem; height: 1.4rem; }
 
 .week-summary {
     display: flex;
-    align-items: center;
+    align-items: flex-end;
     gap: 1rem;
     flex-wrap: wrap;
     font-size: 0.9rem;
     color: var(--ink-soft);
+    margin-bottom: 1.25rem;
 }
+
+.page-head .week-summary { margin-bottom: 0; }
 
 .week-summary strong { color: var(--ink); font-size: 1.1rem; }
 .week-summary [role="button"] { margin: 0; padding: 0.4rem 0.9rem; font-size: 0.85rem; }
@@ -616,6 +619,11 @@ button.pill[type="submit"] { width: auto; }
 
 .week-nav { display: flex; gap: 0.4rem; }
 .week-nav [role="button"] { margin: 0; padding: 0.35rem 0.8rem; font-size: 0.85rem; }
+.week-nav [role="button"].is-week-shift {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+    color: var(--accent);
+}
 
 .kid-filter { display: flex; gap: 0.4rem; flex-wrap: wrap; }
 
@@ -688,7 +696,12 @@ button.pill[type="submit"] { width: auto; }
 
 /* Days stack as full-width rows rather than seven narrow columns: with several
    kids a single day holds a lot, and lesson titles need room to breathe. */
-.week-grid { display: flex; flex-direction: column; gap: 0.75rem; }
+.week-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    scroll-margin-top: 5.5rem;
+}
 
 .day {
     background: var(--card);
@@ -701,7 +714,12 @@ button.pill[type="submit"] { width: auto; }
     align-items: start;
 }
 
-.day.is-today { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+.day.is-today {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px var(--accent-soft);
+    scroll-margin-top: 5.5rem;
+}
+.day.is-today:focus { outline: none; }
 
 .day-head {
     display: flex;
@@ -758,7 +776,31 @@ body.is-dragging-lesson {
     user-select: none;
     -webkit-user-select: none;
     overscroll-behavior: none;
+    cursor: grabbing;
 }
+
+body.is-dragging-lesson::before,
+body.is-dragging-lesson::after {
+    content: "";
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    width: 3rem;
+    pointer-events: none;
+    z-index: 900;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+}
+body.is-dragging-lesson::before {
+    left: 0;
+    background: linear-gradient(to right, var(--accent-soft), transparent);
+}
+body.is-dragging-lesson::after {
+    right: 0;
+    background: linear-gradient(to left, var(--accent-soft), transparent);
+}
+body.is-shifting-week-prev::before,
+body.is-shifting-week-next::after { opacity: 1; }
 
 body.is-dragging-lesson .drop-kids { display: flex; }
 

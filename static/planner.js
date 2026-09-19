@@ -2,22 +2,33 @@
 // (or Cmd) to leave the original in place and drop a copy, or drop onto one of
 // a day's child chips to copy it for that child instead.
 //
-// Mouse and trackpad use HTML5 drag-and-drop. Tablets and phones do not, so a
-// long-press lifts the same card and the finger finishes the drop. "Copy to
-// this day" stands in for Ctrl on a touch screen, where modifier keys are gone.
+// Mouse, trackpad, tablets, and phones all use a pointer ghost so the week can
+// swap under the card. Tablets and phones wait for a long-press before lifting
+// the card, so a finger can still scroll the page. "Copy to this day" stands in
+// for Ctrl on a touch screen, where modifier keys are gone.
 //
-// Every drop turns into an HTMX request, so the server stays the only thing
-// that decides what a day looks like afterwards.
+// Hovering the left or right edge, or Previous / Next, loads the adjacent week
+// without dropping the card. Every drop turns into an HTMX request, so the
+// server stays the only thing that decides what a day looks like afterwards.
 (function () {
     "use strict";
 
     var LONG_PRESS_MS = 420;
     var CANCEL_MOVE_PX = 12;
+    var DRAG_START_PX = 8;
+    var WEEK_SHIFT_MS = 600;
+    var EDGE_PX = 48;
+    var EDGE_PX_NARROW = 28;
 
     var dragging = null;
     var highlighted = null;
     var press = null;
     var ghost = null;
+    var weekShift = null;
+    var shiftingWeek = false;
+    var lastX = 0;
+    var lastY = 0;
+    var suppressClick = false;
 
     function isCopy(event) {
         return event.ctrlKey || event.metaKey;
@@ -46,12 +57,13 @@
         }
     }
 
-    // The chips only make sense mid-drag, so the planner is otherwise quiet.
     function setDragging(on) {
         document.body.classList.toggle("is-dragging-lesson", on);
         if (!on) {
             highlight(null);
             removeGhost();
+            clearWeekShift();
+            document.body.classList.remove("is-shifting-week-prev", "is-shifting-week-next");
         }
     }
 
@@ -81,6 +93,9 @@
 
     function dropTargetAt(x, y) {
         var under = document.elementFromPoint(x, y);
+        if (closest(under, ".week-nav")) {
+            return null;
+        }
         var chip = closest(under, ".kid-target");
         if (chip) {
             return chip;
@@ -92,8 +107,6 @@
         return closest(under, ".day");
     }
 
-    // The name a day goes by on screen, so a question about it reads the way
-    // the week does: "Monday 28 Sep".
     function dayLabel(date) {
         var day = document.getElementById("day-" + date);
         if (!day) {
@@ -220,113 +233,96 @@
         press = null;
     }
 
-    function beginDragFromCard(card, x, y) {
+    function beginDragFromCard(card, x, y, fromTouch) {
         dragging = {
             id: card.getAttribute("data-lesson-id"),
             date: card.getAttribute("data-date"),
             card: card,
-            touch: true
+            touch: Boolean(fromTouch)
         };
         card.classList.add("is-dragging");
         setDragging(true);
         makeGhost(card, x, y);
-        if (navigator.vibrate) {
+        if (fromTouch && navigator.vibrate) {
             try { navigator.vibrate(12); } catch (e) { /* ignore */ }
         }
     }
 
-    // Mouse / trackpad -------------------------------------------------
-
-    document.addEventListener("dragstart", function (event) {
-        if (event.pointerType === "touch") {
+    function finishDrag(event) {
+        if (!dragging) {
             return;
         }
-        var card = closest(event.target, ".lesson[draggable='true']");
-        if (!card) {
-            return;
+        var target = dropTargetAt(event.clientX, event.clientY);
+        var card = dragging.card;
+        var copy = dragging.touch ? false : isCopy(event);
+        commitDrop(target, copy);
+        if (card) {
+            card.classList.remove("is-dragging");
+            try { card.releasePointerCapture(event.pointerId); } catch (e) { /* ignore */ }
         }
-        clearPress();
-        dragging = {
-            id: card.getAttribute("data-lesson-id"),
-            date: card.getAttribute("data-date"),
-            card: card,
-            touch: false
-        };
-        card.classList.add("is-dragging");
-        setDragging(true);
-        if (event.dataTransfer) {
-            event.dataTransfer.effectAllowed = "copyMove";
-            event.dataTransfer.setData("text/plain", dragging.id);
-        }
-    });
-
-    document.addEventListener("dragend", function () {
-        if (dragging && dragging.card) {
-            dragging.card.classList.remove("is-dragging");
-        }
+        try { document.body.releasePointerCapture(event.pointerId); } catch (e) { /* ignore */ }
         dragging = null;
+        suppressClick = true;
         setDragging(false);
+    }
+
+    function capturePointer(event) {
+        try { document.body.setPointerCapture(event.pointerId); } catch (e) {
+            try { event.target.setPointerCapture(event.pointerId); } catch (err) { /* ignore */ }
+        }
+    }
+
+    // Native HTML5 drag would cancel if the origin card is swapped out with the
+    // week, so lesson cards keep draggable="true" only for the grab cursor.
+    document.addEventListener("dragstart", function (event) {
+        if (closest(event.target, ".lesson[draggable='true']")) {
+            event.preventDefault();
+        }
     });
 
-    document.addEventListener("dragover", function (event) {
-        if (!dragging || dragging.touch) {
+    document.addEventListener("click", function (event) {
+        if (!suppressClick) {
             return;
         }
-        var chip = closest(event.target, ".kid-target");
-        var copyBtn = closest(event.target, ".day-copy-target");
-        var day = chip || copyBtn || closest(event.target, ".day");
-        if (!day) {
-            highlight(null);
-            return;
-        }
+        suppressClick = false;
         event.preventDefault();
-        if (event.dataTransfer) {
-            event.dataTransfer.dropEffect = (chip || copyBtn || isCopy(event)) ? "copy" : "move";
-        }
-        highlight(chip || copyBtn || day);
-    });
+        event.stopPropagation();
+    }, true);
 
-    document.addEventListener("dragleave", function (event) {
-        if (highlighted && event.target === highlighted) {
-            highlight(null);
-        }
-    });
-
-    document.addEventListener("drop", function (event) {
-        if (!dragging || dragging.touch) {
-            return;
-        }
-        var chip = closest(event.target, ".kid-target");
-        var copyBtn = closest(event.target, ".day-copy-target");
-        var day = closest(event.target, ".day");
-        if (!chip && !copyBtn && !day) {
-            return;
-        }
-        event.preventDefault();
-        commitDrop(chip || copyBtn || day, isCopy(event));
-    });
-
-    // Touch / stylus ---------------------------------------------------
+    // Mouse / trackpad / touch -----------------------------------------
 
     document.addEventListener("pointerdown", function (event) {
-        if (event.pointerType === "mouse") {
-            return;
-        }
         var card = closest(event.target, ".lesson[draggable='true']");
         if (!card || event.button > 0) {
             return;
         }
-        // Buttons and links on the card must keep working as taps.
         if (closest(event.target, "button, a, input, select, textarea, label, form")) {
             return;
         }
 
         clearPress();
+        lastX = event.clientX;
+        lastY = event.clientY;
+
+        if (event.pointerType === "mouse") {
+            press = {
+                card: card,
+                pointerId: event.pointerId,
+                x: event.clientX,
+                y: event.clientY,
+                mouse: true,
+                timer: null
+            };
+            event.preventDefault();
+            return;
+        }
+
         press = {
             card: card,
             pointerId: event.pointerId,
             x: event.clientX,
             y: event.clientY,
+            mouse: false,
             timer: window.setTimeout(function () {
                 if (!press || press.card !== card) {
                     return;
@@ -334,64 +330,225 @@
                 var x = press.x;
                 var y = press.y;
                 clearPress();
-                beginDragFromCard(card, x, y);
-                try { card.setPointerCapture(event.pointerId); } catch (e) { /* ignore */ }
+                beginDragFromCard(card, x, y, true);
+                capturePointer(event);
             }, LONG_PRESS_MS)
         };
         card.classList.add("is-pressing");
     });
 
     document.addEventListener("pointermove", function (event) {
+        lastX = event.clientX;
+        lastY = event.clientY;
+
         if (press && press.pointerId === event.pointerId) {
             var dx = event.clientX - press.x;
             var dy = event.clientY - press.y;
-            if ((dx * dx + dy * dy) > (CANCEL_MOVE_PX * CANCEL_MOVE_PX)) {
-                // Finger moved — this is a scroll, not a drag.
+            var dist = (dx * dx) + (dy * dy);
+            if (press.mouse) {
+                if (dist > (DRAG_START_PX * DRAG_START_PX)) {
+                    var card = press.card;
+                    var pointerEvent = event;
+                    clearPress();
+                    beginDragFromCard(card, pointerEvent.clientX, pointerEvent.clientY, false);
+                    capturePointer(pointerEvent);
+                }
+                return;
+            }
+            if (dist > (CANCEL_MOVE_PX * CANCEL_MOVE_PX)) {
                 clearPress();
             }
             return;
         }
 
-        if (!dragging || !dragging.touch || dragging.id === undefined) {
+        if (!dragging) {
             return;
         }
         event.preventDefault();
         placeGhost(event.clientX, event.clientY);
         highlight(dropTargetAt(event.clientX, event.clientY));
+        considerWeekShift(event.clientX, event.clientY);
     }, {passive: false});
 
-    function endTouchDrag(event) {
+    document.addEventListener("pointerup", function (event) {
         if (press && press.pointerId === event.pointerId) {
             clearPress();
             return;
         }
-        if (!dragging || !dragging.touch) {
-            return;
+        if (dragging) {
+            finishDrag(event);
         }
-        var target = dropTargetAt(event.clientX, event.clientY);
-        var card = dragging.card;
-        commitDrop(target, false);
-        if (card) {
-            card.classList.remove("is-dragging");
-            try { card.releasePointerCapture(event.pointerId); } catch (e) { /* ignore */ }
-        }
-        dragging = null;
-        setDragging(false);
-    }
+    });
 
-    document.addEventListener("pointerup", endTouchDrag);
     document.addEventListener("pointercancel", function (event) {
         if (press && press.pointerId === event.pointerId) {
             clearPress();
         }
-        if (dragging && dragging.touch) {
+        if (dragging) {
             if (dragging.card) {
                 dragging.card.classList.remove("is-dragging");
             }
+            try { document.body.releasePointerCapture(event.pointerId); } catch (e) { /* ignore */ }
             dragging = null;
             setDragging(false);
         }
     });
+
+    // Adjacent week while dragging -------------------------------------
+
+    function edgeWidth() {
+        return window.innerWidth < 640 ? EDGE_PX_NARROW : EDGE_PX;
+    }
+
+    function weekNavLink(dir) {
+        return document.querySelector('#planner-week .week-nav a[data-week-shift="' + dir + '"]');
+    }
+
+    function paintWeekShift(dir) {
+        document.body.classList.toggle("is-shifting-week-prev", dir === "prev");
+        document.body.classList.toggle("is-shifting-week-next", dir === "next");
+        var links = document.querySelectorAll("#planner-week .week-nav a[data-week-shift]");
+        for (var i = 0; i < links.length; i++) {
+            links[i].classList.toggle("is-week-shift", links[i].getAttribute("data-week-shift") === dir);
+        }
+    }
+
+    function clearWeekShift() {
+        if (weekShift && weekShift.timer) {
+            window.clearTimeout(weekShift.timer);
+        }
+        weekShift = null;
+        paintWeekShift("");
+    }
+
+    function shiftTargetAt(x, y) {
+        var under = document.elementFromPoint(x, y);
+        var link = closest(under, "#planner-week .week-nav a[data-week-shift]");
+        if (link) {
+            var dir = link.getAttribute("data-week-shift");
+            if (dir === "prev" || dir === "next") {
+                return {dir: dir, link: link};
+            }
+            return null;
+        }
+        var edge = edgeWidth();
+        if (x <= edge) {
+            return {dir: "prev", link: weekNavLink("prev")};
+        }
+        if (x >= window.innerWidth - edge) {
+            return {dir: "next", link: weekNavLink("next")};
+        }
+        return null;
+    }
+
+    function loadWeek(link) {
+        if (!link || !window.htmx || shiftingWeek) {
+            return;
+        }
+        var url = link.getAttribute("href");
+        if (!url) {
+            return;
+        }
+        shiftingWeek = true;
+        clearWeekShift();
+        window.htmx.ajax("GET", url, {
+            source: link,
+            target: "#planner-week",
+            select: "#planner-week",
+            swap: "outerHTML"
+        });
+    }
+
+    function considerWeekShift(x, y) {
+        if (!dragging || shiftingWeek) {
+            return;
+        }
+        var target = shiftTargetAt(x, y);
+        if (!target || !target.link) {
+            clearWeekShift();
+            return;
+        }
+        if (weekShift && weekShift.dir === target.dir) {
+            return;
+        }
+        clearWeekShift();
+        paintWeekShift(target.dir);
+        weekShift = {
+            dir: target.dir,
+            link: target.link,
+            timer: window.setTimeout(function () {
+                var pending = weekShift;
+                weekShift = null;
+                if (pending && pending.link) {
+                    loadWeek(pending.link);
+                }
+            }, WEEK_SHIFT_MS)
+        };
+    }
+
+    function plannerSwapTarget(node) {
+        return Boolean(node && node.id === "planner-week");
+    }
+
+    function onPlannerWeekReady() {
+        applyEventsToggle(eventsVisible());
+        shiftingWeek = false;
+        if (dragging) {
+            var grid = document.querySelector("#planner-week .week-grid");
+            if (grid) {
+                grid.style.scrollMarginTop = (appBarHeight() + 12) + "px";
+                grid.scrollIntoView({block: "start", behavior: "auto"});
+            }
+            considerWeekShift(lastX, lastY);
+            return;
+        }
+        scrollPlannerIntoPlace();
+    }
+
+    document.body.addEventListener("htmx:afterSwap", function (event) {
+        var elt = event.detail && event.detail.elt;
+        if (plannerSwapTarget(elt)) {
+            onPlannerWeekReady();
+        }
+    });
+
+    document.body.addEventListener("htmx:responseError", function () {
+        shiftingWeek = false;
+    });
+    document.body.addEventListener("htmx:sendError", function () {
+        shiftingWeek = false;
+    });
+    document.body.addEventListener("htmx:timeout", function () {
+        shiftingWeek = false;
+    });
+
+    // Scroll the current day into view ---------------------------------
+
+    function appBarHeight() {
+        var bar = document.querySelector(".app-bar");
+        return bar ? bar.getBoundingClientRect().height : 0;
+    }
+
+    function scrollPlannerIntoPlace() {
+        var root = document.getElementById("planner-week");
+        if (!root) {
+            return;
+        }
+        var margin = appBarHeight() + 12;
+        var today = root.querySelector(".day.is-today");
+        if (today) {
+            today.style.scrollMarginTop = margin + "px";
+            today.scrollIntoView({block: "start", behavior: "auto"});
+            today.setAttribute("tabindex", "-1");
+            try { today.focus({preventScroll: true}); } catch (e) { /* ignore */ }
+            return;
+        }
+        var grid = root.querySelector(".week-grid");
+        if (grid) {
+            grid.style.scrollMarginTop = margin + "px";
+            grid.scrollIntoView({block: "start", behavior: "auto"});
+        }
+    }
 
     // Calendar events on the week --------------------------------------
 
@@ -422,6 +579,7 @@
     }
 
     applyEventsToggle(eventsVisible());
+    scrollPlannerIntoPlace();
 
     document.addEventListener("change", function (event) {
         var input = event.target;
