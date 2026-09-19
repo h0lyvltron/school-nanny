@@ -1,0 +1,23 @@
+{{define "content"}}
+{{template "curriculum_head" .}}
+
+<div id="curriculum-shell" class="settings-shell curriculum-shell">
+    <div class="settings-pane">
+        <section class="panel">
+            <h2>New plan</h2>
+            {{if .Subjects}}
+                <form method="post" action="/curriculum" class="inline-grid">
+                    <input type="text" name="name" placeholder="Name, like 3rd grade Math" required aria-label="Plan name">
+                    <select name="subject_id" required aria-label="Subject">
+                        {{range .Subjects}}<option value="{{.ID}}">{{.Name}}</option>{{end}}
+                    </select>
+                    <button type="submit">Create plan</button>
+                </form>
+            {{else}}
+                <p class="muted">Add subjects in Settings first.</p>
+            {{end}}
+        </section>
+    </div>
+    {{template "curriculum_aside" .}}
+</div>
+{{end}}

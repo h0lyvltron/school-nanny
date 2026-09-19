@@ -1,0 +1,36 @@
+{{define "content"}}
+{{template "curriculum_head" .}}
+
+<div id="curriculum-shell" class="settings-shell curriculum-shell">
+    <div class="settings-pane">
+        {{if .ImportError}}<p class="form-error">{{.ImportError}}</p>{{end}}
+        <section class="panel">
+            <h2>Paste a table of contents</h2>
+            <p class="muted small">
+                Paste a publisher TOC (Lesson / Lessons lines with page numbers). School Nanny
+                turns it into a written plan you can edit and apply.
+            </p>
+            {{if .Subjects}}
+                <form method="post" action="/curriculum/from-toc" class="stack">
+                    <label>Plan name
+                        <input type="text" name="name" placeholder="Name, like Grade 1 Math" required>
+                    </label>
+                    <label>Subject
+                        <select name="subject_id" required>
+                            {{range .Subjects}}<option value="{{.ID}}">{{.Name}}</option>{{end}}
+                        </select>
+                    </label>
+                    <label>Table of contents
+                        <textarea name="toc" rows="12" required
+                                  placeholder="Unit 1&#10;Lesson 1: Identifying Right and Left . . . 2&#10;Lesson 2: Writing Numbers 1–5 . . . 4"></textarea>
+                    </label>
+                    <button type="submit">Create plan from TOC</button>
+                </form>
+            {{else}}
+                <p class="muted">Add subjects in Settings first.</p>
+            {{end}}
+        </section>
+    </div>
+    {{template "curriculum_aside" .}}
+</div>
+{{end}}

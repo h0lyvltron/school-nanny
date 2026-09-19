@@ -826,3 +826,57 @@
     {{end}}
 </nav>
 {{end}}
+
+{{define "curriculum_head"}}
+<div class="page-head">
+    <div>
+        <h1>Curriculum</h1>
+        <p class="muted">Scope and sequence for a subject, applied to a child when you are ready.</p>
+    </div>
+</div>
+{{end}}
+
+{{define "curriculum_aside"}}
+<nav class="settings-aside" aria-label="Curriculum sections">
+    <a href="/curriculum"
+       class="{{if eq .CurriculumSection "plans"}}current{{end}}"
+       {{if eq .CurriculumSection "plans"}}aria-current="page"{{end}}
+       hx-get="/curriculum"
+       hx-target="#curriculum-shell"
+       hx-select="#curriculum-shell"
+       hx-swap="outerHTML"
+       hx-push-url="true">Plans</a>
+    <a href="/curriculum/new"
+       class="{{if eq .CurriculumSection "blank"}}current{{end}}"
+       {{if eq .CurriculumSection "blank"}}aria-current="page"{{end}}
+       hx-get="/curriculum/new"
+       hx-target="#curriculum-shell"
+       hx-select="#curriculum-shell"
+       hx-swap="outerHTML"
+       hx-push-url="true">Start a blank custom curriculum</a>
+    <a href="/curriculum/new/template"
+       class="{{if eq .CurriculumSection "template"}}current{{end}}"
+       {{if eq .CurriculumSection "template"}}aria-current="page"{{end}}
+       hx-get="/curriculum/new/template"
+       hx-target="#curriculum-shell"
+       hx-select="#curriculum-shell"
+       hx-swap="outerHTML"
+       hx-push-url="true">Import new from Template</a>
+    <a href="/curriculum/new/toc"
+       class="{{if eq .CurriculumSection "toc"}}current{{end}}"
+       {{if eq .CurriculumSection "toc"}}aria-current="page"{{end}}
+       hx-get="/curriculum/new/toc"
+       hx-target="#curriculum-shell"
+       hx-select="#curriculum-shell"
+       hx-swap="outerHTML"
+       hx-push-url="true">Create new from TOC</a>
+    <a href="/curriculum/new/pdf"
+       class="{{if eq .CurriculumSection "pdf"}}current{{end}}"
+       {{if eq .CurriculumSection "pdf"}}aria-current="page"{{end}}
+       hx-get="/curriculum/new/pdf"
+       hx-target="#curriculum-shell"
+       hx-select="#curriculum-shell"
+       hx-swap="outerHTML"
+       hx-push-url="true">Upload from lesson PDF</a>
+</nav>
+{{end}}

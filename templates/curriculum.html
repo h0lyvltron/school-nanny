@@ -1,134 +1,39 @@
 {{define "content"}}
-<div class="page-head">
-    <div>
-        <h1>Curriculum</h1>
-        <p class="muted">Scope and sequence for a subject, applied to a child when you are ready.</p>
+{{template "curriculum_head" .}}
+
+<div id="curriculum-shell" class="settings-shell curriculum-shell">
+    <div class="settings-pane">
+        {{if .ImportError}}<p class="form-error">{{.ImportError}}</p>{{end}}
+        {{if .Imported}}
+            <p class="saved-flash">Imported {{.Imported}} plan{{if ne .Imported 1}}s{{end}}.</p>
+        {{end}}
+
+        {{if eq .PlanCount 0}}
+            <p class="muted">No plans yet. Use the sidebar to start a blank plan, import a template, paste a table of contents, or upload a lesson PDF.</p>
+        {{end}}
+
+        {{range .Groups}}
+            {{if .Plans}}
+                <section class="panel">
+                    <h2>{{.Subject.Name}}</h2>
+                    <div class="stack">
+                        {{range .Plans}}
+                            <a href="/curriculum/{{.ID}}" class="plan-row">
+                                <strong>{{.Name}}</strong>
+                                <span class="muted small">
+                                    {{.KindLabel}} &middot; {{.ItemCount}} lesson{{if ne .ItemCount 1}}s{{end}}
+                                </span>
+                            </a>
+                        {{end}}
+                    </div>
+                </section>
+            {{end}}
+        {{end}}
+
+        {{if gt .PlanCount 0}}
+            <p class="muted small"><a href="/curriculum/export.yaml">Download all plans as YAML</a></p>
+        {{end}}
     </div>
+    {{template "curriculum_aside" .}}
 </div>
-
-{{if .ImportError}}<p class="form-error">{{.ImportError}}</p>{{end}}
-{{if .Imported}}
-    <p class="saved-flash">Imported {{.Imported}} plan{{if ne .Imported 1}}s{{end}}.</p>
-{{end}}
-
-<div class="two-col">
-<section class="panel">
-    <h2>New plan</h2>
-    {{if .Subjects}}
-        <form method="post" action="/curriculum" class="inline-grid">
-            <input type="text" name="name" placeholder="Name, like 3rd grade Math" required aria-label="Plan name">
-            <select name="subject_id" required aria-label="Subject">
-                {{range .Subjects}}<option value="{{.ID}}">{{.Name}}</option>{{end}}
-            </select>
-            <button type="submit">Create plan</button>
-        </form>
-    {{else}}
-        <p class="muted">Add subjects in Settings first.</p>
-    {{end}}
-</section>
-
-<section class="panel">
-    <h2>Import</h2>
-    <p class="muted small">Adds new written plans from a YAML or CSV file. It never merges into a plan you already have.</p>
-    <details class="import-help">
-        <summary>File format</summary>
-        <p class="muted small">Same fields either way. <code>subject</code> is a name or slug, like <code>math</code> or <code>Language Arts</code>. Lesson order in the file becomes the sequence. Optional <code>page_start</code> / <code>page_end</code> mark PDF pages. PDFs are attached on the plan page after.</p>
-        <pre class="schema-sample">plans:
-  - name: 3rd grade Math
-    subject: math
-    items:
-      - week: 1
-        title: Place value
-        minutes: 40
-        page_start: 12
-        page_end: 15</pre>
-        <p class="muted small">CSV header: <code>plan,subject,week,title,minutes,notes,page_start,page_end</code></p>
-    </details>
-    <form method="post" action="/curriculum/import" enctype="multipart/form-data" class="upload"
-          data-toast="Imported!"
-          onsubmit="return confirm('This adds new plans. It will not change any plan you already have.')">
-        <input type="file" name="file" accept=".yaml,.yml,.csv" required aria-label="Curriculum file">
-        <button type="submit">Import</button>
-    </form>
-    {{if gt .PlanCount 0}}
-        <p class="muted small"><a href="/curriculum/export.yaml">Download all plans as YAML</a></p>
-    {{end}}
-</section>
-</div>
-
-<section class="panel">
-    <h2>Paste a table of contents</h2>
-    <p class="muted small">
-        Paste a publisher TOC (Lesson / Lessons lines with page numbers). School Nanny
-        turns it into a written plan you can edit and apply.
-    </p>
-    {{if .Subjects}}
-        <form method="post" action="/curriculum/from-toc" class="stack">
-            <label>Plan name
-                <input type="text" name="name" placeholder="Name, like Grade 1 Math" required>
-            </label>
-            <label>Subject
-                <select name="subject_id" required>
-                    {{range .Subjects}}<option value="{{.ID}}">{{.Name}}</option>{{end}}
-                </select>
-            </label>
-            <label>Table of contents
-                <textarea name="toc" rows="12" required
-                          placeholder="Unit 1&#10;Lesson 1: Identifying Right and Left . . . 2&#10;Lesson 2: Writing Numbers 1–5 . . . 4"></textarea>
-            </label>
-            <button type="submit">Create plan from TOC</button>
-        </form>
-    {{else}}
-        <p class="muted">Add subjects in Settings first.</p>
-    {{end}}
-</section>
-
-<section class="panel">
-    <h2>Upload a curriculum PDF</h2>
-    <p class="muted small">
-        Reads the PDF outline when present, otherwise scrapes text from the front pages
-        looking for a Lesson / Unit table of contents. Creates a plan with page ranges
-        and attaches the PDF for the lesson viewer. Maximum size: 256 MB.
-    </p>
-    {{if .Subjects}}
-        <form method="post" action="/curriculum/from-pdf" enctype="multipart/form-data" class="stack">
-            <label>Plan name
-                <input type="text" name="name" placeholder="Name, like Grade 1 Math" required>
-            </label>
-            <label>Subject
-                <select name="subject_id" required>
-                    {{range .Subjects}}<option value="{{.ID}}">{{.Name}}</option>{{end}}
-                </select>
-            </label>
-            <label>Curriculum PDF
-                <input type="file" name="file" accept="application/pdf,.pdf" required aria-label="Curriculum PDF">
-            </label>
-            <button type="submit">Create plan from PDF</button>
-        </form>
-    {{else}}
-        <p class="muted">Add subjects in Settings first.</p>
-    {{end}}
-</section>
-
-{{if eq .PlanCount 0}}
-    <p class="muted">No plans yet. Create one, attach the PDF, and list the lessons in order.</p>
-{{end}}
-
-{{range .Groups}}
-    {{if .Plans}}
-        <section class="panel">
-            <h2>{{.Subject.Name}}</h2>
-            <div class="stack">
-                {{range .Plans}}
-                    <a href="/curriculum/{{.ID}}" class="plan-row">
-                        <strong>{{.Name}}</strong>
-                        <span class="muted small">
-                            {{.KindLabel}} &middot; {{.ItemCount}} lesson{{if ne .ItemCount 1}}s{{end}}
-                        </span>
-                    </a>
-                {{end}}
-            </div>
-        </section>
-    {{end}}
-{{end}}
 {{end}}

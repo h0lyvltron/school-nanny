@@ -28,11 +28,41 @@ type ApplyPreview struct {
 	Title string
 }
 
+const (
+	curriculumPlans    = "plans"
+	curriculumBlank    = "blank"
+	curriculumTemplate = "template"
+	curriculumTOC      = "toc"
+	curriculumPDF      = "pdf"
+)
+
 func (a *App) handleCurriculum(w http.ResponseWriter, r *http.Request) {
+	a.renderCurriculumSection(w, r, curriculumPlans, "curriculum")
+}
+
+func (a *App) handleCurriculumNew(w http.ResponseWriter, r *http.Request) {
+	section, page := curriculumNewPage(r.URL.Path)
+	a.renderCurriculumSection(w, r, section, page)
+}
+
+func curriculumNewPage(path string) (section, page string) {
+	switch path {
+	case "/curriculum/new/template":
+		return curriculumTemplate, "curriculum_new_template"
+	case "/curriculum/new/toc":
+		return curriculumTOC, "curriculum_new_toc"
+	case "/curriculum/new/pdf":
+		return curriculumPDF, "curriculum_new_pdf"
+	default:
+		return curriculumBlank, "curriculum_new"
+	}
+}
+
+func (a *App) renderCurriculumSection(w http.ResponseWriter, r *http.Request, section, page string) {
 	if !a.requirePlanningAccess(w, r) {
 		return
 	}
-	data, err := a.curriculumPageData(r)
+	data, err := a.curriculumPageData(r, section)
 	if err != nil {
 		a.serverError(w, err)
 		return
@@ -40,10 +70,10 @@ func (a *App) handleCurriculum(w http.ResponseWriter, r *http.Request) {
 	if n, err := strconv.Atoi(r.URL.Query().Get("imported")); err == nil && n > 0 {
 		data["Imported"] = n
 	}
-	a.render(w, "curriculum", data)
+	a.render(w, page, data)
 }
 
-func (a *App) curriculumPageData(r *http.Request) (map[string]any, error) {
+func (a *App) curriculumPageData(r *http.Request, section string) (map[string]any, error) {
 	data, err := a.pageData(r, "curriculum")
 	if err != nil {
 		return nil, err
@@ -69,17 +99,30 @@ func (a *App) curriculumPageData(r *http.Request) (map[string]any, error) {
 	data["Groups"] = groups
 	data["Subjects"] = subjects
 	data["PlanCount"] = len(plans)
+	data["CurriculumSection"] = section
 	return data, nil
 }
 
+func curriculumImportErrorPage(path string) (section, page string) {
+	switch {
+	case strings.HasPrefix(path, "/curriculum/from-toc"):
+		return curriculumTOC, "curriculum_new_toc"
+	case strings.HasPrefix(path, "/curriculum/from-pdf"):
+		return curriculumPDF, "curriculum_new_pdf"
+	default:
+		return curriculumTemplate, "curriculum_new_template"
+	}
+}
+
 func (a *App) renderCurriculumImportError(w http.ResponseWriter, r *http.Request, msg string) {
-	data, err := a.curriculumPageData(r)
+	section, page := curriculumImportErrorPage(r.URL.Path)
+	data, err := a.curriculumPageData(r, section)
 	if err != nil {
 		a.serverError(w, err)
 		return
 	}
 	data["ImportError"] = msg
-	a.render(w, "curriculum", data)
+	a.render(w, page, data)
 }
 
 func importUploadError(err error) string {

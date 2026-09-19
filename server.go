@@ -74,7 +74,8 @@ var pageNames = []string{
 	"home", "planner", "history", "kid", "subject", "lesson", "lesson_deleted", "tests",
 	"settings_people", "settings_school", "settings_access", "settings_data",
 	"login", "signup",
-	"attendance", "curriculum", "curriculum_plan", "curriculum_apply", "curriculum_schedule",
+	"attendance", "curriculum", "curriculum_new", "curriculum_new_template", "curriculum_new_toc", "curriculum_new_pdf",
+	"curriculum_plan", "curriculum_apply", "curriculum_schedule",
 	"archive", "series", "assignment",
 	"adult", "adult_schedule", "transcript",
 }
@@ -144,6 +145,10 @@ func (a *App) Routes() http.Handler {
 	mux.HandleFunc("POST /attendance", h((*App).handleSaveAttendance))
 
 	mux.HandleFunc("GET /curriculum", h((*App).handleCurriculum))
+	mux.HandleFunc("GET /curriculum/new", h((*App).handleCurriculumNew))
+	mux.HandleFunc("GET /curriculum/new/template", h((*App).handleCurriculumNew))
+	mux.HandleFunc("GET /curriculum/new/toc", h((*App).handleCurriculumNew))
+	mux.HandleFunc("GET /curriculum/new/pdf", h((*App).handleCurriculumNew))
 	mux.HandleFunc("POST /curriculum", h((*App).handleCreateCurriculumPlan))
 	mux.HandleFunc("POST /curriculum/import", h((*App).handleImportCurriculum))
 	mux.HandleFunc("POST /curriculum/from-toc", h((*App).handleCurriculumFromTOC))

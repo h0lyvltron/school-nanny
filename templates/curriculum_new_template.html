@@ -1,0 +1,34 @@
+{{define "content"}}
+{{template "curriculum_head" .}}
+
+<div id="curriculum-shell" class="settings-shell curriculum-shell">
+    <div class="settings-pane">
+        {{if .ImportError}}<p class="form-error">{{.ImportError}}</p>{{end}}
+        <section class="panel">
+            <h2>Import</h2>
+            <p class="muted small">Adds new written plans from a YAML or CSV file. It never merges into a plan you already have.</p>
+            <details class="import-help">
+                <summary>File format</summary>
+                <p class="muted small">Same fields either way. <code>subject</code> is a name or slug, like <code>math</code> or <code>Language Arts</code>. Lesson order in the file becomes the sequence. Optional <code>page_start</code> / <code>page_end</code> mark PDF pages. PDFs are attached on the plan page after.</p>
+                <pre class="schema-sample">plans:
+  - name: 3rd grade Math
+    subject: math
+    items:
+      - week: 1
+        title: Place value
+        minutes: 40
+        page_start: 12
+        page_end: 15</pre>
+                <p class="muted small">CSV header: <code>plan,subject,week,title,minutes,notes,page_start,page_end</code></p>
+            </details>
+            <form method="post" action="/curriculum/import" enctype="multipart/form-data" class="upload"
+                  data-toast="Imported!"
+                  onsubmit="return confirm('This adds new plans. It will not change any plan you already have.')">
+                <input type="file" name="file" accept=".yaml,.yml,.csv" required aria-label="Curriculum file">
+                <button type="submit">Import</button>
+            </form>
+        </section>
+    </div>
+    {{template "curriculum_aside" .}}
+</div>
+{{end}}

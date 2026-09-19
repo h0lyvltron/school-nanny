@@ -2366,10 +2366,19 @@ func TestCurriculumImportYAMLAndCSV(t *testing.T) {
 	ta := newTestApp(t)
 
 	_, page := ta.get("/curriculum")
+	mustContain(t, page, `id="curriculum-shell"`, "curriculum shell")
+	mustContain(t, page, `aria-label="Curriculum sections"`, "curriculum aside")
+	mustContain(t, page, `hx-target="#curriculum-shell"`, "aside htmx")
+	mustNotContain(t, page, `accept=".yaml,.yml,.csv"`, "import picker on index")
+	mustNotContain(t, page, `action="/curriculum/from-toc"`, "TOC form on index")
+	mustNotContain(t, page, `action="/curriculum/from-pdf"`, "PDF upload on index")
+
+	_, page = ta.get("/curriculum/new/template")
 	mustContain(t, page, `accept=".yaml,.yml,.csv"`, "import file picker")
 	mustContain(t, page, "plans:", "YAML schema hint")
 	mustContain(t, page, "plan,subject,week,title,minutes,notes", "CSV schema hint")
 	mustContain(t, page, `data-toast="Imported!"`, "import toast")
+	mustContain(t, page, `aria-current="page"`, "template aside current")
 
 	yamlBody := []byte(`plans:
   - name: 3rd grade Math
@@ -2465,6 +2474,7 @@ func TestCurriculumImportUnknownSubjectWritesNothing(t *testing.T) {
 	}
 	mustContain(t, page, "form-error", "import error on page")
 	mustContain(t, page, "unknown subject", "unknown subject message")
+	mustContain(t, page, `accept=".yaml,.yml,.csv"`, "error stays on template page")
 	mustNotContain(t, page, "saved-flash", "failed import flash")
 
 	plans, err := ta.store.CurriculumPlans()
@@ -2476,10 +2486,25 @@ func TestCurriculumImportUnknownSubjectWritesNothing(t *testing.T) {
 	}
 }
 
+func TestCurriculumCreatePagesSplitLikeSettings(t *testing.T) {
+	ta := newTestApp(t)
+
+	_, page := ta.get("/curriculum/new")
+	mustContain(t, page, `action="/curriculum"`, "blank create form")
+	mustContain(t, page, "Create plan", "blank create button")
+	mustContain(t, page, `id="curriculum-shell"`, "blank page shell")
+	mustContain(t, page, "Start a blank custom curriculum", "blank aside label")
+
+	_, page = ta.get("/curriculum/new/pdf")
+	mustContain(t, page, `action="/curriculum/from-pdf"`, "PDF form")
+	mustContain(t, page, "Upload a curriculum PDF", "PDF heading")
+	mustContain(t, page, `aria-label="Curriculum PDF"`, "PDF file picker")
+}
+
 func TestCurriculumFromTOCAndYAMLRoundTrip(t *testing.T) {
 	ta := newTestApp(t)
 
-	_, page := ta.get("/curriculum")
+	_, page := ta.get("/curriculum/new/toc")
 	mustContain(t, page, `action="/curriculum/from-toc"`, "TOC form")
 	mustContain(t, page, "Paste a table of contents", "TOC heading")
 

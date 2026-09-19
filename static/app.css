@@ -1016,6 +1016,10 @@ body.is-dragging-lesson .drop-kids { display: flex; }
     align-items: start;
 }
 
+.settings-shell.curriculum-shell {
+    grid-template-columns: minmax(0, 1fr) 15rem;
+}
+
 .settings-aside {
     display: flex;
     flex-direction: column;
@@ -1047,7 +1051,8 @@ body.is-dragging-lesson .drop-kids { display: flex; }
 }
 
 @media (max-width: 720px) {
-    .settings-shell {
+    .settings-shell,
+    .settings-shell.curriculum-shell {
         grid-template-columns: 1fr;
     }
     .settings-aside {

@@ -1,0 +1,36 @@
+{{define "content"}}
+{{template "curriculum_head" .}}
+
+<div id="curriculum-shell" class="settings-shell curriculum-shell">
+    <div class="settings-pane">
+        {{if .ImportError}}<p class="form-error">{{.ImportError}}</p>{{end}}
+        <section class="panel">
+            <h2>Upload a curriculum PDF</h2>
+            <p class="muted small">
+                Reads the PDF outline when present, otherwise scrapes text from the front pages
+                looking for a Lesson / Unit table of contents. Creates a plan with page ranges
+                and attaches the PDF for the lesson viewer. Maximum size: 256 MB.
+            </p>
+            {{if .Subjects}}
+                <form method="post" action="/curriculum/from-pdf" enctype="multipart/form-data" class="stack">
+                    <label>Plan name
+                        <input type="text" name="name" placeholder="Name, like Grade 1 Math" required>
+                    </label>
+                    <label>Subject
+                        <select name="subject_id" required>
+                            {{range .Subjects}}<option value="{{.ID}}">{{.Name}}</option>{{end}}
+                        </select>
+                    </label>
+                    <label>Curriculum PDF
+                        <input type="file" name="file" accept="application/pdf,.pdf" required aria-label="Curriculum PDF">
+                    </label>
+                    <button type="submit">Create plan from PDF</button>
+                </form>
+            {{else}}
+                <p class="muted">Add subjects in Settings first.</p>
+            {{end}}
+        </section>
+    </div>
+    {{template "curriculum_aside" .}}
+</div>
+{{end}}
