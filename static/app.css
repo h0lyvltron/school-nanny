@@ -92,6 +92,170 @@
     --shadow-ring: rgba(226, 136, 77, 0.35);
 }
 
+/* Cool skin: slate paper and teal accent. Light and dark are both defined so
+   Auto / Light / Dark still work after this palette is chosen. */
+[data-theme="light"][data-palette="cool"] {
+    color-scheme: light;
+
+    --paper: #f2f5f7;
+    --card: #ffffff;
+    --ink: #243038;
+    --ink-soft: #5e6b75;
+    --line: #d0d8de;
+
+    --accent: #2c7a76;
+    --accent-hover: #236662;
+    --accent-soft: #dceeed;
+    --on-accent: #ffffff;
+
+    --track: #dceeed;
+
+    --good: #2e8a64;
+    --good-bg: #e8f6ef;
+    --on-good: #ffffff;
+    --done-bg: #f3faf6;
+
+    --warn: #b86a2e;
+
+    --danger: #a8452f;
+    --danger-bg: #fdeeea;
+    --danger-border: #d8917f;
+
+    --field-bg: #ffffff;
+    --field-border: #c5d0d8;
+    --field-placeholder: #7d8a94;
+
+    --muted-surface: #e6ecef;
+    --muted-surface-hover: #dce4e9;
+    --muted-surface-border: #cdd7de;
+
+    --chip-ink: #ffffff;
+    --shadow-ring: rgba(44, 122, 118, 0.3);
+}
+
+[data-theme="dark"][data-palette="cool"] {
+    color-scheme: dark;
+
+    --paper: #11161a;
+    --card: #1a2127;
+    --ink: #e8eef2;
+    --ink-soft: #9aa6b0;
+    --line: #2e3942;
+
+    --accent: #62c4be;
+    --accent-hover: #7fd4cf;
+    --accent-soft: #1a3331;
+    --on-accent: #06201e;
+
+    --track: #243036;
+
+    --good: #5fbc86;
+    --good-bg: #15261e;
+    --on-good: #10231a;
+    --done-bg: #17231d;
+
+    --warn: #e0994f;
+
+    --danger: #f0907a;
+    --danger-bg: #2c1a16;
+    --danger-border: #7a4034;
+
+    --field-bg: #222a31;
+    --field-border: #3a4650;
+    --field-placeholder: #84919b;
+
+    --muted-surface: #242c33;
+    --muted-surface-hover: #2e3942;
+    --muted-surface-border: #3a4650;
+
+    --chip-ink: #ffffff;
+    --shadow-ring: rgba(98, 196, 190, 0.35);
+}
+
+/* High contrast: stronger ink and thicker lines, still light and dark. */
+[data-theme="light"][data-palette="contrast"] {
+    color-scheme: light;
+
+    --paper: #ffffff;
+    --card: #ffffff;
+    --ink: #0a0a0a;
+    --ink-soft: #2a2a2a;
+    --line: #0a0a0a;
+
+    --accent: #8b2e0e;
+    --accent-hover: #6e230a;
+    --accent-soft: #f6e4d8;
+    --on-accent: #ffffff;
+
+    --track: #f0e6dc;
+
+    --good: #14663d;
+    --good-bg: #e4f4ea;
+    --on-good: #ffffff;
+    --done-bg: #f3faf6;
+
+    --warn: #8a3d00;
+
+    --danger: #8a2414;
+    --danger-bg: #fdeeea;
+    --danger-border: #8a2414;
+
+    --field-bg: #ffffff;
+    --field-border: #0a0a0a;
+    --field-placeholder: #444444;
+
+    --muted-surface: #f0f0f0;
+    --muted-surface-hover: #e4e4e4;
+    --muted-surface-border: #0a0a0a;
+
+    --chip-ink: #ffffff;
+    --shadow-ring: rgba(10, 10, 10, 0.35);
+}
+
+[data-theme="dark"][data-palette="contrast"] {
+    color-scheme: dark;
+
+    --paper: #000000;
+    --card: #121212;
+    --ink: #ffffff;
+    --ink-soft: #e8e8e8;
+    --line: #ffffff;
+
+    --accent: #ffb36a;
+    --accent-hover: #ffc58a;
+    --accent-soft: #3a2414;
+    --on-accent: #000000;
+
+    --track: #2a2a2a;
+
+    --good: #7be0a4;
+    --good-bg: #10231a;
+    --on-good: #000000;
+    --done-bg: #142019;
+
+    --warn: #ffb36a;
+
+    --danger: #ff8f7a;
+    --danger-bg: #2c1a16;
+    --danger-border: #ff8f7a;
+
+    --field-bg: #121212;
+    --field-border: #ffffff;
+    --field-placeholder: #c8c8c8;
+
+    --muted-surface: #1c1c1c;
+    --muted-surface-hover: #2a2a2a;
+    --muted-surface-border: #ffffff;
+
+    --chip-ink: #000000;
+    --shadow-ring: rgba(255, 179, 106, 0.4);
+}
+
+[data-palette="contrast"] .panel,
+[data-palette="contrast"] .app-bar {
+    border-width: 2px;
+}
+
 /* Pico's own palette, restated in those tokens.
    Pico scopes its themes with :root:not([data-theme=dark]) and
    [data-theme=dark], so this selector list has to match that specificity or
@@ -214,6 +378,64 @@ h3 { font-size: 1rem; }
 
 .app-nav a:hover { color: var(--accent); }
 .app-nav a.current { border-bottom-color: var(--accent); color: var(--accent); }
+
+[data-nav="tabs"] .app-bar-inner {
+    align-items: flex-end;
+    padding-bottom: 0;
+}
+
+[data-nav="tabs"] .brand {
+    padding-bottom: 0.45rem;
+}
+
+[data-nav="tabs"] .app-nav {
+    gap: 0.15rem 0.2rem;
+    align-items: flex-end;
+}
+
+[data-nav="tabs"] .app-nav a {
+    border: 1px solid transparent;
+    border-bottom-width: 0;
+    border-radius: 0.5rem 0.5rem 0 0;
+    padding: 0.4rem 0.7rem 0.5rem;
+    margin-bottom: -1px;
+}
+
+[data-nav="tabs"] .app-nav a:hover:not(.current) {
+    background: var(--accent-soft);
+}
+
+[data-nav="tabs"] .app-nav a.current {
+    background: var(--paper);
+    border-color: var(--line);
+    color: var(--ink);
+    font-weight: 600;
+}
+
+[data-nav="tabs"] .app-nav .theme-toggle,
+[data-nav="tabs"] .app-nav .inline-form {
+    margin-bottom: 0.4rem;
+}
+
+[data-nav="pills"] .app-nav {
+    gap: 0.35rem;
+}
+
+[data-nav="pills"] .app-nav a {
+    border-bottom: none;
+    border-radius: 999px;
+    padding: 0.3rem 0.8rem;
+}
+
+[data-nav="pills"] .app-nav a:hover:not(.current) {
+    background: var(--muted-surface);
+}
+
+[data-nav="pills"] .app-nav a.current {
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-weight: 600;
+}
 
 /* Theme switch: cycles automatic, light, dark. Only the icon for the current
    mode is shown; the others stay in the markup so no scripting has to build
@@ -338,6 +560,33 @@ img.avatar-nav { width: 1.4rem; height: 1.4rem; }
     border-radius: 0.8rem;
     padding: 1.1rem 1.2rem;
     margin-bottom: 1.25rem;
+}
+
+[data-cards="folder"] .panel {
+    border-top-left-radius: 0;
+    margin-top: 2.1rem;
+}
+
+[data-cards="folder"] .panel > h2:first-of-type {
+    display: table;
+    margin: -1.1rem 0 0.9rem -1.2rem;
+    padding: 0.35rem 0.9rem;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-bottom-color: var(--card);
+    border-radius: 0.55rem 0.55rem 0 0;
+    font-size: 0.95rem;
+}
+
+[data-cards="bubble"] .panel > h2:first-of-type {
+    display: inline-block;
+    background: var(--accent-soft);
+    color: var(--accent);
+    border-radius: 999px;
+    padding: 0.2rem 0.85rem;
+    margin-bottom: 0.85rem;
+    font-size: 0.95rem;
+    font-weight: 600;
 }
 
 .stack { display: flex; flex-direction: column; gap: 0.6rem; }
@@ -1098,6 +1347,38 @@ body.is-dragging-lesson .drop-kids { display: flex; }
 }
 .settings-row button { margin: 0; width: auto; }
 
+.look-fieldset {
+    border: none;
+    margin: 0 0 0.65rem;
+    padding: 0;
+}
+
+.look-fieldset legend {
+    font-weight: 600;
+    padding: 0;
+    margin-bottom: 0.35rem;
+}
+
+.look-choices {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem 1rem;
+    margin: 0;
+}
+
+.look-choices label {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin: 0;
+    font-weight: 400;
+}
+
+.look-choices input {
+    margin: 0;
+    width: auto;
+}
+
 .report-table h3 { display: flex; align-items: center; gap: 0.5rem; }
 
 /* Pinboard ------------------------------------------------------------ */
@@ -1666,6 +1947,24 @@ a.plan-row:hover .muted { color: var(--ink-soft); }
 
     .page-head {
         margin-bottom: 0.75rem;
+    }
+
+    [data-cards="folder"] .panel {
+        margin-top: 0;
+        border-top-left-radius: 0.8rem;
+    }
+
+    [data-cards="folder"] .panel > h2:first-of-type,
+    [data-cards="bubble"] .panel > h2:first-of-type {
+        display: block;
+        margin: 0 0 0.5rem;
+        padding: 0;
+        background: transparent;
+        border: none;
+        border-radius: 0;
+        color: inherit;
+        font-size: inherit;
+        font-weight: inherit;
     }
 
     .kid-card,

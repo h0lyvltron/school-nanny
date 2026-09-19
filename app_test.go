@@ -255,6 +255,35 @@ func TestThemeSwitchIsWiredUp(t *testing.T) {
 	mustContain(t, css, `[data-theme="dark"]`, "dark palette in app.css")
 }
 
+func TestLookPresetsAreWiredUp(t *testing.T) {
+	ta := newTestApp(t)
+
+	_, body := ta.get("/")
+	mustContain(t, body, "school-nanny-nav", "inline look script")
+	mustContain(t, body, "school-nanny-palette", "inline palette script")
+	mustContain(t, body, `data-nav="underline"`, "default nav on html")
+
+	_, settings := ta.get("/settings/school")
+	mustContain(t, settings, `id="look"`, "look panel")
+	mustContain(t, settings, `data-look="nav"`, "page tabs radios")
+	mustContain(t, settings, `data-look="palette"`, "theme radios")
+	mustContain(t, settings, `data-look="cards"`, "card radios")
+	mustContain(t, settings, "This computer's look", "this-computer copy")
+
+	status, script := ta.get("/static/theme.js")
+	if status != http.StatusOK {
+		t.Fatalf("theme.js returned %d", status)
+	}
+	mustContain(t, script, "school-nanny-palette", "theme.js look keys")
+	mustContain(t, script, `data-look`, "theme.js radio handler")
+
+	_, css := ta.get("/static/app.css")
+	mustContain(t, css, `[data-nav="tabs"]`, "folder tab nav")
+	mustContain(t, css, `[data-palette="cool"]`, "cool palette")
+	mustContain(t, css, `[data-palette="contrast"]`, "contrast palette")
+	mustContain(t, css, `[data-cards="folder"]`, "folder cards")
+}
+
 func TestSaveToastIsWiredUp(t *testing.T) {
 	ta := newTestApp(t)
 

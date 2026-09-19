@@ -1,5 +1,5 @@
 {{define "layout"}}<!doctype html>
-<html lang="en" data-theme="light">
+<html lang="en" data-theme="light" data-nav="underline" data-palette="warm" data-cards="plain">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -24,6 +24,24 @@
                 window.matchMedia("(prefers-color-scheme: dark)").matches);
             document.documentElement.setAttribute("data-theme", dark ? "dark" : "light");
             document.documentElement.setAttribute("data-theme-mode", mode);
+            var nav = "underline", palette = "warm", cards = "plain";
+            try {
+                var savedNav = localStorage.getItem("school-nanny-nav");
+                var savedPalette = localStorage.getItem("school-nanny-palette");
+                var savedCards = localStorage.getItem("school-nanny-cards");
+                if (savedNav === "underline" || savedNav === "tabs" || savedNav === "pills") {
+                    nav = savedNav;
+                }
+                if (savedPalette === "warm" || savedPalette === "cool" || savedPalette === "contrast") {
+                    palette = savedPalette;
+                }
+                if (savedCards === "plain" || savedCards === "folder" || savedCards === "bubble") {
+                    cards = savedCards;
+                }
+            } catch (e) { /* private browsing: keep the defaults */ }
+            document.documentElement.setAttribute("data-nav", nav);
+            document.documentElement.setAttribute("data-palette", palette);
+            document.documentElement.setAttribute("data-cards", cards);
         })();
     </script>
     <script>

@@ -10,6 +10,38 @@
     <div id="settings-pane" class="settings-pane">
         {{template "settings_flash" .}}
 
+        <section class="panel" id="look">
+            <h2>This computer's look</h2>
+            <p class="muted small">
+                These choices stay on this computer. Light and dark still use the
+                button in the header.
+            </p>
+            <fieldset class="look-fieldset">
+                <legend>Page tabs</legend>
+                <div class="look-choices">
+                    <label><input type="radio" name="look-nav" value="underline" data-look="nav" checked> Underline</label>
+                    <label><input type="radio" name="look-nav" value="tabs" data-look="nav"> Folder tabs</label>
+                    <label><input type="radio" name="look-nav" value="pills" data-look="nav"> Bubbles</label>
+                </div>
+            </fieldset>
+            <fieldset class="look-fieldset">
+                <legend>Theme</legend>
+                <div class="look-choices">
+                    <label><input type="radio" name="look-palette" value="warm" data-look="palette" checked> Warm paper</label>
+                    <label><input type="radio" name="look-palette" value="cool" data-look="palette"> Cool</label>
+                    <label><input type="radio" name="look-palette" value="contrast" data-look="palette"> High contrast</label>
+                </div>
+            </fieldset>
+            <fieldset class="look-fieldset">
+                <legend>Cards</legend>
+                <div class="look-choices">
+                    <label><input type="radio" name="look-cards" value="plain" data-look="cards" checked> Plain</label>
+                    <label><input type="radio" name="look-cards" value="folder" data-look="cards"> Folder</label>
+                    <label><input type="radio" name="look-cards" value="bubble" data-look="cards"> Bubble</label>
+                </div>
+            </fieldset>
+        </section>
+
         <section class="panel" id="subjects">
             <h2>Subjects</h2>
             <div class="settings-rows">
