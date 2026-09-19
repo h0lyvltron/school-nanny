@@ -4,11 +4,13 @@ import (
 	"database/sql"
 	"errors"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func historyAction(t *testing.T, s *Store, label string, fn func()) int64 {
@@ -636,5 +638,90 @@ func TestHistoryBackfillBareLabels(t *testing.T) {
 	}
 	if label == "Add lesson" || !strings.Contains(label, "Backfill me") || !strings.Contains(label, "Mia") {
 		t.Fatalf("backfill label=%q", label)
+	}
+}
+
+func TestHistoryFlatListsNewestFirst(t *testing.T) {
+	ta := newTestApp(t)
+	kid := ta.addKid("Mia")
+	subject := ta.mathSubjectID()
+	older := historyAction(t, ta.store, "Add first lesson", func() {
+		if _, err := ta.store.CreateLesson(Lesson{
+			KidID: kid, SubjectID: subject, ScheduledOn: today(),
+			Status: StatusPlanned, Title: "Older",
+		}); err != nil {
+			t.Fatal(err)
+		}
+	})
+	newer := historyAction(t, ta.store, "Add second lesson", func() {
+		if _, err := ta.store.CreateLesson(Lesson{
+			KidID: kid, SubjectID: subject, ScheduledOn: today(),
+			Status: StatusPlanned, Title: "Newer",
+		}); err != nil {
+			t.Fatal(err)
+		}
+	})
+	roots, _, err := ta.store.HistoryTree()
+	if err != nil {
+		t.Fatal(err)
+	}
+	flat := historyFlat(roots)
+	if len(flat) != 2 {
+		t.Fatalf("nodes=%d", len(flat))
+	}
+	if flat[0].ID != newer || flat[len(flat)-1].ID != older {
+		t.Fatalf("order newest=%d oldest=%d want newest=%d oldest=%d",
+			flat[0].ID, flat[len(flat)-1].ID, newer, older)
+	}
+	if flat[0].Depth != 0 || flat[1].Depth != 0 {
+		t.Fatalf("preferred path should not indent by ancestry: %+v %+v", flat[0], flat[1])
+	}
+}
+
+func TestHistoryCreatedLabelUsesFamilyTimezone(t *testing.T) {
+	pacific := loadLocation("America/Los_Angeles")
+	if pacific == nil {
+		t.Fatal("missing America/Los_Angeles")
+	}
+	when := time.Date(2026, 9, 19, 3, 29, 0, 0, time.UTC)
+	n := HistoryNode{CreatedAt: when.Format(time.RFC3339Nano)}
+	got := n.CreatedLabel(pacific)
+	if got != "Sep 18, 8:29 PM" {
+		t.Fatalf("pacific label=%q", got)
+	}
+	if utc := n.CreatedLabel(time.UTC); utc != "Sep 19, 3:29 AM" {
+		t.Fatalf("utc label=%q", utc)
+	}
+
+	ta := newTestApp(t)
+	kid := ta.addKid("Mia")
+	node := historyAction(t, ta.store, "Add lesson", func() {
+		if _, err := ta.store.CreateLesson(Lesson{
+			KidID: kid, SubjectID: ta.mathSubjectID(), ScheduledOn: today(),
+			Status: StatusPlanned, Title: "Stamp me",
+		}); err != nil {
+			t.Fatal(err)
+		}
+	})
+	if _, err := ta.store.db().Exec(`UPDATE history_nodes SET created_at=? WHERE id=?`,
+		when.Format(time.RFC3339Nano), node); err != nil {
+		t.Fatal(err)
+	}
+	if err := ta.store.SetSetting(settingTimezone, "America/Los_Angeles"); err != nil {
+		t.Fatal(err)
+	}
+	req := httptest.NewRequest(http.MethodGet, "/history", nil)
+	req.AddCookie(&http.Cookie{Name: tzCookie, Value: "UTC"})
+	rec := httptest.NewRecorder()
+	ta.Routes().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("history returned %d", rec.Code)
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, "Sep 18, 8:29 PM") {
+		t.Fatalf("history missing family-zone stamp\n%s", body)
+	}
+	if strings.Contains(body, "Sep 19, 3:29 AM") {
+		t.Fatalf("history still showed UTC\n%s", body)
 	}
 }

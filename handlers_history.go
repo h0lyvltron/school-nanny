@@ -36,6 +36,7 @@ func (a *App) handleHistory(w http.ResponseWriter, r *http.Request) {
 	data["HistoryNodes"] = historyFlat(roots)
 	data["History"] = pos
 	data["DeletedLessons"] = deleted
+	data["Location"] = requestLocation(r)
 	a.render(w, "history", data)
 }
 

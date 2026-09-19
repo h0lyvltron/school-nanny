@@ -37,12 +37,15 @@ type HistoryNode struct {
 	OnPreferredPath  bool
 }
 
-func (n HistoryNode) CreatedLabel() string {
+func (n HistoryNode) CreatedLabel(loc *time.Location) string {
 	when, err := time.Parse(time.RFC3339Nano, n.CreatedAt)
 	if err != nil {
 		return n.CreatedAt
 	}
-	return when.Local().Format("Jan 2, 3:04 PM")
+	if loc == nil {
+		loc = time.Local
+	}
+	return when.In(loc).Format("Jan 2, 3:04 PM")
 }
 
 type HistoryPosition struct {
@@ -767,19 +770,26 @@ func parseExpectedRevision(r *http.Request) int64 {
 }
 
 // historyFlat returns newest-first nodes for compact template rendering.
+// Indent marks a side branch, not how many ancestors a change has, so a long
+// preferred path stays readable instead of growing a row of arrows.
 func historyFlat(roots []*HistoryNode) []*HistoryNode {
 	var out []*HistoryNode
 	var walk func(*HistoryNode, int)
 	walk = func(n *HistoryNode, depth int) {
+		for i := len(n.Children) - 1; i >= 0; i-- {
+			child := n.Children[i]
+			childDepth := depth
+			if n.OnPreferredPath && !child.OnPreferredPath {
+				childDepth = depth + 1
+			}
+			walk(child, childDepth)
+		}
 		n.Depth = depth
 		n.BranchPrefix = strings.Repeat("↳ ", depth)
 		out = append(out, n)
-		for _, child := range n.Children {
-			walk(child, depth+1)
-		}
 	}
-	for _, root := range roots {
-		walk(root, 0)
+	for i := len(roots) - 1; i >= 0; i-- {
+		walk(roots[i], 0)
 	}
 	return out
 }
