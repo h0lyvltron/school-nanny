@@ -1,14 +1,13 @@
 // Appearance: light/dark mode plus this computer's look (nav, palette, cards).
 //
 // The document head has already resolved and applied the attributes by the
-// time this runs. This file handles the theme button, the Settings radios,
-// and keeps "automatic" honest when the computer changes its mind.
+// time this runs. This file handles the Settings radios and keeps "automatic"
+// honest when the computer changes its mind.
 (function () {
     "use strict";
 
     var STORAGE_KEY = "school-nanny-theme";
     var MODES = ["auto", "light", "dark"];
-    var LABELS = { auto: "Auto", light: "Light", dark: "Dark" };
     var LOOK = {
         nav: { key: "school-nanny-nav", attr: "data-nav", values: ["underline", "tabs", "pills"], fallback: "underline" },
         palette: { key: "school-nanny-palette", attr: "data-palette", values: ["warm", "cool", "contrast"], fallback: "warm" },
@@ -68,13 +67,9 @@
         root.setAttribute("data-theme", dark ? "dark" : "light");
         root.setAttribute("data-theme-mode", next);
 
-        var buttons = document.querySelectorAll("[data-theme-toggle]");
-        for (var i = 0; i < buttons.length; i++) {
-            buttons[i].setAttribute("data-mode", next);
-            var label = buttons[i].querySelector("[data-theme-label]");
-            if (label) {
-                label.textContent = LABELS[next];
-            }
+        var inputs = document.querySelectorAll('input[data-look="mode"]');
+        for (var i = 0; i < inputs.length; i++) {
+            inputs[i].checked = inputs[i].value === next;
         }
     }
 
@@ -93,23 +88,19 @@
     apply(mode);
     applyLook();
 
-    // Delegated so the button keeps working after HTMX replaces part of a page.
-    document.addEventListener("click", function (event) {
-        var button = event.target.closest && event.target.closest("[data-theme-toggle]");
-        if (!button) {
-            return;
-        }
-        mode = MODES[(MODES.indexOf(mode) + 1) % MODES.length];
-        saveMode(mode);
-        apply(mode);
-    });
-
     document.addEventListener("change", function (event) {
         var input = event.target;
         if (!input || !input.getAttribute) {
             return;
         }
         var kind = input.getAttribute("data-look");
+        if (kind === "mode") {
+            var next = MODES.indexOf(input.value) >= 0 ? input.value : "auto";
+            mode = next;
+            saveMode(next);
+            apply(next);
+            return;
+        }
         var spec = kind && LOOK[kind];
         if (!spec) {
             return;
@@ -119,7 +110,10 @@
         root.setAttribute(spec.attr, value);
     });
 
-    document.addEventListener("htmx:afterSwap", applyLook);
+    document.addEventListener("htmx:afterSwap", function () {
+        apply(mode);
+        applyLook();
+    });
 
     function followSystem() {
         if (mode === "auto") {

@@ -422,38 +422,6 @@ h3 { font-size: 1rem; }
     padding-inline: 0.65rem;
 }
 
-/* Theme switch: cycles automatic, light, dark. Only the icon for the current
-   mode is shown; the others stay in the markup so no scripting has to build
-   them. */
-.theme-toggle {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.4rem;
-    margin: 0;
-    padding: 0.2rem 0.7rem;
-    width: auto;
-    background: none;
-    border: 1px solid var(--line);
-    border-radius: 999px;
-    color: var(--ink-soft);
-    font-family: inherit;
-    font-size: 0.82rem;
-    line-height: 1.4;
-    cursor: pointer;
-}
-
-.theme-toggle:hover,
-.theme-toggle:focus {
-    background: none;
-    border-color: var(--accent);
-    color: var(--accent);
-}
-
-.theme-toggle svg { display: none; flex: none; }
-.theme-toggle[data-mode="auto"] .icon-auto,
-.theme-toggle[data-mode="light"] .icon-light,
-.theme-toggle[data-mode="dark"] .icon-dark { display: block; }
-
 .dot {
     width: 0.7rem;
     height: 0.7rem;
@@ -1908,7 +1876,6 @@ a.plan-row:hover .muted { color: var(--ink-soft); }
     }
 
     .app-bar,
-    .theme-toggle,
     .planner-controls,
     .lesson-actions,
     .add-box,

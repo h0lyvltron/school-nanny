@@ -241,9 +241,13 @@ func TestThemeSwitchIsWiredUp(t *testing.T) {
 	ta := newTestApp(t)
 
 	_, body := ta.get("/")
-	mustContain(t, body, `data-theme-toggle`, "theme button on home")
+	mustNotContain(t, body, `data-theme-toggle`, "theme button left the header")
 	mustContain(t, body, "school-nanny-theme", "inline theme script")
 	mustContain(t, body, `src="/static/theme.js"`, "theme script tag")
+
+	_, settings := ta.get("/settings/school")
+	mustContain(t, settings, `data-look="mode"`, "light/dark radios")
+	mustContain(t, settings, "Light and dark", "light/dark fieldset")
 
 	status, script := ta.get("/static/theme.js")
 	if status != http.StatusOK {
@@ -268,6 +272,7 @@ func TestLookPresetsAreWiredUp(t *testing.T) {
 	mustContain(t, settings, `data-look="nav"`, "page tabs radios")
 	mustContain(t, settings, `data-look="palette"`, "theme radios")
 	mustContain(t, settings, `data-look="cards"`, "card radios")
+	mustContain(t, settings, `data-look="mode"`, "light/dark radios")
 	mustContain(t, settings, "This computer's look", "this-computer copy")
 
 	status, script := ta.get("/static/theme.js")
