@@ -653,6 +653,7 @@ html[data-lock-page] .page {
     min-height: 0;
     overflow: auto;
     padding-bottom: 4rem;
+    padding-inline-end: 0.55rem;
 }
 
 /* Page headings ------------------------------------------------------- */

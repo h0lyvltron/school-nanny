@@ -311,6 +311,7 @@ func TestSaveToastIsWiredUp(t *testing.T) {
 	_, css := ta.get("/static/app.css")
 	mustContain(t, css, ".save-toast", "toast styles")
 	mustContain(t, css, ".person-filter-menu", "person filter compact")
+	mustContain(t, css, "padding-inline-end: 0.55rem", "today/week scrollbar gutter")
 }
 
 func TestFirstRunAsksForKids(t *testing.T) {
