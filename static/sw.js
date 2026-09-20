@@ -1,5 +1,5 @@
 /* Light installable shell: cache the app chrome so a revisit still paints. */
-const CACHE = "school-nanny-shell-v45";
+const CACHE = "school-nanny-shell-v46";
 const SHELL = [
   "/static/app.css",
   "/static/pico.min.css",

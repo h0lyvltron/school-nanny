@@ -312,6 +312,8 @@ func TestSaveToastIsWiredUp(t *testing.T) {
 	mustContain(t, css, ".save-toast", "toast styles")
 	mustContain(t, css, ".person-filter-menu", "person filter compact")
 	mustContain(t, css, "padding-inline-end: 0.55rem", "today/week scrollbar gutter")
+	mustContain(t, css, ".app-nav .nav-people[open] > summary", "open fly-out keeps header height")
+	mustContain(t, css, ".app-nav .nav-people-list", "kids and adults share fly-out alignment")
 }
 
 func TestFirstRunAsksForKids(t *testing.T) {

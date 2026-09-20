@@ -397,20 +397,27 @@ h3 { font-size: 1rem; }
     align-items: center;
     gap: 0.3rem;
     color: var(--ink);
+    margin: 0;
     padding: 0.25rem 0;
     border-bottom: 2px solid transparent;
     user-select: none;
 }
 
-.app-nav .nav-people > summary::-webkit-details-marker { display: none; }
+.app-nav .nav-people > summary::-webkit-details-marker,
+.app-nav .nav-people > summary::marker { display: none; content: none; }
 
 .app-nav .nav-people > summary::after {
     content: "";
+    display: block;
+    float: none;
+    flex: none;
     width: 0.35rem;
     height: 0.35rem;
+    margin-inline-start: 0.15rem;
+    background: none;
     border-right: 1.5px solid currentColor;
     border-bottom: 1.5px solid currentColor;
-    transform: rotate(45deg) translateY(-0.1rem);
+    transform: rotate(45deg);
     opacity: 0.7;
 }
 
@@ -418,15 +425,11 @@ h3 { font-size: 1rem; }
 .app-nav .nav-people.has-current > summary,
 .app-nav .nav-people[open] > summary {
     color: var(--accent);
+    margin-bottom: 0;
 }
 
 .app-nav .nav-people:not([open]) .nav-people-list {
     display: none;
-}
-
-.app-nav .nav-people-adults .nav-people-list {
-    left: auto;
-    right: 0;
 }
 
 .app-nav .nav-people[open] .nav-people-list:not(.is-placed),
@@ -437,8 +440,8 @@ h3 { font-size: 1rem; }
 .app-nav .nav-people-list {
     position: absolute;
     top: calc(100% + 0.4rem);
-    left: 0;
-    right: auto;
+    left: auto;
+    right: 0;
     z-index: 20;
     min-width: 10.5rem;
     max-width: min(16rem, calc(100vw - 2rem));
@@ -1080,6 +1083,7 @@ button.pill[type="submit"] { width: auto; }
     display: inline-flex;
     align-items: center;
     gap: 0.4rem;
+    margin: 0;
     padding: 0.3rem 0.8rem;
     border: 1px solid var(--line);
     border-radius: 999px;
@@ -1089,23 +1093,29 @@ button.pill[type="submit"] { width: auto; }
     user-select: none;
 }
 
-.planner-filters .person-filter-menu > summary::-webkit-details-marker { display: none; }
+.planner-filters .person-filter-menu > summary::-webkit-details-marker,
+.planner-filters .person-filter-menu > summary::marker { display: none; content: none; }
 
 .planner-filters .person-filter-menu > summary::after {
     content: "";
+    display: block;
+    float: none;
+    flex: none;
     width: 0.35rem;
     height: 0.35rem;
+    margin-inline-start: 0.15rem;
+    background: none;
     border-right: 1.5px solid currentColor;
     border-bottom: 1.5px solid currentColor;
-    transform: rotate(45deg) translateY(-0.1rem);
+    transform: rotate(45deg);
     opacity: 0.7;
-    margin-left: 0.15rem;
 }
 
 .planner-filters .person-filter-menu.has-current > summary,
 .planner-filters .person-filter-menu[open] > summary {
     border-color: var(--accent);
     color: var(--accent);
+    margin-bottom: 0;
 }
 
 .planner-filters .person-filter-menu:not([open]) .person-filter-list {
