@@ -340,6 +340,7 @@ h3 { font-size: 1rem; }
     position: sticky;
     top: 0;
     z-index: 10;
+    padding: 0;
 }
 
 .app-bar-inner {
@@ -393,12 +394,64 @@ h3 { font-size: 1rem; }
     background: var(--accent-soft);
 }
 
+/* Inactive links sit in the middle of the bar. School Nanny sits lower.
+   The current tab sits on the rule and is only as tall as the lower half
+   of a single header row, so a wrapped Settings tab cannot inflate. */
+[data-nav="tabs"] .app-bar {
+    anchor-name: --app-bar;
+}
+
+[data-nav="tabs"] .app-bar-inner {
+    padding-bottom: 0;
+    align-items: center;
+}
+
+[data-nav="tabs"] .brand {
+    display: inline-flex;
+    align-items: center;
+    align-self: flex-end;
+    margin-bottom: 0.35rem;
+}
+
+[data-nav="tabs"] .app-nav {
+    align-items: center;
+    align-content: center;
+}
+
 [data-nav="tabs"] .app-nav > a.current:not(.nav-kid) {
     background: var(--paper);
     border-color: var(--line);
+    border-bottom: 1px solid var(--paper);
     color: var(--ink);
     font-weight: 600;
     padding-inline: 0.6rem;
+    padding-block: 0.35rem;
+    margin-bottom: -1px;
+    overflow: visible;
+    position: relative;
+    z-index: 1;
+    align-self: flex-end;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 1.7rem;
+    box-sizing: border-box;
+    anchor-name: --current-tab;
+}
+
+/* Small inner corners sitting on the header line, not a wider lobe. */
+[data-nav="tabs"] .app-nav > a.current:not(.nav-kid)::before {
+    content: "";
+    position: absolute;
+    position-anchor: --app-bar;
+    left: calc(anchor(--current-tab left) - 0.35rem);
+    width: calc(anchor(--current-tab width) + 0.7rem);
+    bottom: 0;
+    height: 0.35rem;
+    pointer-events: none;
+    background:
+        radial-gradient(circle at 100% 100%, transparent 0.34rem, var(--card) 0.35rem) left / 0.35rem 0.35rem no-repeat,
+        radial-gradient(circle at 0 100%, transparent 0.34rem, var(--card) 0.35rem) right / 0.35rem 0.35rem no-repeat;
 }
 
 [data-nav="pills"] .app-nav > a:not(.nav-kid) {
@@ -521,24 +574,34 @@ img.avatar-nav { width: 1.4rem; height: 1.4rem; }
 
 [data-cards="folder"] .panel > h2:first-of-type {
     display: table;
-    margin: -1.1rem 0 0.85rem 0;
+    margin: calc(-1.1rem - 1px) 0 0.85rem 0;
     padding: 0.3rem 0.85rem;
     background: var(--card);
     border: 1px solid var(--line);
     border-bottom-color: var(--card);
     border-radius: 0.55rem 0.55rem 0 0;
     font-size: 0.95rem;
+    position: relative;
+    z-index: 1;
 }
 
 [data-cards="bubble"] .panel > h2:first-of-type {
-    display: inline-block;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: fit-content;
+    max-width: 100%;
+    box-sizing: border-box;
     background: var(--accent-soft);
     color: var(--accent);
     border-radius: 999px;
-    padding: 0.2rem 0.85rem;
+    padding: 0.35em 0.95em;
     margin-bottom: 0.85rem;
     font-size: 0.95rem;
     font-weight: 600;
+    line-height: 1.15;
+    text-align: center;
+    text-box: trim-both cap alphabetic;
 }
 
 .stack { display: flex; flex-direction: column; gap: 0.6rem; }
@@ -754,8 +817,8 @@ a.today-event:hover {
 
 .mark-done-row {
     display: flex;
-    justify-content: space-between;
     align-items: center;
+    justify-content: space-between;
     gap: 0.5rem;
     width: 100%;
 }
@@ -764,7 +827,13 @@ a.today-event:hover {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
+    justify-content: center;
     gap: 0.35rem;
+    width: 100%;
+}
+
+.lesson-actions > .pill.done {
+    align-self: flex-end;
 }
 
 /* In a day cell, a child's Today card, or any stacked list the card is narrow,

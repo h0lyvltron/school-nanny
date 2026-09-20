@@ -554,7 +554,35 @@
 
     var EVENTS_KEY = "school-nanny-week-events";
 
+    function eventsFromQuery() {
+        try {
+            var raw = new URLSearchParams(window.location.search).get("events");
+            if (raw === "1" || raw === "on" || raw === "true") {
+                return true;
+            }
+            if (raw === "0" || raw === "off" || raw === "false") {
+                return false;
+            }
+        } catch (e) {
+            // Malformed search strings should not hide the week.
+        }
+        return null;
+    }
+
+    function rememberEvents(on) {
+        try {
+            localStorage.setItem(EVENTS_KEY, on ? "1" : "0");
+        } catch (e) {
+            // Private windows can block storage; the toggle still works for this page.
+        }
+    }
+
     function eventsVisible() {
+        var fromQuery = eventsFromQuery();
+        if (fromQuery !== null) {
+            rememberEvents(fromQuery);
+            return fromQuery;
+        }
         try {
             var raw = localStorage.getItem(EVENTS_KEY);
             if (raw === null) {
@@ -587,11 +615,7 @@
             return;
         }
         var on = Boolean(input.checked);
-        try {
-            localStorage.setItem(EVENTS_KEY, on ? "1" : "0");
-        } catch (e) {
-            // Private windows can block storage; the toggle still works for this page.
-        }
+        rememberEvents(on);
         applyEventsToggle(on);
     });
 })();

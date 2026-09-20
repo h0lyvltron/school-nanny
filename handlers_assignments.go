@@ -141,8 +141,9 @@ func (a *App) handlePullLesson(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// shiftAssignmentLesson runs whichever way the plan is being moved and lands
-// back on the week the lesson started in, so the parent keeps her place.
+// shiftAssignmentLesson runs whichever way the plan is being moved. HTMX
+// callers keep their place: the week redraws around the day they clicked, and
+// a list row is swapped in situ. A full form POST still returns to `back`.
 func (a *App) shiftAssignmentLesson(w http.ResponseWriter, r *http.Request, shift func(Lesson) error) {
 	if !a.requirePlanningAccess(w, r) {
 		return
@@ -156,12 +157,36 @@ func (a *App) shiftAssignmentLesson(w http.ResponseWriter, r *http.Request, shif
 		a.serverError(w, err)
 		return
 	}
+	before := lesson.ScheduledOn
 	if err := shift(lesson); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+
+	if r.Header.Get("HX-Request") == "true" {
+		updated, err := a.store.Lesson(lesson.ID)
+		if err != nil {
+			a.serverError(w, err)
+			return
+		}
+		if r.FormValue("view") == "planner" {
+			days := []string{before, updated.ScheduledOn}
+			days = append(days, requestWeekDates(r, before)...)
+			a.renderPlannerDays(w, r, formID(r, "kid_filter"), formID(r, "adult_filter"), days...)
+			return
+		}
+		a.renderPartial(w, "lesson_row", map[string]any{
+			"Lesson":      updated,
+			"ShowKid":     r.FormValue("show_kid") == "true",
+			"ShowSubject": r.FormValue("show_subject") != "false",
+			"Back":        safeRedirect(r.FormValue("back"), "/"),
+			"Today":       requestToday(r),
+		})
+		return
+	}
+
 	a.redirect(w, r, safeRedirect(r.FormValue("back"), plannerURL(
-		requestWeekStart(r, parseDate(lesson.ScheduledOn)).Format(dateLayout), lesson.KidID)))
+		requestWeekStart(r, parseDate(before)).Format(dateLayout), lesson.KidID)))
 }
 
 func (a *App) lookupAssignment(w http.ResponseWriter, r *http.Request) (PlanAssignment, bool) {

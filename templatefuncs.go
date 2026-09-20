@@ -35,6 +35,7 @@ func templateFuncs(today string) template.FuncMap {
 		"color":            safeColor,
 		"plannerURL":       plannerURL,
 		"plannerFilterURL": plannerFilterURL,
+		"adultPlannerURL":  adultPlannerURL,
 	}
 }
 
@@ -126,4 +127,10 @@ func plannerFilterURL(week string, kidID, adultID int64) string {
 		url += "&kid=" + strconv.FormatInt(kidID, 10)
 	}
 	return url
+}
+
+// adultPlannerURL is Full schedule: the week with that grown-up selected and
+// calendar events showing, not the old lesson-only grid.
+func adultPlannerURL(week string, adultID int64) string {
+	return plannerFilterURL(week, 0, adultID) + "&events=1"
 }

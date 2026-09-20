@@ -622,7 +622,7 @@ func lessonReturn(lesson Lesson, back string, weekStarts time.Weekday) LessonRet
 	// about the subject she was not looking at.
 	ret := LessonReturn{Stay: self, Save: self}
 	if lesson.ForAdult() {
-		ret.Delete = lesson.PersonURL() + "/schedule"
+		ret.Delete = adultPlannerURL(weekStartOn(parseDate(lesson.ScheduledOn), weekStarts).Format(dateLayout), lesson.AdultID)
 	} else {
 		ret.Delete = plannerURL(weekStartOn(parseDate(lesson.ScheduledOn), weekStarts).Format(dateLayout), lesson.KidID)
 	}

@@ -272,3 +272,49 @@
         addButtonHints(event.target);
     });
 })();
+
+// After Double up / Shift / Push / Pull / Drop, keep keyboard focus on the
+// lesson that was just acted on (or the day it left) instead of dumping it
+// onto the document body.
+(function () {
+    "use strict";
+
+    function requestPath(event) {
+        var detail = event.detail || {};
+        if (detail.pathInfo && detail.pathInfo.requestPath) {
+            return String(detail.pathInfo.requestPath);
+        }
+        if (detail.requestConfig && detail.requestConfig.path) {
+            return String(detail.requestConfig.path);
+        }
+        return "";
+    }
+
+    function focusPlace(node) {
+        if (!node || !node.setAttribute) {
+            return;
+        }
+        node.setAttribute("tabindex", "-1");
+        try {
+            node.focus({preventScroll: true});
+        } catch (e) {
+            try { node.focus(); } catch (e2) { /* ignore */ }
+        }
+    }
+
+    document.body.addEventListener("htmx:afterSettle", function (event) {
+        var match = requestPath(event).match(/\/lessons\/(\d+)\//);
+        if (!match) {
+            return;
+        }
+        var lesson = document.getElementById("lesson-" + match[1]);
+        if (lesson) {
+            focusPlace(lesson);
+            return;
+        }
+        var elt = event.detail && event.detail.elt;
+        if (elt && elt.classList && elt.classList.contains("day")) {
+            focusPlace(elt);
+        }
+    });
+})();

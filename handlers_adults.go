@@ -590,52 +590,16 @@ func (a *App) wantsCalendar(r *http.Request) bool {
 	return r.Header.Get("HX-Request") == "true" && r.FormValue("view") == "calendar"
 }
 
-// handleAdultSchedule is her own week grid. It reuses the planner's day
-// partial, which is why the days come back in the same shape.
+// handleAdultSchedule used to render a second week grid of only her lesson
+// rows, so calendar events never appeared. Full schedule is the family week
+// with her selected and events showing.
 func (a *App) handleAdultSchedule(w http.ResponseWriter, r *http.Request) {
 	adult, ok := a.lookupAdult(w, r)
 	if !ok {
 		return
 	}
-	data, err := a.pageData(r, "adults")
-	if err != nil {
-		a.serverError(w, err)
-		return
-	}
-
 	start := requestWeekStart(r, parseDateIn(r.URL.Query().Get("week"), requestLocation(r))).Format(dateLayout)
-	end := addDays(start, 6)
-
-	lessons, err := a.store.AdultLessonsBetween(start, end, adult.ID)
-	if err != nil {
-		a.serverError(w, err)
-		return
-	}
-	byDay := map[string][]Lesson{}
-	for _, l := range lessons {
-		byDay[l.ScheduledOn] = append(byDay[l.ScheduledOn], l)
-	}
-	days := make([]PlannerDay, 0, 7)
-	for i := 0; i < 7; i++ {
-		date := addDays(start, i)
-		days = append(days, PlannerDay{Date: date, Lessons: byDay[date]})
-	}
-
-	subjects, err := a.store.Subjects(false)
-	if err != nil {
-		a.serverError(w, err)
-		return
-	}
-
-	data["Adult"] = adult
-	data["Days"] = days
-	data["Subjects"] = subjects
-	data["WeekStart"] = start
-	data["WeekEnd"] = end
-	data["PrevWeek"] = addDays(start, -7)
-	data["NextWeek"] = addDays(start, 7)
-	data["ThisWeek"] = requestWeekStart(r, requestNow(r)).Format(dateLayout)
-	a.render(w, "adult_schedule", data)
+	a.redirect(w, r, adultPlannerURL(start, adult.ID))
 }
 
 // renderAdultDay re-renders one day of her week after it changed, the same way
@@ -709,7 +673,7 @@ func (a *App) handleCreateAdultLesson(w http.ResponseWriter, r *http.Request) {
 		a.renderPlannerDay(w, r, item.ScheduledOn, formID(r, "kid_filter"), adult.ID)
 		return
 	}
-	a.redirect(w, r, safeRedirect(r.FormValue("back"), "/adults/"+r.PathValue("id")+"/schedule"))
+	a.redirect(w, r, safeRedirect(r.FormValue("back"), adultPlannerURL(item.ScheduledOn, adult.ID)))
 }
 
 // Pinboard cards ---------------------------------------------------------

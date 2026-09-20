@@ -267,7 +267,20 @@
 </section>
 {{end}}
 
+{{define "lesson_move_fields"}}
+                <input type="hidden" name="back" value="{{.Back}}">
+                <input type="hidden" name="show_kid" value="{{.ShowKid}}">
+                <input type="hidden" name="show_subject" value="{{.ShowSubject}}">
+                {{if eq .View "planner"}}
+                <input type="hidden" name="view" value="planner">
+                <input type="hidden" name="kid_filter" value="{{.KidFilter}}">
+                <input type="hidden" name="adult_filter" value="{{.AdultFilter}}">
+                {{end}}
+{{end}}
+
 {{define "lesson_row"}}
+{{$target := printf "#lesson-%d" .Lesson.ID}}
+{{if eq .View "planner"}}{{$target = "closest .day"}}{{end}}
 <article class="lesson status-{{.Lesson.Status}}{{if isOverdue .Lesson}} is-overdue{{end}}" id="lesson-{{.Lesson.ID}}"
          {{if .Lesson.SubjectColor}}style="--subject:{{color .Lesson.SubjectColor}}"{{end}}
          {{if .Draggable}}draggable="true" data-lesson-id="{{.Lesson.ID}}" data-kid-id="{{.Lesson.KidID}}" data-date="{{.Lesson.ScheduledOn}}"
@@ -290,7 +303,7 @@
             <button class="pill done"
                     hx-post="/lessons/{{.Lesson.ID}}/status"
                     hx-vals='{"status":"planned","show_kid":"{{.ShowKid}}","show_subject":"{{.ShowSubject}}","back":"{{.Back}}"}'
-                    hx-target="#lesson-{{.Lesson.ID}}" hx-swap="outerHTML"
+                    hx-target="#lesson-{{.Lesson.ID}}" hx-swap="outerHTML show:none"
                     title="Undo">Done</button>
         {{else}}
             <div class="mark-done-row">
@@ -301,50 +314,55 @@
                         hx-post="/lessons/{{.Lesson.ID}}/status"
                         hx-include="closest .mark-done-row"
                         hx-vals='{"status":"done","show_kid":"{{.ShowKid}}","show_subject":"{{.ShowSubject}}","back":"{{.Back}}"}'
-                        hx-target="#lesson-{{.Lesson.ID}}" hx-swap="outerHTML">Mark done</button>
+                        hx-target="#lesson-{{.Lesson.ID}}" hx-swap="outerHTML show:none">Mark done</button>
             </div>
             {{if not .Lesson.IsSkipped}}
             <div class="lesson-ops">
-                <form method="post" action="/lessons/{{.Lesson.ID}}/double-up" class="inline-form">
-                    <input type="hidden" name="back" value="{{.Back}}">
+                <form method="post" action="/lessons/{{.Lesson.ID}}/double-up" class="inline-form double-up-form"
+                      hx-post="/lessons/{{.Lesson.ID}}/double-up" hx-target="{{$target}}" hx-swap="outerHTML show:none"
+                      hx-confirm="Double up: move this lesson onto the next school day (other lessons stay put)?">
+                    {{template "lesson_move_fields" .}}
                     <button class="pill ghost" type="submit"
-                            title="Pile this onto the next school day without moving other lessons"
-                            onclick="return confirm('Double up: move this lesson onto the next school day (other lessons stay put)?')">Double up</button>
+                            title="Pile this onto the next school day without moving other lessons">Double up</button>
                 </form>
                 {{if .Lesson.HasAssignment}}
-                    <form method="post" action="/lessons/{{.Lesson.ID}}/shift" class="inline-form">
-                        <input type="hidden" name="back" value="{{.Back}}">
+                    <form method="post" action="/lessons/{{.Lesson.ID}}/shift" class="inline-form"
+                          hx-post="/lessons/{{.Lesson.ID}}/shift" hx-target="{{$target}}" hx-swap="outerHTML show:none"
+                          hx-confirm="Shift forward: move this lesson and every later planned lesson in this plan one school day later?">
+                        {{template "lesson_move_fields" .}}
                         <input type="hidden" name="scope" value="later">
                         <button class="pill ghost" type="submit"
-                                title="Shift this and later planned lessons one school day forward"
-                                onclick="return confirm('Shift forward: move this lesson and every later planned lesson in this plan one school day later?')">Shift</button>
+                                title="Shift this and later planned lessons one school day forward">Shift</button>
                     </form>
-                    <form method="post" action="/lessons/{{.Lesson.ID}}/push" class="inline-form">
-                        <input type="hidden" name="back" value="{{.Back}}">
+                    <form method="post" action="/lessons/{{.Lesson.ID}}/push" class="inline-form"
+                          hx-post="/lessons/{{.Lesson.ID}}/push" hx-target="{{$target}}" hx-swap="outerHTML show:none"
+                          hx-confirm="Move this lesson and every later planned lesson in this plan to the next school days?">
+                        {{template "lesson_move_fields" .}}
                         <button class="pill ghost" type="submit"
-                                title="Move this lesson and every later planned lesson to the next available school days."
-                                onclick="return confirm('Move this lesson and every later planned lesson in this plan to the next school days?')">Push</button>
+                                title="Move this lesson and every later planned lesson to the next available school days.">Push</button>
                     </form>
                     {{if isAhead .Lesson}}
-                        <form method="post" action="/lessons/{{.Lesson.ID}}/pull" class="inline-form">
-                            <input type="hidden" name="back" value="{{.Back}}">
+                        <form method="post" action="/lessons/{{.Lesson.ID}}/pull" class="inline-form"
+                              hx-post="/lessons/{{.Lesson.ID}}/pull" hx-target="{{$target}}" hx-swap="outerHTML show:none"
+                              hx-confirm="Move this lesson and every later planned lesson in this plan onto today and the school days after it?">
+                            {{template "lesson_move_fields" .}}
                             <button class="pill ghost" type="submit"
-                                    title="Move this future lesson onto today and pull every later planned lesson forward behind it."
-                                    onclick="return confirm('Move this lesson and every later planned lesson in this plan onto today and the school days after it?')">Pull</button>
+                                    title="Move this future lesson onto today and pull every later planned lesson forward behind it.">Pull</button>
                         </form>
                     {{end}}
                 {{else}}
-                    <form method="post" action="/lessons/{{.Lesson.ID}}/shift" class="inline-form">
-                        <input type="hidden" name="back" value="{{.Back}}">
+                    <form method="post" action="/lessons/{{.Lesson.ID}}/shift" class="inline-form"
+                          hx-post="/lessons/{{.Lesson.ID}}/shift" hx-target="{{$target}}" hx-swap="outerHTML show:none"
+                          hx-confirm="Shift this lesson one school day later?">
+                        {{template "lesson_move_fields" .}}
                         <input type="hidden" name="scope" value="this">
-                        <button class="pill ghost" type="submit"
-                                onclick="return confirm('Shift this lesson one school day later?')">Shift</button>
+                        <button class="pill ghost" type="submit">Shift</button>
                     </form>
                 {{end}}
                 <button class="pill ghost"
                         hx-post="/lessons/{{.Lesson.ID}}/status"
                         hx-vals='{"status":"skipped","show_kid":"{{.ShowKid}}","show_subject":"{{.ShowSubject}}","back":"{{.Back}}"}'
-                        hx-target="#lesson-{{.Lesson.ID}}" hx-swap="outerHTML"
+                        hx-target="#lesson-{{.Lesson.ID}}" hx-swap="outerHTML show:none"
                         title="Drop without moving other lessons">Drop</button>
             </div>
             {{end}}
@@ -387,7 +405,7 @@
 
     <div class="day-lessons">
         {{range .Day.Lessons}}
-            {{template "lesson_row" (dict "Lesson" . "ShowKid" (not $.AdultFilter) "ShowSubject" true "Back" $.Back "Draggable" (not $.AdultFilter))}}
+            {{template "lesson_row" (dict "Lesson" . "ShowKid" (not $.AdultFilter) "ShowSubject" true "Back" $.Back "Draggable" (not $.AdultFilter) "View" "planner" "KidFilter" $.KidFilter "AdultFilter" $.AdultFilter)}}
         {{else}}
             <p class="muted small">{{if $.AdultFilter}}Nothing on this day.{{else}}Nothing planned.{{end}}</p>
         {{end}}

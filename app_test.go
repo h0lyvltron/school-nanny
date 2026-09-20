@@ -632,6 +632,7 @@ func TestPlannerMarkupIsDraggable(t *testing.T) {
 	mustContain(t, js, "LONG_PRESS_MS", "touch long-press")
 	mustContain(t, js, "WEEK_SHIFT_MS", "week shift while dragging")
 	mustContain(t, js, "data-events-toggle", "events toggle")
+	mustContain(t, js, `get("events")`, "events query")
 	mustContain(t, js, "planner-week", "in-place week swap")
 }
 
@@ -1036,6 +1037,8 @@ func TestDefaultAdultIsReadyToUse(t *testing.T) {
 	}
 	mustContain(t, body, "Pinboard", "adult profile")
 	mustContain(t, body, "This week", "adult profile")
+	week := weekStart(parseDate(today())).Format(dateLayout)
+	mustContain(t, body, html.EscapeString(adultPlannerURL(week, parent.ID)), "full schedule")
 
 	// She is reachable from anywhere, next to the children.
 	_, home := ta.get("/")
@@ -1107,9 +1110,38 @@ func TestAdultScheduleStaysOutOfKidViews(t *testing.T) {
 		t.Error("her appointment was swept into a curriculum plan")
 	}
 
-	// It is on her own week, though.
+	// It is on her week when she opens Full schedule, which is the planner
+	// with her selected — not a second grid that omitted calendar events.
 	_, page := ta.get("/adults/" + itoa64(parent.ID) + "/schedule")
 	mustContain(t, page, "Dentist appointment", "her schedule")
+	mustContain(t, page, `id="planner-week"`, "her schedule")
+	mustContain(t, page, `data-adult-filter="`+itoa64(parent.ID)+`"`, "her schedule")
+}
+
+func TestAdultFullScheduleShowsCalendarEvents(t *testing.T) {
+	ta := newTestApp(t)
+	parent := ta.parent()
+	start := weekStart(parseDate(today())).Format(dateLayout)
+	wednesday := addDays(start, 2)
+	_, err := ta.store.CreateAdultEvent(AdultEvent{
+		AdultID:  parent.ID,
+		StartsOn: wednesday,
+		EndsOn:   wednesday,
+		Title:    "Field trip",
+	})
+	if err != nil {
+		t.Fatalf("creating event: %v", err)
+	}
+
+	status, page := ta.get("/adults/" + itoa64(parent.ID) + "/schedule")
+	if status != http.StatusOK {
+		t.Fatalf("full schedule returned %d", status)
+	}
+	mustContain(t, page, `id="planner-week"`, "full schedule")
+	mustContain(t, page, `data-adult-filter="`+itoa64(parent.ID)+`"`, "full schedule")
+	mustContain(t, page, "Field trip", "full schedule")
+	mustContain(t, page, `class="day-events"`, "full schedule")
+	mustContain(t, page, `data-events-toggle`, "full schedule")
 }
 
 func TestAdultNotesAreSeparateFromKidNotes(t *testing.T) {
@@ -2982,7 +3014,18 @@ func TestDoubleUpStacksWithoutMovingSiblings(t *testing.T) {
 		t.Fatalf("home returned %d", status)
 	}
 	mustContain(t, page, "Double up", "double-up action")
+	mustContain(t, page, `class="inline-form double-up-form"`, "double-up form class")
+	mustContain(t, page, `hx-post="/lessons/`+itoa64(lessons[0].ID)+`/double-up"`, "double-up htmx")
+	mustContain(t, page, `hx-target="#lesson-`+itoa64(lessons[0].ID)+`"`, "double-up stays on the lesson")
+	mustContain(t, page, `hx-swap="outerHTML show:none"`, "lesson actions keep scroll")
+	mustContain(t, page, `class="minutes-inline"`, "minutes field")
+	mustContain(t, page, `hx-include="closest .mark-done-row"`, "mark done includes minutes")
 	mustContain(t, page, ">Drop<", "drop action")
+	ops := strings.Index(page, `class="lesson-ops"`)
+	dup := strings.Index(page, `double-up-form`)
+	if ops < 0 || dup < 0 || dup < ops {
+		t.Error("double-up should live inside lesson-ops")
+	}
 	mustContain(t, page, "Print Today", "print today")
 	mustNotContain(t, page, ">Plan the week</a>", "today header")
 
@@ -3507,6 +3550,8 @@ func TestPushFromFilteredPlannerKeepsTheKid(t *testing.T) {
 		t.Fatalf("planner returned %d", status)
 	}
 	mustContain(t, body, `name="back" value="`+html.EscapeString(back)+`"`, "push back link")
+	mustContain(t, body, `name="view" value="planner"`, "push htmx stays on the week")
+	mustContain(t, body, `hx-target="closest .day"`, "push swaps the day")
 
 	req, err := http.NewRequest(http.MethodPost, ta.server.URL+"/lessons/"+itoa64(lessons[0].ID)+"/push",
 		strings.NewReader(url.Values{"back": {back}}.Encode()))
@@ -3547,6 +3592,44 @@ func TestPushFromFilteredPlannerKeepsTheKid(t *testing.T) {
 		!strings.Contains(body, `&kid=`+itoa64(kid)+`"`) {
 		t.Errorf("expected the kid=%d filter to remain on the page", kid)
 	}
+}
+
+func TestDoubleUpHTMXKeepsTheLessonRow(t *testing.T) {
+	ta := newTestApp(t)
+	_, _, lessons := ta.applyThreeMathLessons()
+	id := lessons[0].ID
+
+	status, fragment := ta.postHTMX("/lessons/"+itoa64(id)+"/double-up", url.Values{
+		"back":         {"/"},
+		"show_subject": {"true"},
+	})
+	if status != http.StatusOK {
+		t.Fatalf("double-up returned %d", status)
+	}
+	mustContain(t, fragment, `id="lesson-`+itoa64(id)+`"`, "same lesson card")
+	mustNotContain(t, fragment, "<!doctype html>", "full page")
+}
+
+func TestPushHTMXRedrawsTheWeekInPlace(t *testing.T) {
+	ta := newTestApp(t)
+	_, _, lessons := ta.applyThreeMathLessons()
+	from := lessons[0].ScheduledOn
+
+	status, fragment := ta.postHTMX("/lessons/"+itoa64(lessons[0].ID)+"/push", url.Values{
+		"view":       {"planner"},
+		"kid_filter": {"0"},
+		"back":       {"/planner"},
+	})
+	if status != http.StatusOK {
+		t.Fatalf("push returned %d", status)
+	}
+	mustNotContain(t, fragment, "<!doctype html>", "full page")
+	mustContain(t, fragment, `id="day-`+from+`"`, "source day")
+	head, _, ok := strings.Cut(fragment, `hx-swap-oob="true"`)
+	if !ok {
+		t.Fatal("expected out-of-band days after the source day")
+	}
+	mustContain(t, head, `id="day-`+from+`"`, "source day is the swap target")
 }
 
 // A parent who opens a lesson from the week is still planning her week, so the
