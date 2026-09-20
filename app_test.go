@@ -2234,6 +2234,8 @@ func TestHoursReportAndTranscript(t *testing.T) {
 	mustContain(t, body, "1h", "archive hours")
 	mustContain(t, body, "90%", "course grade on archive")
 	mustContain(t, body, "Year report", "transcript link")
+	mustContain(t, body, `class="chip"`, "archive names the child on each lesson")
+	mustContain(t, body, "Nora</span>", "archive names the child on each lesson")
 
 	code, body = ta.get("/kids/" + itoa64(kid) + "/transcript")
 	if code != 200 {

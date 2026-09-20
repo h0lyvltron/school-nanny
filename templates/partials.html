@@ -751,7 +751,10 @@
 {{define "test_row"}}
 <article class="test">
     <div>
-        <strong>{{.Test.Name}}</strong>
+        <div class="lesson-title-line">
+            {{if .ShowKid}}<span class="chip" style="background:{{color .Test.KidColor}}">{{.Test.KidName}}</span>{{end}}
+            <strong>{{.Test.Name}}</strong>
+        </div>
         <p class="muted small">
             {{.Test.SubjectName}} &middot; {{prettyDate .Test.GivenOn}}
             {{if .Test.ScoreLabel}} &middot; {{.Test.ScoreLabel}}{{end}}

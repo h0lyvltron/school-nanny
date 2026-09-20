@@ -92,11 +92,13 @@
     {{end}}
 
     <div class="two-col">
+        {{$back := printf "/archive?kid=%d&year=%d" .KidID .YearID}}
+        {{if .SubjectFilter}}{{$back = printf "%s&subject=%d" $back .SubjectFilter}}{{end}}
         <section class="panel">
             <h2>Lessons</h2>
             <div class="stack archive-lessons">
                 {{range .Lessons}}
-                    {{template "lesson_row" (dict "Lesson" . "ShowKid" false "ShowSubject" true "Back" "/archive")}}
+                    {{template "lesson_row" (dict "Lesson" . "ShowKid" true "ShowSubject" true "Back" $back)}}
                 {{else}}
                     <p class="muted small">Nothing recorded in this stretch.</p>
                 {{end}}
@@ -107,7 +109,7 @@
                 <h2>Tests</h2>
                 <div class="stack">
                     {{range .Tests}}
-                        {{template "test_row" (dict "Test" . "Back" "/archive")}}
+                        {{template "test_row" (dict "Test" . "ShowKid" true "Back" $back)}}
                     {{else}}
                         <p class="muted small">No tests this year.</p>
                     {{end}}
@@ -115,7 +117,7 @@
             </section>
             <section class="panel">
                 <h2>Notes</h2>
-                {{template "note_list" (dict "Notes" .Notes "ShowSubject" true "Back" "/archive")}}
+                {{template "note_list" (dict "Notes" .Notes "ShowSubject" true "Back" $back)}}
             </section>
         </div>
     </div>
