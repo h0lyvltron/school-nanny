@@ -296,22 +296,24 @@
         }
     }
 
-    function flipList(list) {
+    function placeList(list) {
         if (!list) {
             return;
         }
-        list.style.left = "0";
-        list.style.right = "auto";
+        list.classList.remove("is-placed");
+        list.style.left = "";
+        list.style.right = "";
         var box = list.getBoundingClientRect();
         if (box.right > window.innerWidth - 8) {
             list.style.left = "auto";
             list.style.right = "0";
+            box = list.getBoundingClientRect();
         }
-        box = list.getBoundingClientRect();
         if (box.left < 8) {
             list.style.left = "0";
             list.style.right = "auto";
         }
+        list.classList.add("is-placed");
     }
 
     document.addEventListener("click", function (event) {
@@ -335,10 +337,11 @@
         }
         list.style.left = "";
         list.style.right = "";
+        list.classList.remove("is-placed");
         if (!details.open) {
             return;
         }
-        flipList(list);
+        placeList(list);
     }, true);
 })();
 
@@ -350,6 +353,10 @@
         if (!box) {
             return;
         }
+        var menu = box.querySelector(".person-filter-menu");
+        if (menu && menu.open) {
+            return;
+        }
         box.classList.remove("is-compact");
         var chips = box.querySelector(".kid-filter");
         if (!chips) {
@@ -357,11 +364,8 @@
         }
         var overflow = chips.scrollWidth > chips.clientWidth + 1;
         box.classList.toggle("is-compact", overflow);
-        if (!overflow) {
-            var menu = box.querySelector(".person-filter-menu");
-            if (menu) {
-                menu.removeAttribute("open");
-            }
+        if (!overflow && menu) {
+            menu.removeAttribute("open");
         }
     }
 

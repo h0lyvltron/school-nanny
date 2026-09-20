@@ -87,6 +87,10 @@
         ghost.removeAttribute("id");
         ghost.classList.add("lesson-ghost");
         ghost.setAttribute("aria-hidden", "true");
+        var box = card.getBoundingClientRect();
+        if (box.width) {
+            ghost.style.width = Math.round(box.width) + "px";
+        }
         document.body.appendChild(ghost);
         placeGhost(x, y);
     }

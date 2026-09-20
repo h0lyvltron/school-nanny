@@ -424,6 +424,16 @@ h3 { font-size: 1rem; }
     display: none;
 }
 
+.app-nav .nav-people-adults .nav-people-list {
+    left: auto;
+    right: 0;
+}
+
+.app-nav .nav-people[open] .nav-people-list:not(.is-placed),
+.planner-filters .person-filter-menu[open] .person-filter-list:not(.is-placed) {
+    visibility: hidden;
+}
+
 .app-nav .nav-people-list {
     position: absolute;
     top: calc(100% + 0.4rem);
@@ -441,7 +451,7 @@ h3 { font-size: 1rem; }
     background: var(--card);
     border: 1px solid var(--line);
     border-radius: var(--pico-border-radius);
-    box-shadow: 0 0.6rem 1.4rem color-mix(in srgb, var(--ink) 16%, transparent);
+    box-shadow: 0 0.3rem 0.7rem color-mix(in srgb, var(--ink) 7%, transparent);
 }
 
 .app-nav .nav-people-list a.nav-kid {
@@ -1118,7 +1128,7 @@ button.pill[type="submit"] { width: auto; }
     background: var(--card);
     border: 1px solid var(--line);
     border-radius: var(--pico-border-radius);
-    box-shadow: 0 0.6rem 1.4rem color-mix(in srgb, var(--ink) 16%, transparent);
+    box-shadow: 0 0.3rem 0.7rem color-mix(in srgb, var(--ink) 7%, transparent);
 }
 
 .planner-filters .person-filter-list .filter-chip {
@@ -1353,18 +1363,31 @@ body.is-dragging-lesson .drop-kids { display: flex; }
 .day-copy-target * { pointer-events: none; }
 .lesson.is-dragging * { pointer-events: none; }
 
-/* Follows the finger on a tablet so the original card stays put until drop. */
+/* Follows the finger on a tablet so the original card stays put until drop.
+   Keep the same stacked layout as a day-cell card; otherwise the action
+   buttons sit beside the title and squeeze it into a one-letter column. */
 .lesson-ghost {
     position: fixed;
     left: 0;
     top: 0;
     z-index: 1000;
-    width: min(280px, 70vw);
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.5rem;
+    width: min(22rem, calc(100vw - 2rem));
+    min-width: min(16rem, calc(100vw - 2rem));
     margin: 0;
     opacity: 0.92;
     pointer-events: none;
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
     transform: translate(-9999px, -9999px);
+}
+
+.lesson-ghost .lesson-actions {
+    align-self: stretch;
+    max-width: 100%;
+    width: 100%;
 }
 
 /* Keep the disclosure arrow next to its label rather than out at the margin. */

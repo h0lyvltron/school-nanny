@@ -306,6 +306,7 @@ func TestSaveToastIsWiredUp(t *testing.T) {
 	mustContain(t, script, "nav-people", "header people fly-outs")
 	mustContain(t, script, "data-person-filter", "person filter compact")
 	mustContain(t, script, "person-filter-menu", "person filter compact")
+	mustContain(t, script, "is-placed", "fly-outs wait to align")
 
 	_, css := ta.get("/static/app.css")
 	mustContain(t, css, ".save-toast", "toast styles")
@@ -641,6 +642,11 @@ func TestPlannerMarkupIsDraggable(t *testing.T) {
 	mustContain(t, js, "planner-week", "in-place week swap")
 	mustContain(t, js, "page-board-scroll", "week scrolls the board, not the window")
 	mustContain(t, js, "requestAnimationFrame", "week waits to paint before scrolling")
+	mustContain(t, js, "lesson-ghost", "drag ghost")
+
+	_, css := ta.get("/static/app.css")
+	mustContain(t, css, ".lesson-ghost", "drag ghost")
+	mustContain(t, css, ".lesson-ghost .lesson-actions", "drag ghost keeps actions under the title")
 }
 
 // The parent sits in the week filter next to the children, and picking her
