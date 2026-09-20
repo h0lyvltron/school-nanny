@@ -497,6 +497,9 @@ func (a *App) pageData(r *http.Request, active string) (map[string]any, error) {
 			}
 		}
 	}
+	navKids, _ := data["NavKids"].([]Kid)
+	navAdults, _ := data["NavAdults"].([]Adult)
+	data["NavPeopleMenu"] = len(navKids)+len(navAdults) > 3
 	if pos, err := a.store.HistoryPosition(); err == nil {
 		data["History"] = pos
 	}

@@ -318,6 +318,39 @@
             </div>
             {{if not .Lesson.IsSkipped}}
             <div class="lesson-ops">
+                {{if and .Lesson.HasAssignment (not (isAhead .Lesson))}}
+                <span class="lesson-ops-pair">
+                    <form method="post" action="/lessons/{{.Lesson.ID}}/double-up" class="inline-form double-up-form"
+                          hx-post="/lessons/{{.Lesson.ID}}/double-up" hx-target="{{$target}}" hx-swap="outerHTML show:none"
+                          hx-confirm="Double up: move this lesson onto the next school day (other lessons stay put)?">
+                        {{template "lesson_move_fields" .}}
+                        <button class="pill ghost" type="submit"
+                                title="Pile this onto the next school day without moving other lessons">Double up</button>
+                    </form>
+                    <form method="post" action="/lessons/{{.Lesson.ID}}/shift" class="inline-form"
+                          hx-post="/lessons/{{.Lesson.ID}}/shift" hx-target="{{$target}}" hx-swap="outerHTML show:none"
+                          hx-confirm="Shift forward: move this lesson and every later planned lesson in this plan one school day later?">
+                        {{template "lesson_move_fields" .}}
+                        <input type="hidden" name="scope" value="later">
+                        <button class="pill ghost" type="submit"
+                                title="Shift this and later planned lessons one school day forward">Shift</button>
+                    </form>
+                </span>
+                <span class="lesson-ops-pair">
+                    <form method="post" action="/lessons/{{.Lesson.ID}}/push" class="inline-form"
+                          hx-post="/lessons/{{.Lesson.ID}}/push" hx-target="{{$target}}" hx-swap="outerHTML show:none"
+                          hx-confirm="Move this lesson and every later planned lesson in this plan to the next school days?">
+                        {{template "lesson_move_fields" .}}
+                        <button class="pill ghost" type="submit"
+                                title="Move this lesson and every later planned lesson to the next available school days.">Push</button>
+                    </form>
+                    <button class="pill ghost"
+                            hx-post="/lessons/{{.Lesson.ID}}/status"
+                            hx-vals='{"status":"skipped","show_kid":"{{.ShowKid}}","show_subject":"{{.ShowSubject}}","back":"{{.Back}}"}'
+                            hx-target="#lesson-{{.Lesson.ID}}" hx-swap="outerHTML show:none"
+                            title="Drop without moving other lessons">Drop</button>
+                </span>
+                {{else}}
                 <form method="post" action="/lessons/{{.Lesson.ID}}/double-up" class="inline-form double-up-form"
                       hx-post="/lessons/{{.Lesson.ID}}/double-up" hx-target="{{$target}}" hx-swap="outerHTML show:none"
                       hx-confirm="Double up: move this lesson onto the next school day (other lessons stay put)?">
@@ -326,6 +359,7 @@
                             title="Pile this onto the next school day without moving other lessons">Double up</button>
                 </form>
                 {{if .Lesson.HasAssignment}}
+                <span class="lesson-ops-pair">
                     <form method="post" action="/lessons/{{.Lesson.ID}}/shift" class="inline-form"
                           hx-post="/lessons/{{.Lesson.ID}}/shift" hx-target="{{$target}}" hx-swap="outerHTML show:none"
                           hx-confirm="Shift forward: move this lesson and every later planned lesson in this plan one school day later?">
@@ -341,16 +375,23 @@
                         <button class="pill ghost" type="submit"
                                 title="Move this lesson and every later planned lesson to the next available school days.">Push</button>
                     </form>
-                    {{if isAhead .Lesson}}
-                        <form method="post" action="/lessons/{{.Lesson.ID}}/pull" class="inline-form"
-                              hx-post="/lessons/{{.Lesson.ID}}/pull" hx-target="{{$target}}" hx-swap="outerHTML show:none"
-                              hx-confirm="Move this lesson and every later planned lesson in this plan onto today and the school days after it?">
-                            {{template "lesson_move_fields" .}}
-                            <button class="pill ghost" type="submit"
-                                    title="Move this future lesson onto today and pull every later planned lesson forward behind it.">Pull</button>
-                        </form>
-                    {{end}}
+                </span>
+                <span class="lesson-ops-pair">
+                    <form method="post" action="/lessons/{{.Lesson.ID}}/pull" class="inline-form"
+                          hx-post="/lessons/{{.Lesson.ID}}/pull" hx-target="{{$target}}" hx-swap="outerHTML show:none"
+                          hx-confirm="Move this lesson and every later planned lesson in this plan onto today and the school days after it?">
+                        {{template "lesson_move_fields" .}}
+                        <button class="pill ghost" type="submit"
+                                title="Move this future lesson onto today and pull every later planned lesson forward behind it.">Pull</button>
+                    </form>
+                    <button class="pill ghost"
+                            hx-post="/lessons/{{.Lesson.ID}}/status"
+                            hx-vals='{"status":"skipped","show_kid":"{{.ShowKid}}","show_subject":"{{.ShowSubject}}","back":"{{.Back}}"}'
+                            hx-target="#lesson-{{.Lesson.ID}}" hx-swap="outerHTML show:none"
+                            title="Drop without moving other lessons">Drop</button>
+                </span>
                 {{else}}
+                <span class="lesson-ops-pair">
                     <form method="post" action="/lessons/{{.Lesson.ID}}/shift" class="inline-form"
                           hx-post="/lessons/{{.Lesson.ID}}/shift" hx-target="{{$target}}" hx-swap="outerHTML show:none"
                           hx-confirm="Shift this lesson one school day later?">
@@ -358,17 +399,73 @@
                         <input type="hidden" name="scope" value="this">
                         <button class="pill ghost" type="submit">Shift</button>
                     </form>
+                    <button class="pill ghost"
+                            hx-post="/lessons/{{.Lesson.ID}}/status"
+                            hx-vals='{"status":"skipped","show_kid":"{{.ShowKid}}","show_subject":"{{.ShowSubject}}","back":"{{.Back}}"}'
+                            hx-target="#lesson-{{.Lesson.ID}}" hx-swap="outerHTML show:none"
+                            title="Drop without moving other lessons">Drop</button>
+                </span>
                 {{end}}
-                <button class="pill ghost"
-                        hx-post="/lessons/{{.Lesson.ID}}/status"
-                        hx-vals='{"status":"skipped","show_kid":"{{.ShowKid}}","show_subject":"{{.ShowSubject}}","back":"{{.Back}}"}'
-                        hx-target="#lesson-{{.Lesson.ID}}" hx-swap="outerHTML show:none"
-                        title="Drop without moving other lessons">Drop</button>
+                {{end}}
             </div>
             {{end}}
         {{end}}
     </div>
 </article>
+{{end}}
+
+
+{{define "person_filter"}}
+{{$planner := eq .Active "planner"}}
+{{$week := .WeekStart}}
+{{$kidFilter := .KidFilter}}
+{{$adultFilter := .AdultFilter}}
+{{$allURL := "/"}}
+{{if $planner}}{{$allURL = printf "/planner?week=%s" $week}}{{end}}
+<div class="planner-filters" data-person-filter>
+    <details class="person-filter-menu{{if or $kidFilter $adultFilter}} has-current{{end}}">
+        <summary>
+            {{if and (not $kidFilter) (not $adultFilter)}}All kids{{end}}
+            {{range .NavKids}}{{if eq $kidFilter .ID}}{{template "avatar" (dict "Person" . "Size" "chip")}}{{.Name}}{{end}}{{end}}
+            {{range .NavAdults}}{{if eq $adultFilter .ID}}{{template "avatar" (dict "Person" . "Size" "chip")}}{{.Name}}{{end}}{{end}}
+        </summary>
+        <div class="person-filter-list">
+            <a href="{{$allURL}}" class="filter-chip{{if and (not $kidFilter) (not $adultFilter)}} current{{end}}">All kids</a>
+            {{range .NavKids}}
+                <a href="{{if $planner}}{{plannerFilterURL $week .ID 0}}{{else}}{{todayFilterURL .ID 0}}{{end}}"
+                   class="filter-chip{{if eq $kidFilter .ID}} current{{end}}">
+                    {{template "avatar" (dict "Person" . "Size" "chip")}}{{.Name}}
+                </a>
+            {{end}}
+            {{range .NavAdults}}
+                <a href="{{if $planner}}{{plannerFilterURL $week 0 .ID}}{{else}}{{todayFilterURL 0 .ID}}{{end}}"
+                   class="filter-chip{{if eq $adultFilter .ID}} current{{end}}">
+                    {{template "avatar" (dict "Person" . "Size" "chip")}}{{.Name}}
+                </a>
+            {{end}}
+        </div>
+    </details>
+    <div class="kid-filter">
+        <a href="{{$allURL}}" class="filter-chip{{if and (not $kidFilter) (not $adultFilter)}} current{{end}}">All kids</a>
+        {{range .NavKids}}
+            <a href="{{if $planner}}{{plannerFilterURL $week .ID 0}}{{else}}{{todayFilterURL .ID 0}}{{end}}"
+               class="filter-chip{{if eq $kidFilter .ID}} current{{end}}">
+                {{template "avatar" (dict "Person" . "Size" "chip")}}{{.Name}}
+            </a>
+        {{end}}
+        {{range .NavAdults}}
+            <a href="{{if $planner}}{{plannerFilterURL $week 0 .ID}}{{else}}{{todayFilterURL 0 .ID}}{{end}}"
+               class="filter-chip{{if eq $adultFilter .ID}} current{{end}}">
+                {{template "avatar" (dict "Person" . "Size" "chip")}}{{.Name}}
+            </a>
+        {{end}}
+    </div>
+    <label class="slide-toggle" title="Show calendar events on each day">
+        <input type="checkbox" data-events-toggle checked role="switch" aria-checked="true">
+        <span class="slide-toggle-track" aria-hidden="true"></span>
+        Events
+    </label>
+</div>
 {{end}}
 
 
@@ -724,16 +821,34 @@
             <a role="button" class="secondary" href="/attendance{{if .KidFilter}}?kid={{.KidFilter}}{{end}}">This month</a>
             <a role="button" class="secondary" href="/attendance?month={{.NextMonth}}{{if .KidFilter}}&kid={{.KidFilter}}{{end}}">Next &rarr;</a>
         </div>
-        <div class="kid-filter">
-            <a href="/attendance?month={{.Month}}" class="filter-chip{{if not .KidFilter}} current{{end}}">All kids</a>
-            {{$month := .Month}}
-            {{$filter := .KidFilter}}
-            {{range .NavKids}}
-                <a href="/attendance?month={{$month}}&kid={{.ID}}"
-                   class="filter-chip{{if eq $filter .ID}} current{{end}}">
-                    {{template "avatar" (dict "Person" . "Size" "chip")}}{{.Name}}
-                </a>
-            {{end}}
+        {{$month := .Month}}
+        {{$filter := .KidFilter}}
+        {{$allURL := printf "/attendance?month=%s" $month}}
+        <div class="planner-filters" data-person-filter>
+            <details class="person-filter-menu{{if $filter}} has-current{{end}}">
+                <summary>
+                    {{if not $filter}}All kids{{end}}
+                    {{range .NavKids}}{{if eq $filter .ID}}{{template "avatar" (dict "Person" . "Size" "chip")}}{{.Name}}{{end}}{{end}}
+                </summary>
+                <div class="person-filter-list">
+                    <a href="{{$allURL}}" class="filter-chip{{if not $filter}} current{{end}}">All kids</a>
+                    {{range .NavKids}}
+                        <a href="/attendance?month={{$month}}&kid={{.ID}}"
+                           class="filter-chip{{if eq $filter .ID}} current{{end}}">
+                            {{template "avatar" (dict "Person" . "Size" "chip")}}{{.Name}}
+                        </a>
+                    {{end}}
+                </div>
+            </details>
+            <div class="kid-filter">
+                <a href="{{$allURL}}" class="filter-chip{{if not $filter}} current{{end}}">All kids</a>
+                {{range .NavKids}}
+                    <a href="/attendance?month={{$month}}&kid={{.ID}}"
+                       class="filter-chip{{if eq $filter .ID}} current{{end}}">
+                        {{template "avatar" (dict "Person" . "Size" "chip")}}{{.Name}}
+                    </a>
+                {{end}}
+            </div>
         </div>
     </div>
 

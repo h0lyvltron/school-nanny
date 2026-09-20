@@ -12,17 +12,9 @@
         <a href="/settings/people" role="button">Open Settings</a>
     </section>
 {{else}}
-    {{if .ShowSetup}}
-    <section class="setup-banner panel">
-        <h2>Finish getting set up</h2>
-        <ol class="setup-checklist">
-            <li class="{{if .Setup.HasYear}}done{{end}}">{{if .Setup.HasYear}}School year is set{{else}}<a href="/settings/school#years">Set the school year dates</a>{{end}}</li>
-            <li class="{{if .Setup.HasKids}}done{{end}}">{{if .Setup.HasKids}}Kids are ready{{else}}<a href="/settings/people">Add the kids</a>{{end}}</li>
-            <li class="{{if .Setup.HasSubjects}}done{{end}}">{{if .Setup.HasSubjects}}Subjects are ready{{else}}<a href="/settings/school#subjects">Choose subjects</a>{{end}}</li>
-            <li class="optional {{if .Setup.HasCurriculum}}done{{end}}">{{if .Setup.HasCurriculum}}Curriculum plan ready{{else}}<a href="/curriculum">Optional: paste a TOC or import a plan</a>{{end}}</li>
-        </ol>
-    </section>
-    {{end}}
+    {{$back := todayFilterURL .KidFilter .AdultFilter}}
+    <div class="page-board">
+    <div class="page-subhead">
     <div class="page-head">
         <div>
             <h1>Today</h1>
@@ -34,6 +26,23 @@
             <button type="button" class="secondary" onclick="window.print()">Print Today</button>
         </div>
     </div>
+    <div class="planner-controls">
+        {{template "person_filter" .}}
+    </div>
+    </div>
+
+    <div class="page-board-scroll" data-week-events>
+    {{if .ShowSetup}}
+    <section class="setup-banner panel">
+        <h2>Finish getting set up</h2>
+        <ol class="setup-checklist">
+            <li class="{{if .Setup.HasYear}}done{{end}}">{{if .Setup.HasYear}}School year is set{{else}}<a href="/settings/school#years">Set the school year dates</a>{{end}}</li>
+            <li class="{{if .Setup.HasKids}}done{{end}}">{{if .Setup.HasKids}}Kids are ready{{else}}<a href="/settings/people">Add the kids</a>{{end}}</li>
+            <li class="{{if .Setup.HasSubjects}}done{{end}}">{{if .Setup.HasSubjects}}Subjects are ready{{else}}<a href="/settings/school#subjects">Choose subjects</a>{{end}}</li>
+            <li class="optional {{if .Setup.HasCurriculum}}done{{end}}">{{if .Setup.HasCurriculum}}Curriculum plan ready{{else}}<a href="/curriculum">Optional: paste a TOC or import a plan</a>{{end}}</li>
+        </ol>
+    </section>
+    {{end}}
 
     {{if .TodayEvents}}
     <section class="day-glance panel">
@@ -55,6 +64,11 @@
     </section>
     {{end}}
 
+    {{if .AdultFilter}}
+        {{if and .FilterAdult .FilterDay}}
+            {{template "planner_day" (dict "Day" .FilterDay "Kids" .NavKids "Subjects" .Subjects "KidFilter" .KidFilter "AdultFilter" .AdultFilter "Adult" .FilterAdult "Today" .Today "Back" $back)}}
+        {{end}}
+    {{else}}
     <div class="kid-grid">
         {{$today := .Today}}
         {{$subjects := .Subjects}}
@@ -76,7 +90,7 @@
 
                 <div class="today-lessons">
                     {{range .Lessons}}
-                        {{template "lesson_row" (dict "Lesson" . "ShowKid" false "ShowSubject" true "Back" "/")}}
+                        {{template "lesson_row" (dict "Lesson" . "ShowKid" false "ShowSubject" true "Back" $back)}}
                     {{else}}
                         <p class="muted small">Nothing scheduled today.</p>
                     {{end}}
@@ -88,7 +102,7 @@
                         <input type="hidden" name="kid_id" value="{{.Kid.ID}}">
                         <input type="hidden" name="scheduled_on" value="{{$today}}">
                         <input type="hidden" name="status" value="done">
-                        <input type="hidden" name="back" value="/">
+                        <input type="hidden" name="back" value="{{$back}}">
                         <select name="subject_id" required aria-label="Subject">
                             {{range $subjects}}<option value="{{.ID}}">{{.Name}}</option>{{end}}
                         </select>
@@ -102,16 +116,19 @@
             </section>
         {{end}}
     </div>
+    {{end}}
 
     {{if .Overdue}}
         <section class="panel">
             <h2>Still open from earlier days</h2>
             <div class="stack">
                 {{range .Overdue}}
-                    {{template "lesson_row" (dict "Lesson" . "ShowKid" true "ShowSubject" true "Back" "/")}}
+                    {{template "lesson_row" (dict "Lesson" . "ShowKid" true "ShowSubject" true "Back" $back)}}
                 {{end}}
             </div>
         </section>
     {{end}}
+    </div>
+    </div>
 {{end}}
 {{end}}

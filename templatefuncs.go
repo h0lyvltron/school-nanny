@@ -35,6 +35,7 @@ func templateFuncs(today string) template.FuncMap {
 		"color":            safeColor,
 		"plannerURL":       plannerURL,
 		"plannerFilterURL": plannerFilterURL,
+		"todayFilterURL":   todayFilterURL,
 		"adultPlannerURL":  adultPlannerURL,
 	}
 }
@@ -127,6 +128,18 @@ func plannerFilterURL(week string, kidID, adultID int64) string {
 		url += "&kid=" + strconv.FormatInt(kidID, 10)
 	}
 	return url
+}
+
+// todayFilterURL is Today with either a child or an adult filter selected —
+// never both, matching the week planner's one-person rule.
+func todayFilterURL(kidID, adultID int64) string {
+	if adultID > 0 {
+		return "/?adult=" + strconv.FormatInt(adultID, 10)
+	}
+	if kidID > 0 {
+		return "/?kid=" + strconv.FormatInt(kidID, 10)
+	}
+	return "/"
 }
 
 // adultPlannerURL is Full schedule: the week with that grown-up selected and

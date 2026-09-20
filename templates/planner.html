@@ -1,5 +1,6 @@
 {{define "content"}}
-<div id="planner-week">
+<div id="planner-week" class="page-board">
+<div class="page-subhead">
 <div class="page-head">
     <div>
         <h1>Week planner</h1>
@@ -31,38 +32,16 @@
            hx-target="#planner-week" hx-select="#planner-week"
            hx-swap="outerHTML" hx-push-url="true">Next &rarr;</a>
     </div>
-    <div class="planner-filters">
-        <div class="kid-filter">
-            <a href="/planner?week={{.WeekStart}}" class="filter-chip{{if and (not .KidFilter) (not .AdultFilter)}} current{{end}}">All kids</a>
-            {{$week := .WeekStart}}
-            {{$kidFilter := .KidFilter}}
-            {{$adultFilter := .AdultFilter}}
-            {{range .NavKids}}
-                <a href="{{plannerFilterURL $week .ID 0}}"
-                   class="filter-chip{{if eq $kidFilter .ID}} current{{end}}">
-                    {{template "avatar" (dict "Person" . "Size" "chip")}}{{.Name}}
-                </a>
-            {{end}}
-            {{range .NavAdults}}
-                <a href="{{plannerFilterURL $week 0 .ID}}"
-                   class="filter-chip{{if eq $adultFilter .ID}} current{{end}}">
-                    {{template "avatar" (dict "Person" . "Size" "chip")}}{{.Name}}
-                </a>
-            {{end}}
-        </div>
-        <label class="slide-toggle" title="Show calendar events on each day">
-            <input type="checkbox" data-events-toggle checked role="switch" aria-checked="true">
-            <span class="slide-toggle-track" aria-hidden="true"></span>
-            Events
-        </label>
-    </div>
+    {{template "person_filter" .}}
+</div>
 </div>
 
+<div class="page-board-scroll" data-week-events>
 {{if and (not .NavKids) (not .AdultFilter)}}
     <p class="muted">Add the kids in <a href="/settings/people">Settings</a> before planning a week.</p>
 {{end}}
 
-<div class="week-grid" data-week-events>
+<div class="week-grid">
     {{$kids := .NavKids}}
     {{$subjects := .Subjects}}
     {{$kidFilter := .KidFilter}}
@@ -73,6 +52,7 @@
     {{range .Days}}
         {{template "planner_day" (dict "Day" . "Kids" $kids "Subjects" $subjects "KidFilter" $kidFilter "AdultFilter" $adultFilter "Adult" $adult "Today" $today "Back" $back)}}
     {{end}}
+</div>
 </div>
 </div>
 

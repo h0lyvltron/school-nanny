@@ -273,6 +273,143 @@
     });
 })();
 
+// Kids and Adults fly-outs in the header, and the compact person filter on
+// Today/Week, close when she clicks away or hits Escape.
+(function () {
+    "use strict";
+
+    function flyOutRoot(node) {
+        if (!node || !node.closest) {
+            return null;
+        }
+        return node.closest(".app-nav details.nav-people, details.person-filter-menu");
+    }
+
+    function closeFlyOuts(except) {
+        var open = document.querySelectorAll(
+            ".app-nav details.nav-people[open], details.person-filter-menu[open]"
+        );
+        for (var i = 0; i < open.length; i++) {
+            if (open[i] !== except) {
+                open[i].removeAttribute("open");
+            }
+        }
+    }
+
+    function flipList(list) {
+        if (!list) {
+            return;
+        }
+        list.style.left = "0";
+        list.style.right = "auto";
+        var box = list.getBoundingClientRect();
+        if (box.right > window.innerWidth - 8) {
+            list.style.left = "auto";
+            list.style.right = "0";
+        }
+        box = list.getBoundingClientRect();
+        if (box.left < 8) {
+            list.style.left = "0";
+            list.style.right = "auto";
+        }
+    }
+
+    document.addEventListener("click", function (event) {
+        closeFlyOuts(flyOutRoot(event.target));
+    });
+
+    document.addEventListener("keydown", function (event) {
+        if (event.key === "Escape") {
+            closeFlyOuts(null);
+        }
+    });
+
+    document.addEventListener("toggle", function (event) {
+        var details = event.target;
+        if (!details || !details.classList) {
+            return;
+        }
+        var list = details.querySelector(".nav-people-list, .person-filter-list");
+        if (!list) {
+            return;
+        }
+        list.style.left = "";
+        list.style.right = "";
+        if (!details.open) {
+            return;
+        }
+        flipList(list);
+    }, true);
+})();
+
+// Person chips on Today/Week/Attendance collapse to a fly-out when they would wrap.
+(function () {
+    "use strict";
+
+    function layoutOne(box) {
+        if (!box) {
+            return;
+        }
+        box.classList.remove("is-compact");
+        var chips = box.querySelector(".kid-filter");
+        if (!chips) {
+            return;
+        }
+        var overflow = chips.scrollWidth > chips.clientWidth + 1;
+        box.classList.toggle("is-compact", overflow);
+        if (!overflow) {
+            var menu = box.querySelector(".person-filter-menu");
+            if (menu) {
+                menu.removeAttribute("open");
+            }
+        }
+    }
+
+    function eachBox(root, fn) {
+        if (root && root.matches && root.matches("[data-person-filter]")) {
+            fn(root);
+        }
+        var found = root && root.querySelectorAll ?
+            root.querySelectorAll("[data-person-filter]") : [];
+        for (var i = 0; i < found.length; i++) {
+            fn(found[i]);
+        }
+    }
+
+    var watching = typeof WeakSet === "function" ? new WeakSet() : null;
+    var observer = typeof ResizeObserver === "function" ? new ResizeObserver(function (entries) {
+        for (var i = 0; i < entries.length; i++) {
+            layoutOne(entries[i].target);
+        }
+    }) : null;
+
+    function watch(root) {
+        eachBox(root || document, function (box) {
+            if (observer && (!watching || !watching.has(box))) {
+                if (watching) {
+                    watching.add(box);
+                }
+                observer.observe(box);
+            }
+            layoutOne(box);
+        });
+    }
+
+    if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", function () {
+            watch(document);
+        });
+    } else {
+        watch(document);
+    }
+    document.addEventListener("htmx:afterSwap", function (event) {
+        watch(event.target);
+    });
+    window.addEventListener("resize", function () {
+        eachBox(document, layoutOne);
+    });
+})();
+
 // After Double up / Shift / Push / Pull / Drop, keep keyboard focus on the
 // lesson that was just acted on (or the day it left) instead of dumping it
 // onto the document body.

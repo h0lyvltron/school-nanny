@@ -380,6 +380,84 @@ h3 { font-size: 1rem; }
 .app-nav a:hover { color: var(--accent); }
 .app-nav a.current { border-bottom-color: var(--accent); color: var(--accent); }
 
+/* More than three people in the bar: Kids and Adults become fly-outs so
+   Today/Week/Settings still fit on a short row. */
+.app-nav details.nav-people {
+    margin: 0;
+    padding: 0;
+    border: none;
+    background: none;
+    position: relative;
+}
+
+.app-nav .nav-people > summary {
+    list-style: none;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    color: var(--ink);
+    padding: 0.25rem 0;
+    border-bottom: 2px solid transparent;
+    user-select: none;
+}
+
+.app-nav .nav-people > summary::-webkit-details-marker { display: none; }
+
+.app-nav .nav-people > summary::after {
+    content: "";
+    width: 0.35rem;
+    height: 0.35rem;
+    border-right: 1.5px solid currentColor;
+    border-bottom: 1.5px solid currentColor;
+    transform: rotate(45deg) translateY(-0.1rem);
+    opacity: 0.7;
+}
+
+.app-nav .nav-people > summary:hover,
+.app-nav .nav-people.has-current > summary,
+.app-nav .nav-people[open] > summary {
+    color: var(--accent);
+}
+
+.app-nav .nav-people:not([open]) .nav-people-list {
+    display: none;
+}
+
+.app-nav .nav-people-list {
+    position: absolute;
+    top: calc(100% + 0.4rem);
+    left: 0;
+    right: auto;
+    z-index: 20;
+    min-width: 10.5rem;
+    max-width: min(16rem, calc(100vw - 2rem));
+    max-height: min(70vh, 24rem);
+    overflow: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+    padding: 0.35rem;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--pico-border-radius);
+    box-shadow: 0 0.6rem 1.4rem color-mix(in srgb, var(--ink) 16%, transparent);
+}
+
+.app-nav .nav-people-list a.nav-kid {
+    border-bottom: none;
+    padding: 0.4rem 0.55rem;
+    border-radius: 0.4rem;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.app-nav .nav-people-list a.nav-kid:hover,
+.app-nav .nav-people-list a.nav-kid.current {
+    background: var(--accent-soft);
+    color: var(--accent);
+}
+
 /* Page-tab looks apply to Today/Week/Settings and the other section links,
    not the kid/adult chips, so the bar keeps its usual wrap. Extra padding
    lands on the current page only. */
@@ -520,6 +598,53 @@ img.avatar-nav { width: 1.4rem; height: 1.4rem; }
     padding: 1.5rem 1rem 4rem;
 }
 
+/* Today and Week fill the viewport under the app bar; only the board scrolls. */
+html[data-lock-page],
+html[data-lock-page] body {
+    height: 100%;
+    height: 100dvh;
+    overflow: hidden;
+}
+html[data-lock-page] body {
+    display: flex;
+    flex-direction: column;
+}
+html[data-lock-page] .app-bar {
+    flex: none;
+    position: static;
+}
+html[data-lock-page] .page {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    padding-bottom: 0;
+}
+.page-board {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+.page-subhead {
+    flex: none;
+    background: var(--paper);
+    z-index: 5;
+}
+.page-subhead .page-head {
+    margin-bottom: 0.85rem;
+}
+.page-subhead .planner-controls {
+    margin-bottom: 0.75rem;
+}
+.page-board-scroll {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: auto;
+    padding-bottom: 4rem;
+}
+
 /* Page headings ------------------------------------------------------- */
 
 .page-head {
@@ -553,10 +678,24 @@ img.avatar-nav { width: 1.4rem; height: 1.4rem; }
     margin-bottom: 1.25rem;
 }
 
-.page-head .week-summary { margin-bottom: 0; }
+.page-head .week-summary {
+    margin-bottom: 0;
+    align-items: center;
+}
 
 .week-summary strong { color: var(--ink); font-size: 1.1rem; }
 .week-summary [role="button"] { margin: 0; padding: 0.4rem 0.9rem; font-size: 0.85rem; }
+
+.page-head .week-summary button.secondary {
+    margin: 0;
+    width: auto;
+    min-height: 0;
+    height: auto;
+    padding: 0.12rem 0.55rem;
+    font-size: 0.9rem;
+    font-weight: 500;
+    line-height: 1.2;
+}
 
 /* Cards and panels ---------------------------------------------------- */
 
@@ -832,6 +971,16 @@ a.today-event:hover {
     width: 100%;
 }
 
+/* Ghost pills wrap as pairs so Drop (or Shift) never sits on a line alone. */
+.lesson-ops-pair {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
+    max-width: 100%;
+}
+
 .lesson-actions > .pill.done {
     align-self: flex-end;
 }
@@ -875,6 +1024,7 @@ button.pill[type="submit"] { width: auto; }
 .planner-controls {
     display: flex;
     justify-content: space-between;
+    align-items: center;
     gap: 1rem;
     flex-wrap: wrap;
     margin-bottom: 1.25rem;
@@ -884,10 +1034,107 @@ button.pill[type="submit"] { width: auto; }
     display: flex;
     align-items: center;
     gap: 0.85rem;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
+    min-width: 0;
+    flex: 1 1 auto;
 }
 
-.week-nav { display: flex; gap: 0.4rem; }
+.planner-filters .kid-filter {
+    flex-wrap: nowrap;
+    overflow: hidden;
+    min-width: 0;
+    flex: 1 1 auto;
+}
+
+.planner-filters .kid-filter > * { flex: none; }
+
+.planner-filters .slide-toggle { flex: none; }
+
+.planner-filters .person-filter-menu {
+    display: none;
+    position: relative;
+    margin: 0;
+    padding: 0;
+    border: none;
+    background: none;
+    flex: none;
+}
+
+.planner-filters.is-compact .person-filter-menu { display: block; }
+.planner-filters.is-compact .kid-filter { display: none; }
+
+.planner-filters .person-filter-menu > summary {
+    list-style: none;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.3rem 0.8rem;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: var(--card);
+    font-size: 0.85rem;
+    color: var(--ink);
+    user-select: none;
+}
+
+.planner-filters .person-filter-menu > summary::-webkit-details-marker { display: none; }
+
+.planner-filters .person-filter-menu > summary::after {
+    content: "";
+    width: 0.35rem;
+    height: 0.35rem;
+    border-right: 1.5px solid currentColor;
+    border-bottom: 1.5px solid currentColor;
+    transform: rotate(45deg) translateY(-0.1rem);
+    opacity: 0.7;
+    margin-left: 0.15rem;
+}
+
+.planner-filters .person-filter-menu.has-current > summary,
+.planner-filters .person-filter-menu[open] > summary {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+.planner-filters .person-filter-menu:not([open]) .person-filter-list {
+    display: none;
+}
+
+.planner-filters .person-filter-list {
+    position: absolute;
+    top: calc(100% + 0.4rem);
+    left: 0;
+    right: auto;
+    z-index: 20;
+    min-width: 10.5rem;
+    max-width: min(16rem, calc(100vw - 2rem));
+    max-height: min(70vh, 24rem);
+    overflow: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+    padding: 0.35rem;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--pico-border-radius);
+    box-shadow: 0 0.6rem 1.4rem color-mix(in srgb, var(--ink) 16%, transparent);
+}
+
+.planner-filters .person-filter-list .filter-chip {
+    width: 100%;
+    box-sizing: border-box;
+    border-radius: 0.4rem;
+    border-color: transparent;
+    background: transparent;
+}
+
+.planner-filters .person-filter-list .filter-chip:hover,
+.planner-filters .person-filter-list .filter-chip.current {
+    background: var(--accent-soft);
+}
+
+.week-nav { display: flex; gap: 0.4rem; flex: none; }
 .week-nav [role="button"] { margin: 0; padding: 0.35rem 0.8rem; font-size: 0.85rem; }
 .week-nav [role="button"].is-week-shift {
     border-color: var(--accent);
@@ -970,7 +1217,6 @@ button.pill[type="submit"] { width: auto; }
     display: flex;
     flex-direction: column;
     gap: 0.75rem;
-    scroll-margin-top: 5.5rem;
 }
 
 .day {
@@ -987,7 +1233,6 @@ button.pill[type="submit"] { width: auto; }
 .day.is-today {
     border-color: var(--accent);
     box-shadow: 0 0 0 2px var(--accent-soft);
-    scroll-margin-top: 5.5rem;
 }
 .day.is-today:focus { outline: none; }
 
@@ -1009,7 +1254,8 @@ button.pill[type="submit"] { width: auto; }
     flex-wrap: wrap;
     gap: 0.3rem;
 }
-.week-grid.hide-day-events .day-events { display: none; }
+.hide-day-events .day-events,
+.hide-day-events .day-glance { display: none; }
 
 .day-lessons {
     display: grid;
@@ -1586,6 +1832,7 @@ body.is-dragging-lesson .drop-kids { display: flex; }
 @media (max-width: 640px) {
     h1 { font-size: 1.55rem; }
     .page { padding: 1rem 0.75rem 3rem; }
+    html[data-lock-page] .page { padding-bottom: 0; }
     .lesson { flex-direction: column; }
     .lesson-actions { width: 100%; }
     .pill { flex: 1; min-height: 2.4rem; }
@@ -1963,6 +2210,18 @@ a.plan-row:hover .muted { color: var(--ink-soft); }
         max-width: none;
         margin: 0;
         padding: 0;
+    }
+
+    html[data-lock-page],
+    html[data-lock-page] body,
+    html[data-lock-page] .page,
+    .page-board,
+    .page-board-scroll {
+        height: auto !important;
+        min-height: 0 !important;
+        overflow: visible !important;
+        display: block !important;
+        flex: none !important;
     }
 
     .page-head {

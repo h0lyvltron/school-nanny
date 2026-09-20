@@ -29,67 +29,12 @@ func (a *App) handleHome(w http.ResponseWriter, r *http.Request) {
 	now := requestToday(r)
 	start := requestWeekStart(r, requestNow(r)).Format(dateLayout)
 	end := addDays(start, 6)
-
-	weekLessons, err := a.store.LessonsBetween(start, end, 0)
-	if err != nil {
-		a.serverError(w, err)
-		return
-	}
-
-	byKidToday := map[int64][]Lesson{}
-	for _, l := range weekLessons {
-		if l.ScheduledOn == now {
-			byKidToday[l.KidID] = append(byKidToday[l.KidID], l)
-		}
-	}
-
-	todayAtt, err := a.store.AttendanceOnDate(now)
-	if err != nil {
-		a.serverError(w, err)
-		return
-	}
-
-	cards := make([]KidToday, 0, len(kids))
-	for _, kid := range kids {
-		progress, err := a.store.ProgressBetween(start, end, kid.ID, 0)
-		if err != nil {
-			a.serverError(w, err)
-			return
-		}
-		cards = append(cards, KidToday{
-			Kid:        kid,
-			Lessons:    byKidToday[kid.ID],
-			Week:       progress,
-			Attendance: todayAtt[kid.ID],
-		})
-	}
-
-	overdue, err := a.store.LessonsOverdue(now, 25)
-	if err != nil {
-		a.serverError(w, err)
-		return
-	}
+	kidFilter, adultFilter := plannerPersonFilter(r.URL.Query())
 	if sess := sessionFrom(r); sess != nil && sess.IsKid() {
-		filtered := overdue[:0]
-		for _, l := range overdue {
-			if l.KidID == sess.KidID {
-				filtered = append(filtered, l)
-			}
-		}
-		overdue = filtered
+		kidFilter = sess.KidID
+		adultFilter = 0
 	}
-	familyWeek, err := a.store.ProgressBetween(start, end, 0, 0)
-	if err != nil {
-		a.serverError(w, err)
-		return
-	}
-	if sess := sessionFrom(r); sess != nil && sess.IsKid() {
-		familyWeek, err = a.store.ProgressBetween(start, end, sess.KidID, 0)
-		if err != nil {
-			a.serverError(w, err)
-			return
-		}
-	}
+
 	subjects, err := a.store.Subjects(false)
 	if err != nil {
 		a.serverError(w, err)
@@ -110,6 +55,84 @@ func (a *App) handleHome(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	var cards []KidToday
+	var overdue []Lesson
+	var familyWeek Progress
+	if adultFilter > 0 {
+		weekLessons, err := a.store.AdultLessonsBetween(start, end, adultFilter)
+		if err != nil {
+			a.serverError(w, err)
+			return
+		}
+		familyWeek = progressFromLessons(weekLessons)
+		var todayLessons []Lesson
+		for _, l := range weekLessons {
+			if l.ScheduledOn == now {
+				todayLessons = append(todayLessons, l)
+			}
+		}
+		if adult, err := a.store.Adult(adultFilter); err == nil {
+			data["FilterAdult"] = adult
+			data["FilterDay"] = PlannerDay{Date: now, Lessons: todayLessons}
+		} else if !errors.Is(err, sql.ErrNoRows) {
+			a.serverError(w, err)
+			return
+		}
+	} else {
+		weekLessons, err := a.store.LessonsBetween(start, end, kidFilter)
+		if err != nil {
+			a.serverError(w, err)
+			return
+		}
+		byKidToday := map[int64][]Lesson{}
+		for _, l := range weekLessons {
+			if l.ScheduledOn == now {
+				byKidToday[l.KidID] = append(byKidToday[l.KidID], l)
+			}
+		}
+		todayAtt, err := a.store.AttendanceOnDate(now)
+		if err != nil {
+			a.serverError(w, err)
+			return
+		}
+		cards = make([]KidToday, 0, len(kids))
+		for _, kid := range kids {
+			if kidFilter > 0 && kid.ID != kidFilter {
+				continue
+			}
+			progress, err := a.store.ProgressBetween(start, end, kid.ID, 0)
+			if err != nil {
+				a.serverError(w, err)
+				return
+			}
+			cards = append(cards, KidToday{
+				Kid:        kid,
+				Lessons:    byKidToday[kid.ID],
+				Week:       progress,
+				Attendance: todayAtt[kid.ID],
+			})
+		}
+		overdue, err = a.store.LessonsOverdue(now, 25)
+		if err != nil {
+			a.serverError(w, err)
+			return
+		}
+		if kidFilter > 0 {
+			filtered := overdue[:0]
+			for _, l := range overdue {
+				if l.KidID == kidFilter {
+					filtered = append(filtered, l)
+				}
+			}
+			overdue = filtered
+		}
+		familyWeek, err = a.store.ProgressBetween(start, end, kidFilter, 0)
+		if err != nil {
+			a.serverError(w, err)
+			return
+		}
+	}
+
 	data["Cards"] = cards
 	data["Overdue"] = overdue
 	data["WeekStart"] = start
@@ -117,7 +140,9 @@ func (a *App) handleHome(w http.ResponseWriter, r *http.Request) {
 	data["FamilyWeek"] = familyWeek
 	data["Subjects"] = subjects
 	data["TodayEvents"] = todayEvents
-	data["NeedsSetup"] = len(kids) == 0
+	data["KidFilter"] = kidFilter
+	data["AdultFilter"] = adultFilter
+	data["NeedsSetup"] = len(kids) == 0 && adultFilter == 0
 
 	years, err := a.store.SchoolYears()
 	if err != nil {

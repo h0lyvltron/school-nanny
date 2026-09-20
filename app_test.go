@@ -284,6 +284,7 @@ func TestLookPresetsAreWiredUp(t *testing.T) {
 
 	_, css := ta.get("/static/app.css")
 	mustContain(t, css, `[data-nav="tabs"]`, "folder tab nav")
+	mustContain(t, css, `.nav-people`, "header people fly-outs")
 	mustContain(t, css, `[data-palette="cool"]`, "cool palette")
 	mustContain(t, css, `[data-palette="contrast"]`, "contrast palette")
 	mustContain(t, css, `[data-cards="folder"]`, "folder cards")
@@ -302,9 +303,13 @@ func TestSaveToastIsWiredUp(t *testing.T) {
 	mustContain(t, script, "school-nanny-scroll", "ui.js")
 	mustContain(t, script, "Saved!", "ui.js default toast")
 	mustContain(t, script, "scrollRestoration", "ui.js")
+	mustContain(t, script, "nav-people", "header people fly-outs")
+	mustContain(t, script, "data-person-filter", "person filter compact")
+	mustContain(t, script, "person-filter-menu", "person filter compact")
 
 	_, css := ta.get("/static/app.css")
 	mustContain(t, css, ".save-toast", "toast styles")
+	mustContain(t, css, ".person-filter-menu", "person filter compact")
 }
 
 func TestFirstRunAsksForKids(t *testing.T) {
@@ -634,6 +639,8 @@ func TestPlannerMarkupIsDraggable(t *testing.T) {
 	mustContain(t, js, "data-events-toggle", "events toggle")
 	mustContain(t, js, `get("events")`, "events query")
 	mustContain(t, js, "planner-week", "in-place week swap")
+	mustContain(t, js, "page-board-scroll", "week scrolls the board, not the window")
+	mustContain(t, js, "requestAnimationFrame", "week waits to paint before scrolling")
 }
 
 // The parent sits in the week filter next to the children, and picking her
@@ -730,6 +737,117 @@ func TestTodayListsCalendarEventsAboveTheKids(t *testing.T) {
 	if head < 0 || grid < 0 || head > grid {
 		t.Errorf("calendar events should sit above the kid cards (glance=%d grid=%d)", head, grid)
 	}
+}
+
+// Today and Week pin the title and filters while the cards and days scroll.
+func TestTodayAndWeekPinTheSubhead(t *testing.T) {
+	ta := newTestApp(t)
+	ta.addKid("Mia")
+
+	status, welcome := newTestApp(t).get("/")
+	if status != http.StatusOK {
+		t.Fatalf("welcome returned %d", status)
+	}
+	mustNotContain(t, welcome, `data-lock-page`, "first-run home")
+
+	status, home := ta.get("/")
+	if status != http.StatusOK {
+		t.Fatalf("today returned %d", status)
+	}
+	mustContain(t, home, `data-lock-page`, "today")
+	mustContain(t, home, `class="page-subhead"`, "today")
+	mustContain(t, home, `class="page-board-scroll"`, "today")
+	mustContain(t, home, `data-events-toggle`, "today")
+	mustContain(t, home, `data-week-events`, "today")
+	mustContain(t, home, `data-person-filter`, "today")
+	mustContain(t, home, `class="person-filter-menu`, "today")
+	mustContain(t, home, ">All kids<", "today")
+	mustContain(t, home, "Print Today", "today")
+
+	status, week := ta.get("/planner")
+	if status != http.StatusOK {
+		t.Fatalf("planner returned %d", status)
+	}
+	mustContain(t, week, `data-lock-page`, "week")
+	mustContain(t, week, `id="planner-week" class="page-board"`, "week")
+	mustContain(t, week, `class="page-subhead"`, "week")
+	mustContain(t, week, `class="page-board-scroll"`, "week")
+	mustContain(t, week, `data-events-toggle`, "week")
+	mustContain(t, week, `data-week-events`, "week")
+	mustContain(t, week, `data-person-filter`, "week")
+	mustContain(t, week, `class="person-filter-menu`, "week")
+
+	_, settings := ta.get("/settings/school")
+	mustNotContain(t, settings, `data-lock-page`, "settings")
+}
+
+// Picking a child on Today hides the others, including overdue work that is not theirs.
+func TestTodayFiltersByTheChild(t *testing.T) {
+	ta := newTestApp(t)
+	mia := ta.addKid("Mia")
+	ivy := ta.addKid("Ivy")
+	subject := ta.mathSubjectID()
+	date := today()
+	ta.insertUnassignedLesson(mia, subject, date, "Long division", "")
+	ta.insertUnassignedLesson(ivy, subject, date, "Counting bears", "")
+	if _, err := ta.store.CreateLesson(Lesson{
+		KidID:       ivy,
+		SubjectID:   subject,
+		ScheduledOn: addDays(date, -1),
+		Title:       "Missed spelling",
+		Status:      StatusPlanned,
+	}); err != nil {
+		t.Fatalf("creating overdue: %v", err)
+	}
+
+	status, all := ta.get("/")
+	if status != http.StatusOK {
+		t.Fatalf("today returned %d", status)
+	}
+	mustContain(t, all, "Long division", "all kids")
+	mustContain(t, all, "Counting bears", "all kids")
+	mustContain(t, all, "Missed spelling", "all kids")
+
+	status, hers := ta.get(todayFilterURL(mia, 0))
+	if status != http.StatusOK {
+		t.Fatalf("mia today returned %d", status)
+	}
+	mustContain(t, hers, "Long division", "mia today")
+	mustContain(t, hers, `class="filter-chip current"`, "mia today")
+	mustNotContain(t, hers, "Counting bears", "mia today")
+	mustNotContain(t, hers, "Missed spelling", "mia today")
+}
+
+// Picking the parent on Today shows her schedule, not the children's lessons.
+func TestTodayFiltersByTheParent(t *testing.T) {
+	ta := newTestApp(t)
+	parent := ta.parent()
+	kid := ta.addKid("Mia")
+	date := today()
+	ta.insertUnassignedLesson(kid, ta.mathSubjectID(), date, "Long division", "")
+	ta.post("/adults/"+itoa64(parent.ID)+"/schedule", url.Values{
+		"subject_id":   {itoa64(ta.mathSubjectID())},
+		"scheduled_on": {date},
+		"title":        {"Dentist"},
+	})
+
+	status, all := ta.get("/")
+	if status != http.StatusOK {
+		t.Fatalf("today returned %d", status)
+	}
+	mustContain(t, all, "Long division", "all kids")
+	mustNotContain(t, all, `class="lesson-title">Dentist`, "all kids")
+	mustContain(t, all, `href="/?adult=`+itoa64(parent.ID)+`"`, "parent chip")
+
+	status, hers := ta.get(todayFilterURL(0, parent.ID))
+	if status != http.StatusOK {
+		t.Fatalf("parent today returned %d", status)
+	}
+	mustContain(t, hers, "Dentist", "parent today")
+	mustNotContain(t, hers, "Long division", "parent today")
+	mustContain(t, hers, `data-adult-filter="`+itoa64(parent.ID)+`"`, "parent today")
+	mustContain(t, hers, `hx-post="/adults/`+itoa64(parent.ID)+`/schedule"`, "parent today")
+	mustNotContain(t, hers, `class="kid-grid"`, "parent today")
 }
 
 func snippetAround(body, needle string, width int) string {
@@ -1043,6 +1161,34 @@ func TestDefaultAdultIsReadyToUse(t *testing.T) {
 	// She is reachable from anywhere, next to the children.
 	_, home := ta.get("/")
 	mustContain(t, home, `href="/adults/`+itoa64(parent.ID)+`"`, "nav")
+	mustNotContain(t, home, `class="nav-people`, "small family keeps chips")
+}
+
+func TestNavCollapsesPeopleWhenThereAreMoreThanThree(t *testing.T) {
+	ta := newTestApp(t)
+	parent := ta.parent()
+	mia := ta.addKid("Mia")
+	ta.addKid("Leo")
+
+	_, twoKids := ta.get("/")
+	mustNotContain(t, twoKids, `class="nav-people`, "two kids and an adult stay as chips")
+	mustContain(t, twoKids, `href="/kids/`+itoa64(mia)+`"`, "kid chip")
+	mustContain(t, twoKids, `href="/adults/`+itoa64(parent.ID)+`"`, "adult chip")
+
+	noe := ta.addKid("Noe")
+	_, crowded := ta.get("/")
+	mustContain(t, crowded, `class="nav-people`, "four people collapse")
+	mustContain(t, crowded, ">Kids</summary>", "kids fly-out")
+	mustContain(t, crowded, `class="nav-people nav-people-adults`, "adults fly-out")
+	mustContain(t, crowded, `href="/kids/`+itoa64(noe)+`"`, "kid still linked")
+	mustContain(t, crowded, `href="/adults/`+itoa64(parent.ID)+`"`, "adult still linked")
+
+	_, kidPage := ta.get("/kids/" + itoa64(mia))
+	mustContain(t, kidPage, `class="nav-people has-current"`, "kids menu marks the current page")
+	mustContain(t, kidPage, `href="/kids/`+itoa64(mia)+`" class="nav-kid current"`, "current kid")
+
+	_, adultPage := ta.get("/adults/" + itoa64(parent.ID))
+	mustContain(t, adultPage, `class="nav-people nav-people-adults has-current"`, "adults menu marks the current page")
 }
 
 // Her dentist appointment is not a lesson for the kids, so it must not show up
@@ -2347,6 +2493,8 @@ func TestAttendanceMarkAndMonthTotals(t *testing.T) {
 	_, page := ta.get("/attendance?kid=" + itoa64(kid))
 	mustContain(t, page, "present", "attendance page")
 	mustContain(t, page, "Year report", "attendance page")
+	mustContain(t, page, `data-person-filter`, "attendance")
+	mustContain(t, page, `class="person-filter-menu has-current"`, "attendance")
 
 	totals, err := ta.store.AttendanceTotalsBetween(today(), today(), kid)
 	if err != nil {
@@ -3021,6 +3169,7 @@ func TestDoubleUpStacksWithoutMovingSiblings(t *testing.T) {
 	mustContain(t, page, `class="minutes-inline"`, "minutes field")
 	mustContain(t, page, `hx-include="closest .mark-done-row"`, "mark done includes minutes")
 	mustContain(t, page, ">Drop<", "drop action")
+	mustContain(t, page, `class="lesson-ops-pair"`, "ghost pills wrap in pairs")
 	ops := strings.Index(page, `class="lesson-ops"`)
 	dup := strings.Index(page, `double-up-form`)
 	if ops < 0 || dup < 0 || dup < ops {

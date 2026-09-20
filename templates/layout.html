@@ -1,5 +1,5 @@
 {{define "layout"}}<!doctype html>
-<html lang="en" data-theme="light" data-nav="underline" data-palette="warm" data-cards="plain">
+<html lang="en" data-theme="light" data-nav="underline" data-palette="warm" data-cards="plain"{{if and (or (eq .Active "home") (eq .Active "planner")) (not .NeedsSetup)}} data-lock-page{{end}}>
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -113,15 +113,42 @@
             </form>
             {{end}}
             {{end}}
-            {{range .NavKids}}
-                <a href="/kids/{{.ID}}" class="nav-kid">
-                    {{template "avatar" (dict "Person" . "Size" "nav")}}{{.Name}}
-                </a>
-            {{end}}
-            {{range .NavAdults}}
-                <a href="/adults/{{.ID}}" class="nav-kid">
-                    {{template "avatar" (dict "Person" . "Size" "nav")}}{{.Name}}
-                </a>
+            {{if .NavPeopleMenu}}
+                {{if .NavKids}}
+                <details class="nav-people{{if eq .Active "kids"}} has-current{{end}}" name="nav-people">
+                    <summary>Kids</summary>
+                    <div class="nav-people-list">
+                        {{range .NavKids}}
+                            <a href="/kids/{{.ID}}" class="nav-kid{{if eq $.CurrentURL (printf "/kids/%d" .ID)}} current{{end}}">
+                                {{template "avatar" (dict "Person" . "Size" "nav")}}{{.Name}}
+                            </a>
+                        {{end}}
+                    </div>
+                </details>
+                {{end}}
+                {{if .NavAdults}}
+                <details class="nav-people nav-people-adults{{if eq .Active "adults"}} has-current{{end}}" name="nav-people">
+                    <summary>Adults</summary>
+                    <div class="nav-people-list">
+                        {{range .NavAdults}}
+                            <a href="/adults/{{.ID}}" class="nav-kid{{if eq $.CurrentURL (printf "/adults/%d" .ID)}} current{{end}}">
+                                {{template "avatar" (dict "Person" . "Size" "nav")}}{{.Name}}
+                            </a>
+                        {{end}}
+                    </div>
+                </details>
+                {{end}}
+            {{else}}
+                {{range .NavKids}}
+                    <a href="/kids/{{.ID}}" class="nav-kid">
+                        {{template "avatar" (dict "Person" . "Size" "nav")}}{{.Name}}
+                    </a>
+                {{end}}
+                {{range .NavAdults}}
+                    <a href="/adults/{{.ID}}" class="nav-kid">
+                        {{template "avatar" (dict "Person" . "Size" "nav")}}{{.Name}}
+                    </a>
+                {{end}}
             {{end}}
             {{if and (ne .Role "kid") (ne .Role "caregiver")}}
             <a href="/settings" class="{{if eq .Active "settings"}}current{{end}}">Settings</a>

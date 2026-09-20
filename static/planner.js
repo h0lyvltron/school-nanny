@@ -496,13 +496,18 @@
         if (dragging) {
             var grid = document.querySelector("#planner-week .week-grid");
             if (grid) {
-                grid.style.scrollMarginTop = (appBarHeight() + 12) + "px";
-                grid.scrollIntoView({block: "start", behavior: "auto"});
+                afterPaint(function () {
+                    scrollBoardTo(grid, boardScrollMargin());
+                });
             }
             considerWeekShift(lastX, lastY);
             return;
         }
-        scrollPlannerIntoPlace();
+        afterPaint(scrollPlannerIntoPlace);
+    }
+
+    function boardScrollMargin() {
+        return 8;
     }
 
     document.body.addEventListener("htmx:afterSwap", function (event) {
@@ -522,32 +527,61 @@
         shiftingWeek = false;
     });
 
-    // Scroll the current day into view ---------------------------------
+    // Scroll the current day into view after the week has painted. iPad
+    // Safari's scrollIntoView also moves the window, which draws today over
+    // the app bar for a frame; move only the board scroller, and only then.
+    function boardScroller(from) {
+        return from && from.closest ? from.closest(".page-board-scroll") : null;
+    }
 
-    function appBarHeight() {
-        var bar = document.querySelector(".app-bar");
-        return bar ? bar.getBoundingClientRect().height : 0;
+    function scrollBoardTo(el, margin) {
+        if (!el) {
+            return;
+        }
+        var scroller = boardScroller(el);
+        if (!scroller) {
+            return;
+        }
+        var sBox = scroller.getBoundingClientRect();
+        var eBox = el.getBoundingClientRect();
+        var next = scroller.scrollTop + (eBox.top - sBox.top) - (margin || 0);
+        if (next < 0) {
+            next = 0;
+        }
+        scroller.scrollTop = next;
+    }
+
+    function afterPaint(fn) {
+        window.requestAnimationFrame(function () {
+            window.requestAnimationFrame(fn);
+        });
     }
 
     function scrollPlannerIntoPlace() {
-        var root = document.getElementById("planner-week");
-        if (!root) {
-            return;
+        function place(withFocus) {
+            var root = document.getElementById("planner-week");
+            if (!root) {
+                return;
+            }
+            var margin = boardScrollMargin();
+            var today = root.querySelector(".day.is-today");
+            if (today) {
+                scrollBoardTo(today, margin);
+                if (withFocus) {
+                    today.setAttribute("tabindex", "-1");
+                    try { today.focus({preventScroll: true}); } catch (e) { /* ignore */ }
+                }
+                return;
+            }
+            var grid = root.querySelector(".week-grid");
+            if (grid) {
+                scrollBoardTo(grid, margin);
+            }
         }
-        var margin = appBarHeight() + 12;
-        var today = root.querySelector(".day.is-today");
-        if (today) {
-            today.style.scrollMarginTop = margin + "px";
-            today.scrollIntoView({block: "start", behavior: "auto"});
-            today.setAttribute("tabindex", "-1");
-            try { today.focus({preventScroll: true}); } catch (e) { /* ignore */ }
-            return;
-        }
-        var grid = root.querySelector(".week-grid");
-        if (grid) {
-            grid.style.scrollMarginTop = margin + "px";
-            grid.scrollIntoView({block: "start", behavior: "auto"});
-        }
+        place(true);
+        window.requestAnimationFrame(function () {
+            place(false);
+        });
     }
 
     // Calendar events on the week --------------------------------------
@@ -607,7 +641,7 @@
     }
 
     applyEventsToggle(eventsVisible());
-    scrollPlannerIntoPlace();
+    afterPaint(scrollPlannerIntoPlace);
 
     document.addEventListener("change", function (event) {
         var input = event.target;
