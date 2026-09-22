@@ -95,16 +95,19 @@ type historyTable struct {
 }
 
 var historyTables = map[string]historyTable{
-	"lessons":             {[]string{"id", "kid_id", "adult_id", "subject_id", "school_year_id", "series_id", "assignment_id", "sequence", "scheduled_on", "status", "title", "minutes", "notes", "completed_at", "created_at", "page_start", "page_end", "curriculum_item_id"}},
-	"lesson_series":       {[]string{"id", "kid_id", "subject_id", "school_year_id", "title", "minutes", "notes", "weekdays", "starts_on", "ends_on", "occurrence_count", "created_at"}},
-	"plan_assignments":    {[]string{"id", "kid_id", "subject_id", "school_year_id", "plan_id", "name", "weekdays", "starts_on", "created_at"}},
-	"curriculum_plans":    {[]string{"id", "name", "subject_id", "kind", "source_kid_id", "source_year_id", "notes", "created_at"}},
-	"curriculum_items":    {[]string{"id", "plan_id", "sort_order", "title", "notes", "minutes", "week_number", "created_at", "page_start", "page_end"}},
-	"attendance":          {[]string{"id", "kid_id", "attended_on", "status", "notes", "created_at"}},
-	"assessments":         {[]string{"id", "kid_id", "subject_id", "lesson_id", "school_year_id", "given_on", "name", "score", "max_score", "letter", "notes", "created_at"}},
-	"notes":               {[]string{"id", "kid_id", "adult_id", "subject_id", "noted_on", "body", "created_at"}},
-	"attachments":         {[]string{"id", "owner_type", "lesson_id", "assessment_id", "kid_id", "subject_id", "original_name", "stored_path", "size_bytes", "content_type", "created_at", "curriculum_plan_id"}},
-	"adult_events":        {[]string{"id", "adult_id", "starts_on", "ends_on", "title", "body", "created_at", "label_id"}},
+	"lessons":          {[]string{"id", "kid_id", "adult_id", "subject_id", "school_year_id", "series_id", "assignment_id", "sequence", "scheduled_on", "status", "title", "minutes", "notes", "completed_at", "created_at", "page_start", "page_end", "curriculum_item_id"}},
+	"lesson_series":    {[]string{"id", "kid_id", "subject_id", "school_year_id", "title", "minutes", "notes", "weekdays", "starts_on", "ends_on", "occurrence_count", "created_at"}},
+	"plan_assignments": {[]string{"id", "kid_id", "subject_id", "school_year_id", "plan_id", "name", "weekdays", "starts_on", "created_at"}},
+	"curriculum_plans": {[]string{"id", "name", "subject_id", "kind", "source_kid_id", "source_year_id", "notes", "created_at"}},
+	"curriculum_items": {[]string{"id", "plan_id", "sort_order", "title", "notes", "minutes", "week_number", "created_at", "page_start", "page_end"}},
+	"attendance":       {[]string{"id", "kid_id", "attended_on", "status", "notes", "created_at"}},
+	"assessments":      {[]string{"id", "kid_id", "subject_id", "lesson_id", "school_year_id", "given_on", "name", "score", "max_score", "letter", "notes", "created_at"}},
+	"notes":            {[]string{"id", "kid_id", "adult_id", "subject_id", "noted_on", "body", "created_at"}},
+	"attachments":      {[]string{"id", "owner_type", "lesson_id", "assessment_id", "kid_id", "subject_id", "original_name", "stored_path", "size_bytes", "content_type", "created_at", "curriculum_plan_id"}},
+	"adult_events": {[]string{
+		"id", "adult_id", "starts_on", "ends_on", "title", "body", "created_at", "label_id",
+		"uid", "sequence", "modified_at", "all_day", "start_at", "end_at", "location", "rrule", "exdates",
+	}},
 	"adult_event_labels":  {[]string{"id", "adult_id", "name", "color", "sort_order", "created_at", "emoji"}},
 	"adult_holiday_notes": {[]string{"id", "adult_id", "observed_on", "holiday_name", "emoji", "notes", "label_id"}},
 }

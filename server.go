@@ -27,11 +27,13 @@ var templateFS embed.FS
 var staticFS embed.FS
 
 const (
-	sessionCookie   = "school_nanny_session"
-	sessionLifetime = 30 * 24 * time.Hour
-	settingPassword = "family_password"
-	settingSecret   = "session_secret"
-	settingTimezone = "family_timezone"
+	sessionCookie           = "school_nanny_session"
+	sessionLifetime         = 30 * 24 * time.Hour
+	settingPassword         = "family_password"
+	settingSecret           = "session_secret"
+	settingTimezone         = "family_timezone"
+	settingCalendarPassword = "calendar_password"
+	settingCalendarUser     = "calendar_username"
 )
 
 // templateSet is every template, with its date-aware helpers fixed to one
@@ -127,6 +129,10 @@ func (a *App) Routes() http.Handler {
 	mux.Handle("GET /static/", http.FileServerFS(staticFS))
 
 	mux.HandleFunc("GET /healthz", h((*App).handleHealthz))
+	mux.Handle("GET /.well-known/caldav", h((*App).handleWellKnownCalDAV))
+	mux.Handle("PROPFIND /.well-known/caldav", h((*App).handleWellKnownCalDAV))
+	mux.Handle("/dav/", h((*App).handleCalDAV))
+	mux.Handle("/dav", h((*App).handleCalDAV))
 	mux.HandleFunc("GET /login", h((*App).handleLoginForm))
 	mux.HandleFunc("POST /login", h((*App).handleLogin))
 	mux.HandleFunc("GET /signup", h((*App).handleSignupForm))
@@ -246,6 +252,8 @@ func (a *App) Routes() http.Handler {
 	mux.HandleFunc("POST /settings/years", h((*App).handleSaveSchoolYear))
 	mux.HandleFunc("POST /settings/years/{id}/delete", h((*App).handleDeleteSchoolYear))
 	mux.HandleFunc("POST /settings/password", h((*App).handleSavePassword))
+	mux.HandleFunc("POST /settings/calendar-password", h((*App).handleSaveCalendarPassword))
+	mux.HandleFunc("POST /settings/calendar-password/revoke", h((*App).handleRevokeCalendarPassword))
 	mux.HandleFunc("POST /settings/account-password", h((*App).handleChangeAccountPassword))
 	mux.HandleFunc("POST /settings/timezone", h((*App).handleSaveTimezone))
 	mux.HandleFunc("POST /settings/week-start", h((*App).handleSaveWeekStart))
@@ -362,6 +370,8 @@ func (a *App) requireLogin(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasPrefix(r.URL.Path, "/static/") ||
 			strings.HasPrefix(r.URL.Path, "/login") ||
+			strings.HasPrefix(r.URL.Path, "/dav") ||
+			r.URL.Path == "/.well-known/caldav" ||
 			r.URL.Path == "/healthz" ||
 			r.URL.Path == "/signup" {
 			next.ServeHTTP(w, r)

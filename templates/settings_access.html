@@ -43,6 +43,46 @@
             {{end}}
         </section>
 
+        {{if or (not .Hosted) .IsOwner (eq .Role "co_parent") (eq .Role "teacher")}}
+        <section class="panel" id="caldav">
+            <h2>iPhone calendar (CalDAV)</h2>
+            <p class="muted small">
+                Add School Nanny as a CalDAV account on the iPhone so her calendar
+                edits both ways. No Apple ID OAuth — the phone uses this password.
+            </p>
+            {{if .CalendarPasswordOnce}}
+                <p class="saved-flash">Calendar password (shown once): <code>{{.CalendarPasswordOnce}}</code></p>
+            {{end}}
+            {{if eq .Saved "calendar-password"}}
+                <p class="saved-flash">Calendar access saved. Copy the password above into the iPhone account.</p>
+            {{else if eq .Saved "calendar-revoked"}}
+                <p class="saved-flash">Calendar access revoked. Existing phone accounts will stop syncing.</p>
+            {{end}}
+            {{if .HasCalendarPassword}}
+                <dl class="settings-dl">
+                    <dt>Server</dt><dd><code>{{.CalendarServerURL}}</code></dd>
+                    <dt>Username</dt><dd><code>{{.CalendarLoginUser}}</code></dd>
+                    <dt>Path</dt><dd><code>/dav/</code></dd>
+                </dl>
+                <p class="muted small">
+                    On the iPhone: Settings → Calendar → Accounts → Add Account → Other →
+                    Add CalDAV Account. Use SSL if the server URL is https.
+                </p>
+                <form method="post" action="/settings/calendar-password/revoke"
+                      onsubmit="return confirm('Revoke calendar access on phones?')">
+                    <button type="submit" class="link-button danger">Revoke calendar password</button>
+                </form>
+            {{else}}
+                <p class="muted small">Set a password to turn on CalDAV. It is separate from the app lock.</p>
+            {{end}}
+            <form method="post" action="/settings/calendar-password" class="settings-row new">
+                <input type="text" name="username" value="{{.CalendarUser}}" placeholder="Username" aria-label="Calendar username">
+                <input type="password" name="password" placeholder="New calendar password" autocomplete="new-password" required>
+                <button type="submit">{{if .HasCalendarPassword}}Replace password{{else}}Enable CalDAV{{end}}</button>
+            </form>
+        </section>
+        {{end}}
+
         {{if and .Hosted (or .IsOwner .CanManageKidLogins)}}
         <section class="panel" id="household-logins">
             <h2>Household logins</h2>

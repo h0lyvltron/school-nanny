@@ -232,11 +232,11 @@ func (a *App) hostedSessionFromRequest(r *http.Request) (*Session, error) {
 }
 
 func isHostedPublicPath(path string) bool {
-	if strings.HasPrefix(path, "/static/") {
+	if strings.HasPrefix(path, "/static/") || strings.HasPrefix(path, "/dav") {
 		return true
 	}
 	switch path {
-	case "/login", "/signup", "/healthz":
+	case "/login", "/signup", "/healthz", "/.well-known/caldav":
 		return true
 	}
 	return false
