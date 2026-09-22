@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 )
@@ -154,6 +155,7 @@ func isCalDAVCalendar(path string) bool {
 }
 
 func parseCalDAVCalendarPath(path string) (adultID int64, rest string, ok bool) {
+	path = normalizeCalDAVHref(path)
 	if !strings.HasPrefix(path, calDAVHome) {
 		return 0, "", false
 	}
@@ -174,13 +176,61 @@ func parseCalDAVCalendarPath(path string) (adultID int64, rest string, ok bool) 
 }
 
 func calDAVEventHref(adultID int64, uid string) string {
-	return fmt.Sprintf("%s%d/%s.ics", calDAVHome, adultID, sanitizeCalDAVUID(uid))
+	return fmt.Sprintf("%s%d/%s.ics", calDAVHome, adultID, pathEscapeCalDAV(sanitizeCalDAVUID(uid)))
 }
 
 func sanitizeCalDAVUID(uid string) string {
 	uid = strings.TrimSpace(uid)
 	uid = strings.ReplaceAll(uid, "/", "_")
 	return uid
+}
+
+func pathEscapeCalDAV(uid string) string {
+	// PathEscape leaves @ alone in older Go; Encode path segments so phones
+	// that percent-encode and ones that do not both round-trip.
+	var b strings.Builder
+	for _, r := range uid {
+		switch {
+		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9',
+			r == '-', r == '.', r == '_', r == '~':
+			b.WriteRune(r)
+		default:
+			for _, p := range []byte(string(r)) {
+				fmt.Fprintf(&b, "%%%02X", p)
+			}
+		}
+	}
+	return b.String()
+}
+
+func pathUnescapeCalDAV(seg string) string {
+	out, err := url.PathUnescape(seg)
+	if err != nil {
+		return seg
+	}
+	return out
+}
+
+// normalizeCalDAVHref turns an absolute or relative href into a path under /dav/.
+func normalizeCalDAVHref(href string) string {
+	href = strings.TrimSpace(href)
+	if href == "" {
+		return ""
+	}
+	if u, err := url.Parse(href); err == nil {
+		if u.Path != "" {
+			href = u.Path
+		}
+	}
+	if i := strings.Index(href, "://"); i >= 0 {
+		if slash := strings.Index(href[i+3:], "/"); slash >= 0 {
+			href = href[i+3+slash:]
+		}
+	}
+	if !strings.HasPrefix(href, "/") {
+		href = "/" + href
+	}
+	return href
 }
 
 func parseCalDAVEventPath(path string) (adultID int64, uid string, ok bool) {
@@ -191,8 +241,8 @@ func parseCalDAVEventPath(path string) (adultID int64, uid string, ok bool) {
 	if !strings.HasSuffix(strings.ToLower(rest), ".ics") {
 		return 0, "", false
 	}
-	uid = strings.TrimSuffix(rest, ".ics")
-	uid = strings.TrimSuffix(uid, ".ICS")
+	uid = rest[:len(rest)-4]
+	uid = pathUnescapeCalDAV(uid)
 	if uid == "" {
 		return 0, "", false
 	}
@@ -327,10 +377,13 @@ func (a *App) propCalendar(href string, adult Adult, props map[string]bool) (dav
 	vals := map[string]string{
 		"D:resourcetype":                     "<D:collection/><C:calendar/>",
 		"D:displayname":                      xmlEscape(adult.Name),
-		"C:supported-calendar-component-set": "<C:comp name=\"VEVENT\"/>",
-		"D:getctag":                          fmt.Sprintf("%d", token),
+		"C:supported-calendar-component-set": `<C:comp name="VEVENT"/>`,
+		"CS:getctag":                         fmt.Sprintf("%d", token),
 		"D:sync-token":                       calDAVSyncToken(adult.ID, token),
 		"C:calendar-description":             xmlEscape(adult.Name + "'s calendar"),
+		"D:supported-report-set": `<D:supported-report><D:report><C:calendar-query/></D:report></D:supported-report>` +
+			`<D:supported-report><D:report><C:calendar-multiget/></D:report></D:supported-report>` +
+			`<D:supported-report><D:report><D:sync-collection/></D:report></D:supported-report>`,
 	}
 	if color != "" {
 		vals["A:calendar-color"] = xmlEscape(color)
@@ -417,6 +470,13 @@ func filterProps(want map[string]bool, have map[string]string) map[string]string
 	return out
 }
 
+func ensureCalDAVProps(filtered, fallback map[string]string) map[string]string {
+	if len(filtered) > 0 {
+		return filtered
+	}
+	return fallback
+}
+
 func (a *App) calDAVReport(w http.ResponseWriter, r *http.Request, path string) {
 	body, err := io.ReadAll(io.LimitReader(r.Body, maxCalDAVBytes))
 	if err != nil {
@@ -457,6 +517,7 @@ func (a *App) calDAVSyncReport(w http.ResponseWriter, adultID int64, body []byte
 		a.serverError(w, err)
 		return
 	}
+	props := requestedProps(body)
 	syncToken := ""
 	dec := xml.NewDecoder(strings.NewReader(string(body)))
 	for {
@@ -478,20 +539,23 @@ func (a *App) calDAVSyncReport(w http.ResponseWriter, adultID int64, body []byte
 		a.serverError(w, err)
 		return
 	}
+	wantData := len(props) == 0 || props["calendar-data"]
 	var responses []davResponse
 	for _, e := range masters {
 		href := calDAVEventHref(adultID, e.UID)
+		vals := map[string]string{
+			"D:getetag": xmlEscape(e.ETag()),
+		}
+		if wantData {
+			vals["C:calendar-data"] = string(EmitAdultEventsICS("", []AdultEvent{e}))
+		}
 		responses = append(responses, davResponse{
-			Href: href,
-			Props: map[string]string{
-				"D:getetag": xmlEscape(e.ETag()),
-			},
+			Href:  href,
+			Props: ensureCalDAVProps(filterProps(props, vals), vals),
 		})
 	}
 	if syncToken != "" {
 		if _, prev, ok := parseCalDAVSyncToken(syncToken); ok {
-			// Tombstones after an older token: we do not store per-token
-			// watermarks, so any prior token gets every current delete.
 			_ = prev
 			tombs, err := a.store.AdultEventTombstones(adultID, "1970-01-01T00:00:00Z")
 			if err != nil {
@@ -741,7 +805,7 @@ func writeMultistatus(w http.ResponseWriter, responses []davResponse) {
 func writeMultistatusWithToken(w http.ResponseWriter, responses []davResponse, syncToken string) {
 	var b strings.Builder
 	b.WriteString(`<?xml version="1.0" encoding="utf-8"?>`)
-	b.WriteString(`<D:multistatus xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav" xmlns:A="http://apple.com/ns/ical/">`)
+	b.WriteString(`<D:multistatus xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav" xmlns:CS="http://calendarserver.org/ns/" xmlns:A="http://apple.com/ns/ical/">`)
 	for _, resp := range responses {
 		b.WriteString("<D:response>")
 		b.WriteString("<D:href>" + xmlEscape(resp.Href) + "</D:href>")
@@ -750,8 +814,17 @@ func writeMultistatusWithToken(w http.ResponseWriter, responses []davResponse, s
 		} else {
 			b.WriteString("<D:propstat><D:prop>")
 			for name, val := range resp.Props {
-				if val == "" && strings.HasSuffix(name, "resourcetype") {
+				local := name
+				if i := strings.IndexByte(name, ':'); i >= 0 {
+					local = name[i+1:]
+				}
+				if val == "" && strings.EqualFold(local, "resourcetype") {
 					b.WriteString("<" + name + "/>")
+					continue
+				}
+				if strings.EqualFold(local, "calendar-data") {
+					// ICS as text; escape so a DESCRIPTION with & does not break XML.
+					b.WriteString("<" + name + ">" + xmlEscape(val) + "</" + name + ">")
 					continue
 				}
 				if strings.Contains(val, "<") {

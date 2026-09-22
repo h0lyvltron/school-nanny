@@ -129,6 +129,28 @@ END:VCALENDAR
 	mustContain(t, report, href, "sync lists event")
 	mustContain(t, report, "sync-token", "sync token")
 
+	// iOS follows sync with calendar-multiget using absolute hrefs.
+	abs := ta.server.URL + href
+	code, multi := ta.dav("REPORT", fmt.Sprintf("%s%d/", calDAVHome, parent.ID), pass, []byte(fmt.Sprintf(`<?xml version="1.0"?>
+<C:calendar-multiget xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav">
+  <D:prop><D:getetag/><C:calendar-data/></D:prop>
+  <D:href>%s</D:href>
+</C:calendar-multiget>`, abs)))
+	if code != 207 {
+		t.Fatalf("multiget absolute: %d %s", code, multi)
+	}
+	mustContain(t, multi, "CalDAV Birthday", "absolute multiget returns event body")
+	mustContain(t, multi, "BEGIN:VCALENDAR", "calendar-data payload")
+
+	code, calProp := ta.dav("PROPFIND", fmt.Sprintf("%s%d/", calDAVHome, parent.ID), pass, []byte(`<?xml version="1.0"?>
+<D:propfind xmlns:D="DAV:" xmlns:CS="http://calendarserver.org/ns/">
+  <D:prop><CS:getctag/><D:sync-token/></D:prop>
+</D:propfind>`))
+	if code != 207 {
+		t.Fatalf("calendar propfind: %d", code)
+	}
+	mustContain(t, calProp, "getctag", "Apple getctag")
+
 	code, _ = ta.dav("DELETE", href, pass, nil)
 	if code != http.StatusNoContent {
 		t.Fatalf("DELETE: %d", code)
@@ -139,6 +161,49 @@ END:VCALENDAR
 	}
 	if len(events) != 0 {
 		t.Fatalf("deleted event still present: %+v", events)
+	}
+}
+
+func TestCalDAVPullsWebCreatedEvent(t *testing.T) {
+	ta := newTestApp(t)
+	parent := ta.parent()
+	pass := "pull-secret"
+	hash, err := hashPassword(pass)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mustOK(t, ta.store.SetSetting(settingCalendarPassword, hash))
+	mustOK(t, ta.store.SetSetting(settingCalendarUser, "calendar"))
+
+	id, err := ta.store.CreateAdultEvent(AdultEvent{
+		AdultID: parent.ID, AllDay: true,
+		StartsOn: today(), EndsOn: today(),
+		Title: "From the app",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ev, err := ta.store.AdultEvent(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	code, query := ta.dav("REPORT", fmt.Sprintf("%s%d/", calDAVHome, parent.ID), pass, []byte(`<?xml version="1.0"?>
+<C:calendar-query xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav">
+  <D:prop><D:getetag/><C:calendar-data/></D:prop>
+  <C:filter><C:comp-filter name="VCALENDAR"/></C:filter>
+</C:calendar-query>`))
+	if code != 207 {
+		t.Fatalf("calendar-query: %d %s", code, query)
+	}
+	mustContain(t, query, "From the app", "web event appears in query")
+	mustContain(t, query, ev.UID, "uid in href or body")
+}
+
+func mustOK(t *testing.T, err error) {
+	t.Helper()
+	if err != nil {
+		t.Fatal(err)
 	}
 }
 
