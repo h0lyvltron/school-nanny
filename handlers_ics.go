@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
+	"strconv"
 	"strings"
 )
 
@@ -12,7 +14,7 @@ func (a *App) handleAdultCalendarICS(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	events, err := a.store.AdultEventsOverlapping(adult.ID, "1900-01-01", "2100-12-31")
+	events, err := a.store.AdultEventMasters(adult.ID)
 	if err != nil {
 		a.serverError(w, err)
 		return
@@ -62,17 +64,107 @@ func (a *App) handleAdultCalendarImport(w http.ResponseWriter, r *http.Request) 
 		http.Error(w, "That calendar file is too large.", http.StatusBadRequest)
 		return
 	}
-	events, err := ParseICSEvents(raw)
+	loc := requestLocation(r)
+	events, err := ParseICSEvents(raw, loc, nowIn(loc))
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	for i := range events {
-		events[i].AdultID = adult.ID
-	}
-	if err := a.store.CreateAdultEvents(events); err != nil {
+	existing, err := a.store.AdultEventMasters(adult.ID)
+	if err != nil {
 		a.serverError(w, err)
 		return
 	}
-	a.redirect(w, r, fmt.Sprintf("/adults/%d?imported=%d", adult.ID, len(events)))
+	fresh := unseenAdultEvents(existing, events)
+	for i := range fresh {
+		fresh[i].AdultID = adult.ID
+		if fresh[i].UID == "" {
+			fresh[i].UID = newEventUID()
+		}
+		if !fresh[i].AllDay && fresh[i].StartAt == "" {
+			fresh[i].AllDay = true
+		}
+	}
+	if len(fresh) > 0 {
+		if err := a.store.CreateAdultEvents(fresh); err != nil {
+			a.serverError(w, err)
+			return
+		}
+	}
+	q := url.Values{}
+	if len(fresh) == 0 {
+		q.Set("already", "1")
+	} else {
+		q.Set("imported", strconv.Itoa(len(fresh)))
+		month, from, to := focusImportedEvent(fresh, todayIn(loc))
+		if from != "" {
+			if month != "" {
+				q.Set("month", month)
+			}
+			q.Set("from", from)
+			q.Set("to", to)
+		}
+	}
+	a.redirect(w, r, fmt.Sprintf("/adults/%d?%s", adult.ID, q.Encode()))
+}
+
+// unseenAdultEvents drops rows that are already on her calendar, so importing
+// the same file again adds the new anniversaries without cloning the rest.
+func unseenAdultEvents(existing, incoming []AdultEvent) []AdultEvent {
+	seen := make(map[string]bool, len(existing))
+	for _, e := range existing {
+		seen[adultEventKey(e)] = true
+	}
+	var out []AdultEvent
+	for _, e := range incoming {
+		key := adultEventKey(e)
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		out = append(out, e)
+	}
+	return out
+}
+
+func adultEventKey(e AdultEvent) string {
+	uid := strings.TrimSpace(e.UID)
+	if uid != "" {
+		return "uid:" + uid
+	}
+	return strings.TrimSpace(e.Title) + "\x00" + e.StartsOn + "\x00" + e.EndsOn + "\x00" + e.RRule
+}
+
+// focusImportedEvent picks the day the calendar should open on: today when
+// something imported covers it, otherwise the next date, otherwise the most
+// recent one. The month is empty when that day is already in this month.
+func focusImportedEvent(events []AdultEvent, today string) (month, from, to string) {
+	windowEnd := addDays(today, 366*recurHorizonYears)
+	expanded := ExpandAdultEvents(events, today, windowEnd)
+	if len(expanded) == 0 {
+		expanded = events
+	}
+	var next, recent *AdultEvent
+	for i := range expanded {
+		e := &expanded[i]
+		if e.Covers(today) {
+			return "", today, today
+		}
+		if e.StartsOn >= today && (next == nil || e.StartsOn < next.StartsOn) {
+			next = e
+		} else if e.StartsOn < today && (recent == nil || e.StartsOn > recent.StartsOn) {
+			recent = e
+		}
+	}
+	pick := next
+	if pick == nil {
+		pick = recent
+	}
+	if pick == nil {
+		return "", "", ""
+	}
+	if monthFirst(pick.StartsOn) != monthFirst(today) {
+		month = monthFirst(pick.StartsOn)
+	}
+	return month, pick.StartsOn, pick.StartsOn
 }

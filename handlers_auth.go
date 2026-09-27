@@ -475,6 +475,7 @@ func (a *App) enforceAttachmentAccess(w http.ResponseWriter, r *http.Request, at
 }
 
 const pinFlashCookie = "sn_pin_flash"
+const calendarPasswordFlashCookie = "sn_cal_flash"
 
 func (a *App) setPINFlash(w http.ResponseWriter, pin, who string) {
 	http.SetCookie(w, &http.Cookie{
@@ -508,4 +509,34 @@ func (a *App) takePINFlash(w http.ResponseWriter, r *http.Request) (pin, who str
 		who, _ = url.QueryUnescape(parts[1])
 	}
 	return pin, who
+}
+
+func (a *App) setCalendarPasswordFlash(w http.ResponseWriter, password string) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     calendarPasswordFlashCookie,
+		Value:    url.QueryEscape(password),
+		Path:     "/settings",
+		HttpOnly: true,
+		Secure:   a.cookieSecure,
+		SameSite: http.SameSiteLaxMode,
+		MaxAge:   120,
+	})
+}
+
+func (a *App) takeCalendarPasswordFlash(w http.ResponseWriter, r *http.Request) string {
+	c, err := r.Cookie(calendarPasswordFlashCookie)
+	if err != nil || c.Value == "" {
+		return ""
+	}
+	http.SetCookie(w, &http.Cookie{
+		Name:     calendarPasswordFlashCookie,
+		Value:    "",
+		Path:     "/settings",
+		HttpOnly: true,
+		Secure:   a.cookieSecure,
+		SameSite: http.SameSiteLaxMode,
+		MaxAge:   -1,
+	})
+	password, _ := url.QueryUnescape(c.Value)
+	return password
 }

@@ -79,6 +79,9 @@ func (a *App) handleAdult(w http.ResponseWriter, r *http.Request) {
 	if n, err := strconv.Atoi(r.URL.Query().Get("imported")); err == nil && n > 0 {
 		data["Imported"] = n
 	}
+	if r.URL.Query().Get("already") == "1" {
+		data["AlreadyImported"] = true
+	}
 	a.render(w, "adult", data)
 }
 
@@ -333,6 +336,7 @@ func (a *App) handleCreateAdultEvent(w http.ResponseWriter, r *http.Request) {
 		LabelID:  labelID,
 		StartsOn: starts,
 		EndsOn:   ends,
+		AllDay:   true,
 		Title:    title,
 		Body:     strings.TrimSpace(r.FormValue("body")),
 	})
@@ -373,18 +377,26 @@ func (a *App) handleUpdateAdultEvent(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "An event cannot end before it starts.", http.StatusBadRequest)
 		return
 	}
+	existing, err := a.store.AdultEvent(pathID(r, "eventID"))
+	if err != nil {
+		a.serverError(w, err)
+		return
+	}
+	if existing.AdultID != adult.ID {
+		a.notFound(w)
+		return
+	}
 	labelID, err := a.ownedEventLabelID(adult.ID, formID(r, "label_id"))
 	if err != nil {
 		a.serverError(w, err)
 		return
 	}
-	if err := a.store.UpdateAdultEvent(adult.ID, pathID(r, "eventID"), AdultEvent{
-		LabelID:  labelID,
-		StartsOn: starts,
-		EndsOn:   ends,
-		Title:    title,
-		Body:     strings.TrimSpace(r.FormValue("body")),
-	}); err != nil {
+	existing.LabelID = labelID
+	existing.StartsOn = starts
+	existing.EndsOn = ends
+	existing.Title = title
+	existing.Body = strings.TrimSpace(r.FormValue("body"))
+	if err := a.store.UpdateAdultEvent(adult.ID, existing.ID, existing); err != nil {
 		a.serverError(w, err)
 		return
 	}

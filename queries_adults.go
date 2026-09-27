@@ -1,7 +1,11 @@
 package main
 
 import (
+	"crypto/rand"
 	"database/sql"
+	"encoding/hex"
+	"errors"
+	"fmt"
 	"strings"
 	"time"
 )
@@ -141,18 +145,31 @@ func (s *Store) DeleteAdultCard(id int64) error {
 // Calendar events --------------------------------------------------------
 
 const adultEventSelect = `SELECT e.id, e.adult_id, COALESCE(e.label_id, 0),
-		e.starts_on, e.ends_on, e.title, e.body, e.created_at,
+		e.uid, e.starts_on, e.ends_on, e.all_day, e.start_at, e.end_at,
+		e.title, e.body, e.location, e.rrule, e.exdates, e.sequence,
+		e.created_at, e.modified_at,
 		COALESCE(l.name, ''), COALESCE(l.color, ''), COALESCE(l.emoji, '')
 	FROM adult_events e
 	LEFT JOIN adult_event_labels l ON l.id = e.label_id`
+
+func scanAdultEvent(scanner interface {
+	Scan(dest ...any) error
+}) (AdultEvent, error) {
+	var e AdultEvent
+	var allDay int
+	err := scanner.Scan(&e.ID, &e.AdultID, &e.LabelID, &e.UID, &e.StartsOn, &e.EndsOn,
+		&allDay, &e.StartAt, &e.EndAt, &e.Title, &e.Body, &e.Location, &e.RRule, &e.ExDates,
+		&e.Sequence, &e.CreatedAt, &e.ModifiedAt, &e.LabelName, &e.LabelColor, &e.LabelEmoji)
+	e.AllDay = allDay != 0
+	return e, err
+}
 
 func scanAdultEvents(rows *sql.Rows) ([]AdultEvent, error) {
 	defer rows.Close()
 	var events []AdultEvent
 	for rows.Next() {
-		var e AdultEvent
-		if err := rows.Scan(&e.ID, &e.AdultID, &e.LabelID, &e.StartsOn, &e.EndsOn,
-			&e.Title, &e.Body, &e.CreatedAt, &e.LabelName, &e.LabelColor, &e.LabelEmoji); err != nil {
+		e, err := scanAdultEvent(rows)
+		if err != nil {
 			return nil, err
 		}
 		events = append(events, e)
@@ -160,37 +177,142 @@ func scanAdultEvents(rows *sql.Rows) ([]AdultEvent, error) {
 	return events, rows.Err()
 }
 
-// AdultEventsOverlapping returns every event touching the range, not only the
-// ones starting inside it: a trip that began last month is still happening
-// during the days this month shows.
+func ensureEventUID(uid string) string {
+	uid = strings.TrimSpace(uid)
+	if uid != "" {
+		return uid
+	}
+	return newEventUID()
+}
+
+func newEventUID() string {
+	b := make([]byte, 16)
+	if _, err := rand.Read(b); err != nil {
+		return fmt.Sprintf("adult-event-%d@school-nanny", time.Now().UnixNano())
+	}
+	return hex.EncodeToString(b) + "@school-nanny"
+}
+
+func allDayInt(allDay bool) int {
+	if allDay {
+		return 1
+	}
+	return 0
+}
+
+func bumpAdultCalendarSync(tx DBTX, adultID int64) error {
+	_, err := tx.Exec(`INSERT INTO adult_calendar_meta (adult_id, sync_token) VALUES (?, 1)
+		ON CONFLICT(adult_id) DO UPDATE SET sync_token = sync_token + 1`, adultID)
+	return err
+}
+
+func (s *Store) AdultCalendarSyncToken(adultID int64) (int64, error) {
+	var token int64
+	err := s.db().QueryRow(`SELECT sync_token FROM adult_calendar_meta WHERE adult_id = ?`, adultID).Scan(&token)
+	if errors.Is(err, sql.ErrNoRows) {
+		_, err = s.db().Exec(`INSERT INTO adult_calendar_meta (adult_id, sync_token) VALUES (?, 1)`, adultID)
+		if err != nil {
+			return 0, err
+		}
+		return 1, nil
+	}
+	return token, err
+}
+
+// AdultEventsOverlapping returns every event touching the range, expanding
+// yearly rules into the days that fall inside it. Masters without a yearly
+// rule are returned as stored.
 func (s *Store) AdultEventsOverlapping(adultID int64, from, to string) ([]AdultEvent, error) {
 	rows, err := s.db().Query(adultEventSelect+` WHERE e.adult_id = ?
-		AND e.starts_on <= ? AND e.ends_on >= ?
+		AND (
+			(e.rrule = '' AND e.starts_on <= ? AND e.ends_on >= ?)
+			OR e.rrule != ''
+		)
 		ORDER BY e.starts_on, e.ends_on, e.id`, adultID, to, from)
+	if err != nil {
+		return nil, err
+	}
+	masters, err := scanAdultEvents(rows)
+	if err != nil {
+		return nil, err
+	}
+	return ExpandAdultEvents(masters, from, to), nil
+}
+
+// AdultEventMasters returns the stored rows for an adult without expanding
+// recurrence. CalDAV serves masters; the phone expands them itself.
+func (s *Store) AdultEventMasters(adultID int64) ([]AdultEvent, error) {
+	rows, err := s.db().Query(adultEventSelect+` WHERE e.adult_id = ?
+		ORDER BY e.starts_on, e.ends_on, e.id`, adultID)
 	if err != nil {
 		return nil, err
 	}
 	return scanAdultEvents(rows)
 }
 
+func (s *Store) AdultEventByUID(adultID int64, uid string) (AdultEvent, error) {
+	return scanAdultEvent(s.db().QueryRow(adultEventSelect+` WHERE e.adult_id = ? AND e.uid = ?`, adultID, uid))
+}
+
 func (s *Store) AdultEvent(id int64) (AdultEvent, error) {
-	var e AdultEvent
-	err := s.db().QueryRow(adultEventSelect+` WHERE e.id = ?`, id).
-		Scan(&e.ID, &e.AdultID, &e.LabelID, &e.StartsOn, &e.EndsOn,
-			&e.Title, &e.Body, &e.CreatedAt, &e.LabelName, &e.LabelColor, &e.LabelEmoji)
-	return e, err
+	return scanAdultEvent(s.db().QueryRow(adultEventSelect+` WHERE e.id = ?`, id))
+}
+
+func (s *Store) AdultEventTombstones(adultID int64, since string) ([]string, error) {
+	rows, err := s.db().Query(`SELECT uid FROM adult_event_tombstones
+		WHERE adult_id = ? AND deleted_at > ?
+		ORDER BY deleted_at, uid`, adultID, since)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var uid string
+		if err := rows.Scan(&uid); err != nil {
+			return nil, err
+		}
+		out = append(out, uid)
+	}
+	return out, rows.Err()
 }
 
 func (s *Store) CreateAdultEvent(e AdultEvent) (int64, error) {
-	res, err := s.db().Exec(`INSERT INTO adult_events
-		(adult_id, label_id, starts_on, ends_on, title, body, created_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?)`,
-		e.AdultID, nullableID(e.LabelID), e.StartsOn, e.EndsOn, e.Title, e.Body,
-		time.Now().Format(time.RFC3339))
+	tx, err := s.db().Begin()
 	if err != nil {
 		return 0, err
 	}
-	return res.LastInsertId()
+	defer tx.Rollback()
+	now := time.Now().UTC().Format(time.RFC3339)
+	if e.CreatedAt == "" {
+		e.CreatedAt = now
+	}
+	if e.ModifiedAt == "" {
+		e.ModifiedAt = now
+	}
+	if !e.AllDay && e.StartAt == "" {
+		e.AllDay = true
+	}
+	uid := ensureEventUID(e.UID)
+	res, err := tx.Exec(`INSERT INTO adult_events
+		(adult_id, label_id, uid, starts_on, ends_on, all_day, start_at, end_at,
+		 title, body, location, rrule, exdates, sequence, created_at, modified_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		e.AdultID, nullableID(e.LabelID), uid, e.StartsOn, e.EndsOn, allDayInt(e.AllDay),
+		e.StartAt, e.EndAt, e.Title, e.Body, e.Location, e.RRule, e.ExDates, e.Sequence,
+		e.CreatedAt, e.ModifiedAt)
+	if err != nil {
+		return 0, err
+	}
+	id, err := res.LastInsertId()
+	if err != nil {
+		return 0, err
+	}
+	if err := bumpAdultCalendarSync(tx, e.AdultID); err != nil {
+		return 0, err
+	}
+	_, _ = tx.Exec(`DELETE FROM adult_event_tombstones WHERE adult_id = ? AND uid = ?`, e.AdultID, uid)
+	return id, tx.Commit()
 }
 
 func (s *Store) CreateAdultEvents(events []AdultEvent) error {
@@ -199,12 +321,28 @@ func (s *Store) CreateAdultEvents(events []AdultEvent) error {
 		return err
 	}
 	defer tx.Rollback()
-	now := time.Now().Format(time.RFC3339)
+	now := time.Now().UTC().Format(time.RFC3339)
+	adults := map[int64]bool{}
 	for _, e := range events {
+		uid := ensureEventUID(e.UID)
+		allDay := e.AllDay
+		if !allDay && e.StartAt == "" {
+			allDay = true
+		}
 		if _, err := tx.Exec(`INSERT INTO adult_events
-			(adult_id, label_id, starts_on, ends_on, title, body, created_at)
-			VALUES (?, ?, ?, ?, ?, ?, ?)`,
-			e.AdultID, nullableID(e.LabelID), e.StartsOn, e.EndsOn, e.Title, e.Body, now); err != nil {
+			(adult_id, label_id, uid, starts_on, ends_on, all_day, start_at, end_at,
+			 title, body, location, rrule, exdates, sequence, created_at, modified_at)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			e.AdultID, nullableID(e.LabelID), uid, e.StartsOn, e.EndsOn, allDayInt(allDay),
+			e.StartAt, e.EndAt, e.Title, e.Body, e.Location, e.RRule, e.ExDates, e.Sequence,
+			now, now); err != nil {
+			return err
+		}
+		adults[e.AdultID] = true
+		_, _ = tx.Exec(`DELETE FROM adult_event_tombstones WHERE adult_id = ? AND uid = ?`, e.AdultID, uid)
+	}
+	for adultID := range adults {
+		if err := bumpAdultCalendarSync(tx, adultID); err != nil {
 			return err
 		}
 	}
@@ -215,26 +353,186 @@ func (s *Store) CreateAdultEvents(events []AdultEvent) error {
 // and which label it wears. That is how a note written last month still gets a
 // birthday cake when she invents the label later.
 func (s *Store) UpdateAdultEvent(adultID, id int64, e AdultEvent) error {
-	_, err := s.db().Exec(`UPDATE adult_events
-		SET label_id = ?, starts_on = ?, ends_on = ?, title = ?, body = ?
+	tx, err := s.db().Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	now := time.Now().UTC().Format(time.RFC3339)
+	res, err := tx.Exec(`UPDATE adult_events
+		SET label_id = ?, starts_on = ?, ends_on = ?, all_day = ?, start_at = ?, end_at = ?,
+		    title = ?, body = ?, location = ?, rrule = ?, exdates = ?,
+		    sequence = sequence + 1, modified_at = ?
 		WHERE id = ? AND adult_id = ?`,
-		nullableID(e.LabelID), e.StartsOn, e.EndsOn, e.Title, e.Body, id, adultID)
-	return err
+		nullableID(e.LabelID), e.StartsOn, e.EndsOn, allDayInt(e.AllDay || e.StartAt == ""),
+		e.StartAt, e.EndAt, e.Title, e.Body, e.Location, e.RRule, e.ExDates, now, id, adultID)
+	if err != nil {
+		return err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return sql.ErrNoRows
+	}
+	if err := bumpAdultCalendarSync(tx, adultID); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
+
+// UpsertAdultEventByUID creates or replaces the event the phone addressed.
+// IfMatch is the ETag the client sent; empty means create-only or overwrite.
+func (s *Store) UpsertAdultEventByUID(e AdultEvent, ifMatch string) (AdultEvent, bool, error) {
+	tx, err := s.db().Begin()
+	if err != nil {
+		return AdultEvent{}, false, err
+	}
+	defer tx.Rollback()
+
+	existing, err := scanAdultEvent(tx.QueryRow(adultEventSelect+` WHERE e.adult_id = ? AND e.uid = ?`, e.AdultID, e.UID))
+	now := time.Now().UTC().Format(time.RFC3339)
+	created := false
+	if errors.Is(err, sql.ErrNoRows) {
+		if ifMatch != "" && ifMatch != "*" {
+			return AdultEvent{}, false, errCalDAVPrecondition
+		}
+		e.CreatedAt = now
+		e.ModifiedAt = now
+		e.Sequence = 0
+		if !e.AllDay && e.StartAt == "" {
+			e.AllDay = true
+		}
+		res, err := tx.Exec(`INSERT INTO adult_events
+			(adult_id, label_id, uid, starts_on, ends_on, all_day, start_at, end_at,
+			 title, body, location, rrule, exdates, sequence, created_at, modified_at)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			e.AdultID, nullableID(e.LabelID), e.UID, e.StartsOn, e.EndsOn, allDayInt(e.AllDay),
+			e.StartAt, e.EndAt, e.Title, e.Body, e.Location, e.RRule, e.ExDates, e.Sequence,
+			e.CreatedAt, e.ModifiedAt)
+		if err != nil {
+			return AdultEvent{}, false, err
+		}
+		e.ID, err = res.LastInsertId()
+		if err != nil {
+			return AdultEvent{}, false, err
+		}
+		created = true
+		_, _ = tx.Exec(`DELETE FROM adult_event_tombstones WHERE adult_id = ? AND uid = ?`, e.AdultID, e.UID)
+	} else if err != nil {
+		return AdultEvent{}, false, err
+	} else {
+		if ifMatch != "" && ifMatch != existing.ETag() {
+			return AdultEvent{}, false, errCalDAVPrecondition
+		}
+		e.ID = existing.ID
+		e.LabelID = existing.LabelID
+		e.CreatedAt = existing.CreatedAt
+		e.Sequence = existing.Sequence + 1
+		e.ModifiedAt = now
+		if !e.AllDay && e.StartAt == "" {
+			e.AllDay = true
+		}
+		_, err = tx.Exec(`UPDATE adult_events
+			SET starts_on = ?, ends_on = ?, all_day = ?, start_at = ?, end_at = ?,
+			    title = ?, body = ?, location = ?, rrule = ?, exdates = ?,
+			    sequence = ?, modified_at = ?
+			WHERE id = ? AND adult_id = ?`,
+			e.StartsOn, e.EndsOn, allDayInt(e.AllDay), e.StartAt, e.EndAt,
+			e.Title, e.Body, e.Location, e.RRule, e.ExDates, e.Sequence, e.ModifiedAt,
+			e.ID, e.AdultID)
+		if err != nil {
+			return AdultEvent{}, false, err
+		}
+	}
+	if err := bumpAdultCalendarSync(tx, e.AdultID); err != nil {
+		return AdultEvent{}, false, err
+	}
+	if err := tx.Commit(); err != nil {
+		return AdultEvent{}, false, err
+	}
+	return e, created, nil
+}
+
+var errCalDAVPrecondition = errors.New("caldav precondition failed")
 
 // SetAdultEventLabel pins a color tag onto an event, or clears it when
 // labelID is zero. The adult id keeps one profile from retagging another's.
 func (s *Store) SetAdultEventLabel(adultID, eventID, labelID int64) error {
-	_, err := s.db().Exec(`UPDATE adult_events SET label_id = ?
-		WHERE id = ? AND adult_id = ?`, nullableID(labelID), eventID, adultID)
-	return err
+	tx, err := s.db().Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	now := time.Now().UTC().Format(time.RFC3339)
+	_, err = tx.Exec(`UPDATE adult_events SET label_id = ?, sequence = sequence + 1, modified_at = ?
+		WHERE id = ? AND adult_id = ?`, nullableID(labelID), now, eventID, adultID)
+	if err != nil {
+		return err
+	}
+	if err := bumpAdultCalendarSync(tx, adultID); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 // DeleteAdultEvent names the adult as well as the event so one profile can
 // never delete something off another's calendar.
 func (s *Store) DeleteAdultEvent(adultID, id int64) error {
-	_, err := s.db().Exec(`DELETE FROM adult_events WHERE id = ? AND adult_id = ?`, id, adultID)
-	return err
+	tx, err := s.db().Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	var uid string
+	err = tx.QueryRow(`SELECT uid FROM adult_events WHERE id = ? AND adult_id = ?`, id, adultID).Scan(&uid)
+	if err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`DELETE FROM adult_events WHERE id = ? AND adult_id = ?`, id, adultID); err != nil {
+		return err
+	}
+	now := time.Now().UTC().Format(time.RFC3339)
+	if _, err := tx.Exec(`INSERT INTO adult_event_tombstones (adult_id, uid, deleted_at)
+		VALUES (?, ?, ?)
+		ON CONFLICT(adult_id, uid) DO UPDATE SET deleted_at = excluded.deleted_at`,
+		adultID, uid, now); err != nil {
+		return err
+	}
+	if err := bumpAdultCalendarSync(tx, adultID); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+func (s *Store) DeleteAdultEventByUID(adultID int64, uid, ifMatch string) error {
+	tx, err := s.db().Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	existing, err := scanAdultEvent(tx.QueryRow(adultEventSelect+` WHERE e.adult_id = ? AND e.uid = ?`, adultID, uid))
+	if err != nil {
+		return err
+	}
+	if ifMatch != "" && ifMatch != existing.ETag() {
+		return errCalDAVPrecondition
+	}
+	if _, err := tx.Exec(`DELETE FROM adult_events WHERE id = ? AND adult_id = ?`, existing.ID, adultID); err != nil {
+		return err
+	}
+	now := time.Now().UTC().Format(time.RFC3339)
+	if _, err := tx.Exec(`INSERT INTO adult_event_tombstones (adult_id, uid, deleted_at)
+		VALUES (?, ?, ?)
+		ON CONFLICT(adult_id, uid) DO UPDATE SET deleted_at = excluded.deleted_at`,
+		adultID, uid, now); err != nil {
+		return err
+	}
+	if err := bumpAdultCalendarSync(tx, adultID); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 // Event labels ------------------------------------------------------------

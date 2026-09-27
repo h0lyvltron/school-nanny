@@ -104,15 +104,25 @@ func (l AdultEventLabel) HasEmoji() bool { return strings.TrimSpace(l.Emoji) != 
 
 // AdultEvent is something on her own calendar: an appointment, a trip, a week
 // away. Both dates are inclusive, so a one-day event has the same date twice.
+// A yearly birthday keeps one row with RRule; the month grid expands it.
 type AdultEvent struct {
-	ID        int64
-	AdultID   int64
-	LabelID   int64
-	StartsOn  string
-	EndsOn    string
-	Title     string
-	Body      string
-	CreatedAt string
+	ID         int64
+	AdultID    int64
+	LabelID    int64
+	UID        string
+	StartsOn   string
+	EndsOn     string
+	AllDay     bool
+	StartAt    string
+	EndAt      string
+	Title      string
+	Body       string
+	Location   string
+	RRule      string
+	ExDates    string
+	Sequence   int
+	CreatedAt  string
+	ModifiedAt string
 
 	LabelName  string
 	LabelColor string
@@ -121,6 +131,11 @@ type AdultEvent struct {
 }
 
 func (e AdultEvent) Spans() bool { return e.EndsOn > e.StartsOn }
+
+func (e AdultEvent) Yearly() bool {
+	_, ok := parseYearlyRule(e.RRule)
+	return ok
+}
 
 func (e AdultEvent) HasLabel() bool {
 	return e.LabelID != 0 && hexColor.MatchString(e.LabelColor)
@@ -134,6 +149,11 @@ func (e AdultEvent) Icon() string {
 // mark on every cell of a run rather than only the day it started.
 func (e AdultEvent) Covers(date string) bool {
 	return date >= e.StartsOn && date <= e.EndsOn
+}
+
+// ETag is the CalDAV revision token for this row.
+func (e AdultEvent) ETag() string {
+	return fmt.Sprintf(`"%d-%s"`, e.Sequence, e.ModifiedAt)
 }
 
 // DateLabelOn names the stretch the way she would say it out loud, relative to

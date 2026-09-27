@@ -11,7 +11,9 @@
 </div>
 
 {{if .Imported}}
-    <p class="saved-flash">Added {{.Imported}} calendar {{if eq .Imported 1}}event{{else}}events{{end}} from the import.</p>
+    <p class="saved-flash">Added {{.Imported}} calendar {{if eq .Imported 1}}event{{else}}events{{end}}. Yearly birthdays keep repeating on the calendar.</p>
+{{else if .AlreadyImported}}
+    <p class="saved-flash">Nothing new to add. Those events are already on the calendar.</p>
 {{end}}
 
 <section class="panel">

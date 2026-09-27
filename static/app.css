@@ -1636,6 +1636,16 @@ body.is-dragging-lesson .drop-kids { display: flex; }
 }
 
 .settings-row.new { border-bottom: none; border-top: 1px solid var(--line); padding-top: 0.8rem; }
+.settings-dl {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 0.25rem 1rem;
+    margin: 0.75rem 0;
+    font-size: 0.9rem;
+}
+.settings-dl dt { color: var(--ink-soft); }
+.settings-dl dd { margin: 0; }
+.settings-dl code { font-size: 0.85em; }
 .settings-row input, .settings-row select { margin: 0; width: auto; flex: 1 1 7rem; }
 .settings-row input[type="color"] { flex: none; width: 3rem; padding: 0.15rem; }
 .settings-row input.settings-grade {
