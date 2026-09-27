@@ -16,6 +16,8 @@ you prefer not to run a house server (or as a temporary off-site host).
 export SCHOOL_NANNY_MODE=hosted
 export BASE_URL=https://app.example.com
 export INVITE_CODE='…'   # set a real invite before opening signup
+# compose.hosted.yml publishes the app on 127.0.0.1:8080 only.
+# Public HTTPS belongs on the Coolify path, which does not publish the port.
 docker compose -f compose.hosted.yml up --build -d
 ```
 

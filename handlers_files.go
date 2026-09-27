@@ -121,7 +121,7 @@ func (a *App) saveUpload(name string, header *multipart.FileHeader) (string, str
 
 	now := time.Now()
 	dir := filepath.Join(now.Format("2006"), now.Format("01"))
-	if err := os.MkdirAll(filepath.Join(a.uploadDir, dir), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(a.uploadDir, dir), dirPerm); err != nil {
 		return "", "", err
 	}
 
@@ -131,7 +131,7 @@ func (a *App) saveUpload(name string, header *multipart.FileHeader) (string, str
 	}
 	stored := filepath.Join(dir, hex.EncodeToString(buf)+"-"+safeFilename(name))
 
-	dst, err := os.OpenFile(filepath.Join(a.uploadDir, stored), os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
+	dst, err := os.OpenFile(filepath.Join(a.uploadDir, stored), os.O_WRONLY|os.O_CREATE|os.O_EXCL, filePerm)
 	if err != nil {
 		return "", "", err
 	}
@@ -293,6 +293,24 @@ func (a *App) resolveUpload(stored string) (string, bool) {
 	// refuse a photo that is sitting right where we put it.
 	rel, err := filepath.Rel(a.uploadDir, full)
 	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
+		return "", false
+	}
+	return full, true
+}
+
+// containedPath joins rel onto root and reports the result only when it stays
+// inside root. A name like lesson..2.pdf is fine. A name that cleans to a
+// parent directory is not.
+func containedPath(root, rel string) (string, bool) {
+	clean := filepath.Clean(filepath.FromSlash(rel))
+	if clean == "." || filepath.IsAbs(clean) ||
+		strings.HasPrefix(clean, "..") ||
+		strings.HasPrefix(clean, string(os.PathSeparator)) {
+		return "", false
+	}
+	full := filepath.Join(root, clean)
+	got, err := filepath.Rel(root, full)
+	if err != nil || got == ".." || strings.HasPrefix(got, ".."+string(os.PathSeparator)) {
 		return "", false
 	}
 	return full, true

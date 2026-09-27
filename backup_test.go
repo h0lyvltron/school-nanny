@@ -331,11 +331,13 @@ func TestSettingsSubpages(t *testing.T) {
 }
 
 func TestSettingsDataOwnerGate(t *testing.T) {
-	ta := newHostedTestApp(t, "")
+	ta := newHostedTestApp(t, "test-invite")
 	ta.postForm("/signup", url.Values{
-		"email":       {"owner@example.com"},
-		"password":    {"owner-pass-word"},
-		"family_name": {"Data Family"},
+		"email":            {"owner@example.com"},
+		"password":         {"owner-pass-word"},
+		"password_confirm": {"owner-pass-word"},
+		"family_name":      {"Data Family"},
+		"invite_code":      {"test-invite"},
 	})
 	code, body, _ := ta.postForm("/settings/pins", url.Values{
 		"display_name": {"Co"},

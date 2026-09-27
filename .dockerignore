@@ -1,6 +1,7 @@
 .git
 .toolchain
 data
+business
 dist
 *.exe
 *.pdb

@@ -103,7 +103,7 @@ func (s *Store) Close() error {
 // which plain file copying would miss, and produces a single self-contained
 // file with no -wal or -shm sidecar to keep track of.
 func (s *Store) SnapshotTo(dest string) error {
-	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(dest), dirPerm); err != nil {
 		return err
 	}
 	// VACUUM INTO refuses to overwrite, so a half-written file from a failed
@@ -114,6 +114,7 @@ func (s *Store) SnapshotTo(dest string) error {
 	if _, err := s.db().Exec(`VACUUM INTO ?`, dest); err != nil {
 		return fmt.Errorf("copying the database to %s: %w", dest, err)
 	}
+	_ = os.Chmod(dest, filePerm)
 	return nil
 }
 
@@ -146,7 +147,7 @@ func (s *Store) swapIn(src, safetyCopy string) error {
 	defer s.mu.Unlock()
 
 	if safetyCopy != "" {
-		if err := os.MkdirAll(filepath.Dir(safetyCopy), 0o755); err != nil {
+		if err := os.MkdirAll(filepath.Dir(safetyCopy), dirPerm); err != nil {
 			return err
 		}
 		if err := os.Remove(safetyCopy); err != nil && !errors.Is(err, os.ErrNotExist) {
@@ -155,6 +156,7 @@ func (s *Store) swapIn(src, safetyCopy string) error {
 		if _, err := s.pool.Exec(`VACUUM INTO ?`, safetyCopy); err != nil {
 			return fmt.Errorf("saving the current records before restoring: %w", err)
 		}
+		_ = os.Chmod(safetyCopy, filePerm)
 	}
 
 	if err := s.pool.Close(); err != nil {

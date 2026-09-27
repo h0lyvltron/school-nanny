@@ -2287,7 +2287,7 @@ func TestPasswordLocksAndUnlocks(t *testing.T) {
 		t.Fatalf("home should be open before a password is set, got %d", status)
 	}
 
-	ta.post("/settings/password", url.Values{"password": {"letmein"}})
+	ta.post("/settings/password", url.Values{"password": {"letmein"}, "password_confirm": {"letmein"}})
 	if status, _ := ta.get("/"); status != http.StatusOK {
 		t.Fatalf("setting a password should keep the current session in, got %d", status)
 	}

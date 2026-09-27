@@ -183,17 +183,21 @@ Deploy-wide `INVITE_CODE` remains the gate to **create a new family**.
 
 ## Password / email / OAuth (owner path)
 
-Design only — no SMTP/OAuth wiring in this phase. Local house password stays a
-separate, optional LAN lock and is not this model.
+Confirm links, reset links, and optional email sign-in codes are implemented.
+SMTP is configured with `SMTP_HOST` (see [HOSTED.md](HOSTED.md)). OAuth is still
+not wired. The local house password stays a separate, optional LAN lock and is
+not this model.
 
 ```mermaid
 flowchart LR
   signup[Signup] --> confirm[Confirm email link]
   confirm --> session[Session]
   session --> reset[Password reset email]
+  session --> code[Optional email sign-in code]
   session --> oauth[OAuth link optional]
   mailer[Mailer adapter] --> confirm
   mailer --> reset
+  mailer --> code
 ```
 
 ### Password policy options (debate)
@@ -224,6 +228,16 @@ to family-issued PINs (separate short alphabet) or local house password.
 - Reset sets new password (policy above) and kills other owner sessions.
 - PIN principals: **no email reset** — owner (or delegated kid-login manager for
   kids) resets in Settings.
+
+### Email sign-in code
+
+- Owner opt-in (`email_2fa` on the account). PIN logins are not included.
+- After the password check, the app emails a 6-digit code and sets a short-lived
+  challenge cookie. The session cookie is issued only when that browser posts
+  the matching code.
+- Five wrong codes burn the challenge.
+- Not required during invite-only beta. A later public signup can turn it on
+  for new owners.
 
 ### OAuth (later)
 

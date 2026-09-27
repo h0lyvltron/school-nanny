@@ -5,6 +5,7 @@ go 1.25.0
 require (
 	github.com/ledongthuc/pdf v0.0.0-20260907135840-6c8c28e0e8a0
 	github.com/pdfcpu/pdfcpu v0.15.0
+	golang.org/x/sys v0.47.0
 	gopkg.in/yaml.v3 v3.0.1
 	modernc.org/sqlite v1.57.0
 )
@@ -21,7 +22,6 @@ require (
 	go.yaml.in/yaml/v3 v3.0.5 // indirect
 	golang.org/x/crypto v0.54.0 // indirect
 	golang.org/x/image v0.44.0 // indirect
-	golang.org/x/sys v0.47.0 // indirect
 	golang.org/x/text v0.40.0 // indirect
 	modernc.org/libc v1.74.4 // indirect
 	modernc.org/mathutil v1.7.1 // indirect

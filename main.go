@@ -66,6 +66,11 @@ func run(addr, dataDir string, open, lan bool) error {
 		}
 		defer app.closeTenants()
 		log.Printf("mode: hosted (control db + per-family data under %s)", dataDir)
+		if app.inviteCode == "" && app.allowOpenSignup {
+			log.Printf("hosted signup is open (ALLOW_OPEN_SIGNUP) and no invite code is set")
+		} else if app.inviteCode == "" {
+			log.Printf("hosted signup is closed until INVITE_CODE is set")
+		}
 	} else {
 		store, err := OpenStore(filepath.Join(dataDir, dbFileName))
 		if err != nil {
@@ -162,7 +167,7 @@ func prepareDataDir(chosen string) (dir, adoptedFrom string, err error) {
 	if err != nil {
 		return "", "", err
 	}
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.MkdirAll(dir, dirPerm); err != nil {
 		return "", "", fmt.Errorf("creating %s: %w", dir, err)
 	}
 
@@ -174,9 +179,10 @@ func prepareDataDir(chosen string) (dir, adoptedFrom string, err error) {
 	}
 
 	uploads := filepath.Join(dir, uploadsFolderName)
-	if err := os.MkdirAll(uploads, 0o755); err != nil {
+	if err := os.MkdirAll(uploads, dirPerm); err != nil {
 		return "", "", fmt.Errorf("creating %s: %w", uploads, err)
 	}
+	tightenDataPerms(dir)
 	return dir, adoptedFrom, nil
 }
 

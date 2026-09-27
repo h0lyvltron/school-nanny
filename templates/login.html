@@ -4,12 +4,24 @@
     {{if .Hosted}}
         <p class="muted">Sign in with the owner email, or a household PIN.</p>
         {{if .Error}}<p class="form-error">{{.Error}}</p>{{end}}
+        {{if .Notice}}<p class="muted">{{.Notice}}</p>{{end}}
+        {{if .NeedCode}}
+        <form method="post" action="/login/code">
+            <input type="text" name="code" placeholder="Sign-in code" inputmode="numeric"
+                   autocomplete="one-time-code" required>
+            <button type="submit">Continue</button>
+        </form>
+        {{else}}
         <form method="post" action="/login">
             <input type="email" name="email" placeholder="Email"
                    autocomplete="username" autofocus required>
             <input type="password" name="password" placeholder="Password"
                    autocomplete="current-password" required>
             <button type="submit">Sign in</button>
+        </form>
+        <form method="post" action="/forgot-password">
+            <input type="email" name="email" placeholder="Email for a reset link" autocomplete="username" required>
+            <button type="submit" class="secondary">Email a reset link</button>
         </form>
         <hr>
         <p class="muted small">Household PIN</p>
@@ -24,6 +36,7 @@
             <button type="submit">Unlock with PIN</button>
         </form>
         <p class="muted small"><a href="/signup">Create a family account</a></p>
+        {{end}}
     {{else}}
         <p class="muted">This app is locked.</p>
         {{if .Error}}<p class="form-error">{{.Error}}</p>{{end}}

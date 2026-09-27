@@ -109,6 +109,9 @@ func (a *App) handleKidAvatarImage(w http.ResponseWriter, r *http.Request) {
 		a.serverError(w, err)
 		return
 	}
+	if !a.allowKidAvatar(w, r, kid.ID) {
+		return
+	}
 	a.serveAvatar(w, r, kid.AvatarPath)
 }
 
@@ -176,7 +179,7 @@ func (a *App) saveAvatarUpload(w http.ResponseWriter, r *http.Request) (string, 
 	}
 
 	dir := filepath.Join("avatars", time.Now().Format("2006"))
-	if err := os.MkdirAll(filepath.Join(a.uploadDir, dir), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(a.uploadDir, dir), dirPerm); err != nil {
 		return "", err
 	}
 	buf := make([]byte, 8)
@@ -185,7 +188,7 @@ func (a *App) saveAvatarUpload(w http.ResponseWriter, r *http.Request) (string, 
 	}
 	stored := filepath.Join(dir, hex.EncodeToString(buf)+ext)
 
-	dst, err := os.OpenFile(filepath.Join(a.uploadDir, stored), os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
+	dst, err := os.OpenFile(filepath.Join(a.uploadDir, stored), os.O_WRONLY|os.O_CREATE|os.O_EXCL, filePerm)
 	if err != nil {
 		return "", err
 	}
@@ -230,4 +233,18 @@ func looksLikeHEIC(header []byte) bool {
 		return true
 	}
 	return bytes.Contains(header, []byte("heic")) || bytes.Contains(header, []byte("heif"))
+}
+
+// allowKidAvatar lets planners and caregivers see every photo. A kid session
+// may load only their own child photo. kidID 0 is an adult photo.
+func (a *App) allowKidAvatar(w http.ResponseWriter, r *http.Request, kidID int64) bool {
+	if !a.hosted {
+		return true
+	}
+	sess := sessionFrom(r)
+	if sess == nil || (sess.IsKid() && (kidID == 0 || kidID != sess.KidID)) {
+		http.Error(w, "That page is not yours.", http.StatusForbidden)
+		return false
+	}
+	return true
 }

@@ -10,6 +10,8 @@
                value="{{.Email}}" autocomplete="username" required>
         <input type="password" name="password" placeholder="Password"
                autocomplete="new-password" required>
+        <input type="password" name="password_confirm" placeholder="Confirm password"
+               autocomplete="new-password" required>
         {{if .InviteRequired}}
             <input type="text" name="invite_code" placeholder="Invite code" required>
         {{end}}

@@ -282,14 +282,18 @@ func (a *App) handleSavePassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	password := r.FormValue("password")
-
-	if password == "" {
+	confirm := r.FormValue("password_confirm")
+	if password == "" && confirm == "" {
 		if err := a.store.DeleteSetting(settingPassword); err != nil {
 			a.serverError(w, err)
 			return
 		}
 		a.clearSession(w)
 		a.redirect(w, r, "/settings/access?saved=password-cleared")
+		return
+	}
+	if !passwordsMatch(password, confirm) {
+		a.rejectSettingsPassword(w, r, "Those passwords did not match.")
 		return
 	}
 
@@ -304,6 +308,17 @@ func (a *App) handleSavePassword(w http.ResponseWriter, r *http.Request) {
 	}
 	a.issueSession(w)
 	a.redirect(w, r, "/settings/access?saved=password")
+}
+
+func (a *App) rejectSettingsPassword(w http.ResponseWriter, r *http.Request, msg string) {
+	data, err := a.settingsPageData(w, r, settingsAccess)
+	if err != nil {
+		a.serverError(w, err)
+		return
+	}
+	data["Error"] = msg
+	w.WriteHeader(http.StatusBadRequest)
+	a.render(w, "settings_access", data)
 }
 
 func (a *App) handleSaveTimezone(w http.ResponseWriter, r *http.Request) {

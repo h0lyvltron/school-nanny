@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"log"
 	"net/http"
 	"net/url"
 	"strings"
@@ -64,6 +65,19 @@ func (a *App) handleLogin(w http.ResponseWriter, r *http.Request) {
 			a.serverError(w, err)
 			return
 		}
+		if a.openSignupStrict() && !user.EmailVerified {
+			w.WriteHeader(http.StatusUnauthorized)
+			a.render(w, "login", map[string]any{
+				"Active": "login",
+				"Hosted": true,
+				"Error":  "Check your email to finish creating the account.",
+			})
+			return
+		}
+		if user.Email2FA {
+			a.beginEmailSignin(w, r, user)
+			return
+		}
 		sess, err := a.control.CreateSession(user.ID, user.FamilyID, sessionLifetime)
 		if err != nil {
 			a.serverError(w, err)
@@ -83,11 +97,17 @@ func (a *App) handleLogin(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/", http.StatusSeeOther)
 		return
 	}
-	if !checkPassword(hash, r.FormValue("password")) {
+	password := r.FormValue("password")
+	locked := a.localLogins.locked()
+	if locked || !checkPassword(hash, password) {
+		if !locked {
+			a.localLogins.fail()
+		}
 		w.WriteHeader(http.StatusUnauthorized)
 		a.render(w, "login", map[string]any{"Active": "login", "Error": "That password did not match."})
 		return
 	}
+	a.localLogins.success()
 	a.issueSession(w)
 	http.Redirect(w, r, "/", http.StatusSeeOther)
 }
@@ -155,8 +175,20 @@ func (a *App) handleSignup(w http.ResponseWriter, r *http.Request) {
 	password := r.FormValue("password")
 	familyName := r.FormValue("family_name")
 	invite := r.FormValue("invite_code")
+	if !passwordsMatch(password, r.FormValue("password_confirm")) {
+		w.WriteHeader(http.StatusBadRequest)
+		a.render(w, "signup", map[string]any{
+			"Active":         "signup",
+			"Hosted":         true,
+			"InviteRequired": a.inviteCode != "",
+			"Error":          "Those passwords did not match.",
+			"Email":          email,
+			"FamilyName":     familyName,
+		})
+		return
+	}
 
-	user, family, err := a.control.Signup(email, password, familyName, invite, a.inviteCode)
+	user, family, err := a.control.Signup(email, password, familyName, invite, a.inviteCode, a.allowOpenSignup)
 	if errors.Is(err, errEmailTaken) {
 		w.WriteHeader(http.StatusConflict)
 		a.render(w, "signup", map[string]any{
@@ -164,6 +196,18 @@ func (a *App) handleSignup(w http.ResponseWriter, r *http.Request) {
 			"Hosted":         true,
 			"InviteRequired": a.inviteCode != "",
 			"Error":          "That email is already registered.",
+			"Email":          email,
+			"FamilyName":     familyName,
+		})
+		return
+	}
+	if errors.Is(err, errInviteRequired) && a.inviteCode == "" {
+		w.WriteHeader(http.StatusForbidden)
+		a.render(w, "signup", map[string]any{
+			"Active":         "signup",
+			"Hosted":         true,
+			"InviteRequired": false,
+			"Error":          "Signup is closed.",
 			"Email":          email,
 			"FamilyName":     familyName,
 		})
@@ -207,6 +251,25 @@ func (a *App) handleSignup(w http.ResponseWriter, r *http.Request) {
 		a.serverError(w, err)
 		return
 	}
+	if err := a.sendConfirmMail(user); err != nil && a.mailer != nil {
+		log.Printf("confirm mail: %v", err)
+	}
+	if a.allowOpenSignup && a.inviteCode == "" {
+		msg := "Check your email to finish creating the account."
+		if a.mailer == nil {
+			msg = "Email is not configured, so this account cannot be confirmed yet."
+		}
+		w.WriteHeader(http.StatusAccepted)
+		a.render(w, "signup", map[string]any{
+			"Active":         "signup",
+			"Hosted":         true,
+			"InviteRequired": false,
+			"Error":          msg,
+			"Email":          email,
+			"FamilyName":     familyName,
+		})
+		return
+	}
 
 	sess, err := a.control.CreateSession(user.ID, user.FamilyID, sessionLifetime)
 	if err != nil {
@@ -215,6 +278,10 @@ func (a *App) handleSignup(w http.ResponseWriter, r *http.Request) {
 	}
 	a.issueHostedSession(w, sess)
 	http.Redirect(w, r, "/", http.StatusSeeOther)
+}
+
+func (a *App) openSignupStrict() bool {
+	return a.allowOpenSignup && strings.TrimSpace(a.inviteCode) == ""
 }
 
 func (a *App) handleLogout(w http.ResponseWriter, r *http.Request) {
@@ -244,8 +311,13 @@ func (a *App) handleChangeAccountPassword(w http.ResponseWriter, r *http.Request
 	}
 	sess := sessionFrom(r)
 	password := r.FormValue("password")
+	confirm := r.FormValue("password_confirm")
+	if !passwordsMatch(password, confirm) {
+		a.rejectSettingsPassword(w, r, "Those passwords did not match.")
+		return
+	}
 	if password == "" {
-		http.Error(w, "Password must not be empty.", http.StatusBadRequest)
+		a.rejectSettingsPassword(w, r, "Password must not be empty.")
 		return
 	}
 	if err := a.control.UpdatePassword(sess.AccountID, password); err != nil {
@@ -280,7 +352,7 @@ func (a *App) requireNotKid(w http.ResponseWriter, r *http.Request) bool {
 		return true
 	}
 	sess := sessionFrom(r)
-	if sess != nil && sess.IsKid() {
+	if sess == nil || sess.IsKid() {
 		http.Error(w, "That page is for grown-ups.", http.StatusForbidden)
 		return false
 	}
@@ -294,10 +366,7 @@ func (a *App) requirePlanningAccess(w http.ResponseWriter, r *http.Request) bool
 		return true
 	}
 	sess := sessionFrom(r)
-	if sess == nil {
-		return true
-	}
-	if sess.IsKid() || sess.Role == roleCaregiver {
+	if sess == nil || sess.IsKid() || sess.Role == roleCaregiver {
 		http.Error(w, "That page is for grown-ups.", http.StatusForbidden)
 		return false
 	}
@@ -311,7 +380,7 @@ func (a *App) requireDayOps(w http.ResponseWriter, r *http.Request) bool {
 		return true
 	}
 	sess := sessionFrom(r)
-	if sess != nil && sess.IsKid() {
+	if sess == nil || sess.IsKid() {
 		http.Error(w, "That page is for grown-ups.", http.StatusForbidden)
 		return false
 	}

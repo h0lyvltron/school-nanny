@@ -9,6 +9,7 @@
 <div id="settings-shell" class="settings-shell">
     <div id="settings-pane" class="settings-pane">
         {{template "settings_flash" .}}
+        {{if .Error}}<p class="form-error">{{.Error}}</p>{{end}}
 
         <section class="panel">
             {{if .Hosted}}
@@ -20,7 +21,12 @@
             </p>
             <form method="post" action="/settings/account-password" class="settings-row new">
                 <input type="password" name="password" placeholder="New password" autocomplete="new-password" required>
+                <input type="password" name="password_confirm" placeholder="Confirm new password" autocomplete="new-password" required>
                 <button type="submit">Save password</button>
+            </form>
+            <form method="post" action="/settings/email-2fa" class="settings-row new">
+                <label class="check"><input type="checkbox" name="email_2fa" value="1" {{if .Email2FA}}checked{{end}}> Email a sign-in code</label>
+                <button type="submit" class="secondary">Save sign-in code</button>
             </form>
             {{else}}
             <h2>Signed in</h2>
@@ -38,6 +44,7 @@
             {{end}}
             <form method="post" action="/settings/password" class="settings-row new">
                 <input type="password" name="password" placeholder="Family password" autocomplete="new-password">
+                <input type="password" name="password_confirm" placeholder="Confirm new password" autocomplete="new-password">
                 <button type="submit">Save password</button>
             </form>
             {{end}}

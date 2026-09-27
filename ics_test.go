@@ -61,7 +61,7 @@ func TestTodayDayGlanceAndICSExportImport(t *testing.T) {
 		t.Fatalf("today: %d", code)
 	}
 	mustContain(t, body, "Also today", "day glance heading")
-	mustContain(t, body, "not part of school hours", "day glance note")
+	mustContain(t, body, "Household calendar", "day glance note")
 	mustContain(t, body, "Library run", "event title")
 	mustContain(t, body, `href="/adults/`+itoa64(parent.ID)+`"`, "event links to adult")
 

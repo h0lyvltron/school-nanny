@@ -1,5 +1,6 @@
 # The family's actual records: database and uploaded files.
 data/
+business/
 
 # Build output and the workspace-local Go toolchain.
 dist/
@@ -14,4 +15,9 @@ tools/toc2yaml/*.pdb
 # Coolify API tokens and anything else Ansible needs but nobody else should see.
 ansible/vault.yml
 ansible/*.retry
+
+# Local secrets and certificates.
+.env
+*.pem
+*.key
 

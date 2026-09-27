@@ -2,6 +2,7 @@ package main
 
 import (
 	"archive/zip"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -13,6 +14,92 @@ import (
 
 const familyArchiveName = "family-export.zip"
 
+const (
+	// zipBombFloor is how much honest data we always allow before the
+	// compression ratio is allowed to reject an archive. Photos and PDFs
+	// barely compress; a bomb expands by hundreds of times.
+	zipBombFloor   = 64 << 20
+	zipBombRatio   = 100
+	maxZipEntries  = 100_000
+	diskFreeMargin = 64 << 20
+)
+
+var errArchiveTooLarge = errors.New("That archive is too large to restore here.")
+
+// zipBudget counts bytes actually written while an archive is unpacked.
+// Compressed size is the zip file on disk, not the size claimed in the headers.
+type zipBudget struct {
+	compressed int64
+	written    int64
+	entries    int
+	volume     string
+}
+
+func newZipBudget(zipPath, volume string) (*zipBudget, error) {
+	info, err := os.Stat(zipPath)
+	if err != nil {
+		return nil, err
+	}
+	return &zipBudget{compressed: info.Size(), volume: volume}, nil
+}
+
+func (b *zipBudget) addEntry() error {
+	if b == nil {
+		return nil
+	}
+	b.entries++
+	if b.entries > maxZipEntries {
+		return errArchiveTooLarge
+	}
+	return nil
+}
+
+func (b *zipBudget) addBytes(n int64) error {
+	if b == nil || n <= 0 {
+		return nil
+	}
+	b.written += n
+	if b.written > zipBombFloor && b.compressed > 0 && b.written/zipBombRatio > b.compressed {
+		return errArchiveTooLarge
+	}
+	if b.volume == "" {
+		return nil
+	}
+	free, err := diskFree(b.volume)
+	if err != nil {
+		return nil
+	}
+	if free < diskFreeMargin {
+		return errArchiveTooLarge
+	}
+	return nil
+}
+
+func zipMemberCount(files []*zip.File) int {
+	n := 0
+	for _, f := range files {
+		if f.FileInfo().IsDir() {
+			continue
+		}
+		n++
+	}
+	return n
+}
+
+func uploadZipRel(name string) (string, bool) {
+	name = filepath.ToSlash(name)
+	marker := uploadsFolderName + "/"
+	i := strings.Index(name, marker)
+	if i < 0 {
+		return "", false
+	}
+	rel := name[i+len(marker):]
+	if rel == "" {
+		return "", false
+	}
+	return rel, true
+}
+
 // handleFamilyExport downloads school.db + uploads/ for the signed-in family only.
 func (a *App) handleFamilyExport(w http.ResponseWriter, r *http.Request) {
 	if !a.requireOwner(w, r) {
@@ -23,7 +110,7 @@ func (a *App) handleFamilyExport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	tmp, err := os.CreateTemp("", "school-nanny-export-*.zip")
+	tmp, err := os.CreateTemp(a.dataDir, "school-nanny-export-*.zip")
 	if err != nil {
 		a.serverError(w, err)
 		return
@@ -92,7 +179,7 @@ func (a *App) handleFamilyImport(w http.ResponseWriter, r *http.Request) {
 	}
 	defer file.Close()
 
-	tmp, err := os.CreateTemp("", "school-nanny-import-*.zip")
+	tmp, err := os.CreateTemp(a.dataDir, "school-nanny-import-*.zip")
 	if err != nil {
 		a.serverError(w, err)
 		return
@@ -121,14 +208,14 @@ func (a *App) handleFamilyImport(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if err := a.importFamilyArchive(tmpName); err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
+			a.archiveImportError(w, err)
 			return
 		}
 		a.redirect(w, r, "/settings/data?saved=imported")
 	case "merge":
 		n, err := a.mergeFamilyArchive(tmpName)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
+			a.archiveImportError(w, err)
 			return
 		}
 		a.redirect(w, r, fmt.Sprintf("/settings/data?saved=merged&plans=%d", n))
@@ -155,6 +242,13 @@ func (a *App) importFamilyArchive(zipPath string) error {
 	if dbEntry == nil {
 		return fmt.Errorf("That archive has no school.db.")
 	}
+	if zipMemberCount(zr.File) > maxZipEntries {
+		return errArchiveTooLarge
+	}
+	budget, err := newZipBudget(zipPath, a.dataDir)
+	if err != nil {
+		return err
+	}
 
 	extractDir, err := os.MkdirTemp(a.dataDir, "import-*")
 	if err != nil {
@@ -163,34 +257,26 @@ func (a *App) importFamilyArchive(zipPath string) error {
 	defer os.RemoveAll(extractDir)
 
 	dbDest := filepath.Join(extractDir, dbFileName)
-	if err := unzipFile(dbEntry, dbDest); err != nil {
+	if err := unzipFile(dbEntry, dbDest, budget); err != nil {
 		return err
 	}
 	uploadsDest := filepath.Join(extractDir, uploadsFolderName)
-	if err := os.MkdirAll(uploadsDest, 0o755); err != nil {
+	if err := os.MkdirAll(uploadsDest, dirPerm); err != nil {
 		return err
 	}
 	for _, f := range zr.File {
-		name := filepath.ToSlash(f.Name)
 		if f.FileInfo().IsDir() {
 			continue
 		}
-		rel := name
-		if i := strings.Index(name, uploadsFolderName+"/"); i >= 0 {
-			rel = name[i+len(uploadsFolderName)+1:]
-		} else if strings.HasPrefix(name, uploadsFolderName+"/") {
-			rel = strings.TrimPrefix(name, uploadsFolderName+"/")
-		} else {
+		rel, ok := uploadZipRel(f.Name)
+		if !ok {
 			continue
 		}
-		if rel == "" || strings.Contains(rel, "..") {
+		out, ok := containedPath(uploadsDest, rel)
+		if !ok {
 			continue
 		}
-		out := filepath.Join(uploadsDest, filepath.FromSlash(rel))
-		if err := os.MkdirAll(filepath.Dir(out), 0o755); err != nil {
-			return err
-		}
-		if err := unzipFile(f, out); err != nil {
+		if err := unzipFile(f, out, budget); err != nil {
 			return err
 		}
 	}
@@ -228,14 +314,21 @@ func (a *App) importFamilyArchive(zipPath string) error {
 
 // mergeFamilyArchive keeps the live school.db and adds curriculum YAML plus
 // missing upload files from the archive. It never replaces family records.
-func (a *App) mergeFamilyArchive(zipPath string) (int, error) {
+func (a *App) mergeFamilyArchive(zipPath string) (imported int, err error) {
 	zr, err := zip.OpenReader(zipPath)
 	if err != nil {
 		return 0, fmt.Errorf("That file is not a readable zip.")
 	}
 	defer zr.Close()
+	if zipMemberCount(zr.File) > maxZipEntries {
+		return 0, errArchiveTooLarge
+	}
+	budget, err := newZipBudget(zipPath, a.dataDir)
+	if err != nil {
+		return 0, err
+	}
 
-	if _, err := a.MakeBackup(); err != nil {
+	if _, err = a.MakeBackup(); err != nil {
 		return 0, err
 	}
 
@@ -244,7 +337,6 @@ func (a *App) mergeFamilyArchive(zipPath string) (int, error) {
 		return 0, err
 	}
 
-	var imported int
 	var yamlFiles []*zip.File
 	var allYAML *zip.File
 	for _, f := range zr.File {
@@ -287,33 +379,35 @@ func (a *App) mergeFamilyArchive(zipPath string) (int, error) {
 	}
 
 	liveUploads := filepath.Join(a.dataDir, uploadsFolderName)
-	if err := os.MkdirAll(liveUploads, 0o755); err != nil {
+	if err = os.MkdirAll(liveUploads, dirPerm); err != nil {
 		return imported, err
 	}
+	var created []string
+	defer func() {
+		if err == nil {
+			return
+		}
+		for _, path := range created {
+			_ = os.Remove(path)
+		}
+	}()
 	for _, f := range zr.File {
-		name := filepath.ToSlash(f.Name)
 		if f.FileInfo().IsDir() {
 			continue
 		}
-		rel := ""
-		if i := strings.Index(name, uploadsFolderName+"/"); i >= 0 {
-			rel = name[i+len(uploadsFolderName)+1:]
-		} else if strings.HasPrefix(name, uploadsFolderName+"/") {
-			rel = strings.TrimPrefix(name, uploadsFolderName+"/")
-		} else {
+		rel, ok := uploadZipRel(f.Name)
+		if !ok {
 			continue
 		}
-		if rel == "" || strings.Contains(rel, "..") {
+		out, ok := containedPath(liveUploads, rel)
+		if !ok {
 			continue
 		}
-		out := filepath.Join(liveUploads, filepath.FromSlash(rel))
-		if _, err := os.Stat(out); err == nil {
-			continue // keep existing file
+		if _, statErr := os.Stat(out); statErr == nil {
+			continue
 		}
-		if err := os.MkdirAll(filepath.Dir(out), 0o755); err != nil {
-			return imported, err
-		}
-		if err := unzipFile(f, out); err != nil {
+		created = append(created, out)
+		if err = unzipFile(f, out, budget); err != nil {
 			return imported, err
 		}
 	}
@@ -376,22 +470,57 @@ func zipAddDir(zw *zip.Writer, dir, prefix string) error {
 	})
 }
 
-func unzipFile(f *zip.File, dest string) error {
+func unzipFile(f *zip.File, dest string, budget *zipBudget) error {
+	if err := budget.addEntry(); err != nil {
+		return err
+	}
 	rc, err := f.Open()
 	if err != nil {
 		return err
 	}
 	defer rc.Close()
-	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(dest), dirPerm); err != nil {
 		return err
 	}
-	out, err := os.OpenFile(dest, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
+	out, err := os.OpenFile(dest, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, filePerm)
 	if err != nil {
 		return err
 	}
 	defer out.Close()
-	_, err = io.Copy(out, rc)
-	return err
+	buf := make([]byte, 32<<10)
+	for {
+		n, rerr := rc.Read(buf)
+		if n > 0 {
+			if _, werr := out.Write(buf[:n]); werr != nil {
+				return werr
+			}
+			if err := budget.addBytes(int64(n)); err != nil {
+				return err
+			}
+		}
+		if rerr == io.EOF {
+			return nil
+		}
+		if rerr != nil {
+			return rerr
+		}
+	}
+}
+
+func (a *App) archiveImportError(w http.ResponseWriter, err error) {
+	if errors.Is(err, errArchiveTooLarge) || userArchiveError(err) {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	a.serverError(w, err)
+}
+
+func userArchiveError(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := err.Error()
+	return strings.HasPrefix(msg, "That ") || strings.HasPrefix(msg, "curriculum ")
 }
 
 func (a *App) zipCurriculumYAML(zw *zip.Writer) error {
@@ -422,7 +551,7 @@ func (a *App) zipCurriculumYAML(zw *zip.Writer) error {
 		}
 	}
 	if len(plans) == 0 {
-		return nil
+		return zipAddBytes(zw, "curriculum/all.yaml", []byte("# no curriculum plans\n"))
 	}
 	all, err := EmitPlansYAML(plans)
 	if err != nil {

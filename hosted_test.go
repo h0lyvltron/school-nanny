@@ -72,10 +72,11 @@ func TestHostedSignupLoginIsolation(t *testing.T) {
 	}
 
 	code, _, path := ta.postForm("/signup", url.Values{
-		"email":       {"alpha@example.com"},
-		"password":    {"alpha-pass-word"},
-		"family_name": {"Alpha Family"},
-		"invite_code": {"secret-invite"},
+		"email":            {"alpha@example.com"},
+		"password":         {"alpha-pass-word"},
+		"password_confirm": {"alpha-pass-word"},
+		"family_name":      {"Alpha Family"},
+		"invite_code":      {"secret-invite"},
 	})
 	if code != 200 || path != "/" {
 		t.Fatalf("signup alpha: status=%d path=%s", code, path)
@@ -98,10 +99,11 @@ func TestHostedSignupLoginIsolation(t *testing.T) {
 	// Sign out and create a second family.
 	ta.post("/logout", url.Values{})
 	code, _, path = ta.postForm("/signup", url.Values{
-		"email":       {"beta@example.com"},
-		"password":    {"beta-pass-word"},
-		"family_name": {"Beta Family"},
-		"invite_code": {"secret-invite"},
+		"email":            {"beta@example.com"},
+		"password":         {"beta-pass-word"},
+		"password_confirm": {"beta-pass-word"},
+		"family_name":      {"Beta Family"},
+		"invite_code":      {"secret-invite"},
 	})
 	if code != 200 || path != "/" {
 		t.Fatalf("signup beta: status=%d path=%s", code, path)
@@ -117,10 +119,11 @@ func TestHostedSignupLoginIsolation(t *testing.T) {
 	// Wrong invite blocked.
 	ta.post("/logout", url.Values{})
 	code, body, _ = ta.postForm("/signup", url.Values{
-		"email":       {"gamma@example.com"},
-		"password":    {"gamma-pass-word"},
-		"family_name": {"Gamma"},
-		"invite_code": {"wrong"},
+		"email":            {"gamma@example.com"},
+		"password":         {"gamma-pass-word"},
+		"password_confirm": {"gamma-pass-word"},
+		"family_name":      {"Gamma"},
+		"invite_code":      {"wrong"},
 	})
 	if code != 403 && !strings.Contains(body, "invite") {
 		t.Fatalf("expected invite failure, got %d %q", code, body)
@@ -129,7 +132,7 @@ func TestHostedSignupLoginIsolation(t *testing.T) {
 	// Login works for alpha.
 	code, _, path = ta.postForm("/login", url.Values{
 		"email":    {"alpha@example.com"},
-		"password": {"alpha-pass-word"},
+		"password": {"alpha-pass-word"}, "password_confirm": {"alpha-pass-word"},
 	})
 	if path != "/" {
 		t.Fatalf("alpha login path=%s code=%d", path, code)
@@ -147,11 +150,13 @@ func TestHostedSignupLoginIsolation(t *testing.T) {
 }
 
 func TestHostedFamilyExportImport(t *testing.T) {
-	ta := newHostedTestApp(t, "")
+	ta := newHostedTestApp(t, "test-invite")
 	ta.postForm("/signup", url.Values{
-		"email":       {"exp@example.com"},
-		"password":    {"export-pass-word"},
-		"family_name": {"Export Family"},
+		"email":            {"exp@example.com"},
+		"password":         {"export-pass-word"},
+		"password_confirm": {"export-pass-word"},
+		"family_name":      {"Export Family"},
+		"invite_code":      {"test-invite"},
 	})
 	ta.post("/settings/kids", url.Values{
 		"name":  {"Eve"},
@@ -209,7 +214,7 @@ func TestHostedAdoptsLegacySchoolDB(t *testing.T) {
 	}
 	store.Close()
 
-	app, err := NewHostedApp(HostedConfig{DataRoot: dir, CookieSecure: false})
+	app, err := NewHostedApp(HostedConfig{DataRoot: dir, CookieSecure: false, AllowOpenSignup: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -220,9 +225,10 @@ func TestHostedAdoptsLegacySchoolDB(t *testing.T) {
 	ta := &testApp{App: app, server: server, client: &http.Client{Jar: jar}, t: t}
 
 	ta.postForm("/signup", url.Values{
-		"email":       {"legacy@example.com"},
-		"password":    {"legacy-pass-word"},
-		"family_name": {"Legacy"},
+		"email":            {"legacy@example.com"},
+		"password":         {"legacy-pass-word"},
+		"password_confirm": {"legacy-pass-word"},
+		"family_name":      {"Legacy"},
 	})
 
 	if _, err := os.Stat(filepath.Join(dir, dbFileName)); !os.IsNotExist(err) {
@@ -250,11 +256,13 @@ func TestHostedAdoptsLegacySchoolDB(t *testing.T) {
 }
 
 func TestHostedPINLoginAndOwnerGates(t *testing.T) {
-	ta := newHostedTestApp(t, "")
+	ta := newHostedTestApp(t, "test-invite")
 	code, _, path := ta.postForm("/signup", url.Values{
-		"email":       {"owner@example.com"},
-		"password":    {"owner-pass-word"},
-		"family_name": {"Pin Family"},
+		"email":            {"owner@example.com"},
+		"password":         {"owner-pass-word"},
+		"password_confirm": {"owner-pass-word"},
+		"family_name":      {"Pin Family"},
+		"invite_code":      {"test-invite"},
 	})
 	if code != 200 || path != "/" {
 		t.Fatalf("signup: status=%d path=%s", code, path)
@@ -367,7 +375,7 @@ func TestHostedPINLoginAndOwnerGates(t *testing.T) {
 	ta.post("/logout", url.Values{})
 	ta.postForm("/login", url.Values{
 		"email":    {"owner@example.com"},
-		"password": {"owner-pass-word"},
+		"password": {"owner-pass-word"}, "password_confirm": {"owner-pass-word"},
 	})
 	members, err := ta.control.ListMemberships(fam.ID)
 	if err != nil {
@@ -401,11 +409,13 @@ func TestHostedPINLoginAndOwnerGates(t *testing.T) {
 }
 
 func TestHostedCaregiverDayOpsAndKidOwnStatus(t *testing.T) {
-	ta := newHostedTestApp(t, "")
+	ta := newHostedTestApp(t, "test-invite")
 	code, _, path := ta.postForm("/signup", url.Values{
-		"email":       {"owner2@example.com"},
-		"password":    {"owner-pass-word"},
-		"family_name": {"Ops Family"},
+		"email":            {"owner2@example.com"},
+		"password":         {"owner-pass-word"},
+		"password_confirm": {"owner-pass-word"},
+		"family_name":      {"Ops Family"},
+		"invite_code":      {"test-invite"},
 	})
 	if code != 200 || path != "/" {
 		t.Fatalf("signup: status=%d path=%s", code, path)
@@ -712,11 +722,13 @@ func TestSVGDownloadForcesAttachment(t *testing.T) {
 }
 
 func TestHostedPasswordChangeKillsOtherSessions(t *testing.T) {
-	ta := newHostedTestApp(t, "")
+	ta := newHostedTestApp(t, "test-invite")
 	code, _, path := ta.postForm("/signup", url.Values{
-		"email":       {"pw@example.com"},
-		"password":    {"first-pass-word"},
-		"family_name": {"PW Family"},
+		"email":            {"pw@example.com"},
+		"password":         {"first-pass-word"},
+		"password_confirm": {"first-pass-word"},
+		"family_name":      {"PW Family"},
+		"invite_code":      {"test-invite"},
 	})
 	if code != 200 || path != "/" {
 		t.Fatalf("signup: %d %s", code, path)
@@ -738,7 +750,7 @@ func TestHostedPasswordChangeKillsOtherSessions(t *testing.T) {
 	}
 
 	code, _, path = ta.postForm("/settings/account-password", url.Values{
-		"password": {"second-pass-word"},
+		"password": {"second-pass-word"}, "password_confirm": {"second-pass-word"},
 	})
 	if code != 200 || path != "/settings/access" {
 		t.Fatalf("password change: status=%d path=%s", code, path)

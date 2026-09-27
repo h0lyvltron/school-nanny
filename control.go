@@ -2,6 +2,8 @@ package main
 
 import (
 	"crypto/rand"
+	"crypto/sha256"
+	"crypto/subtle"
 	"database/sql"
 	"encoding/hex"
 	"errors"
@@ -22,7 +24,7 @@ const (
 	hostedSIDCookie = "school_nanny_sid"
 	familiesDirName = "families"
 
-	accountOwnerEmail  = "owner_email"
+	accountOwnerEmail   = "owner_email"
 	accountPINPrincipal = "pin_principal"
 
 	roleOwner     = "owner"
@@ -37,9 +39,9 @@ const (
 	authPassword = "password"
 	authPIN      = "pin"
 
-	minPINLen = 4
-	maxPINLen = 8
-	maxPINFails = 8
+	minPINLen      = 4
+	maxPINLen      = 8
+	maxPINFails    = 8
 	pinLockMinutes = 15
 )
 
@@ -78,11 +80,13 @@ type Account struct {
 
 // User is kept as an alias shape for older call sites; ID is the account id.
 type User struct {
-	ID           int64
-	FamilyID     string
-	Email        string
-	PasswordHash string
-	CreatedAt    time.Time
+	ID            int64
+	FamilyID      string
+	Email         string
+	PasswordHash  string
+	CreatedAt     time.Time
+	EmailVerified bool
+	Email2FA      bool
 }
 
 type Membership struct {
@@ -118,7 +122,7 @@ func (s *Session) IsOwner() bool { return s != nil && s.Role == roleOwner }
 func (s *Session) IsKid() bool   { return s != nil && s.Role == roleKid }
 
 func OpenControlStore(dbPath string) (*ControlStore, error) {
-	if err := os.MkdirAll(filepath.Dir(dbPath), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(dbPath), dirPerm); err != nil {
 		return nil, err
 	}
 	dsn := "file:" + url.PathEscape(dbPath) +
@@ -141,6 +145,7 @@ func OpenControlStore(dbPath string) (*ControlStore, error) {
 		pool.Close()
 		return nil, err
 	}
+	_ = os.Chmod(dbPath, filePerm)
 	return c, nil
 }
 
@@ -226,7 +231,40 @@ CREATE INDEX IF NOT EXISTS pin_credentials_family ON pin_credentials(family_id);
 	if err := c.backfillAccountsFromUsers(); err != nil {
 		return err
 	}
+	if err := c.migrateAccountSecurity(); err != nil {
+		return err
+	}
 	return c.migrateSessionsTable()
+}
+
+func (c *ControlStore) migrateAccountSecurity() error {
+	alters := []string{
+		`ALTER TABLE accounts ADD COLUMN failed_attempts INTEGER NOT NULL DEFAULT 0`,
+		`ALTER TABLE accounts ADD COLUMN locked_until TEXT`,
+		`ALTER TABLE accounts ADD COLUMN email_verified_at TEXT`,
+		`ALTER TABLE accounts ADD COLUMN email_2fa INTEGER NOT NULL DEFAULT 0`,
+	}
+	for _, stmt := range alters {
+		if _, err := c.pool.Exec(stmt); err != nil && !strings.Contains(strings.ToLower(err.Error()), "duplicate") {
+			return err
+		}
+	}
+	_, err := c.pool.Exec(`
+CREATE TABLE IF NOT EXISTS email_tokens (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  account_id INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+  purpose TEXT NOT NULL,
+  token_hash TEXT NOT NULL,
+  challenge_id TEXT,
+  expires_at TEXT NOT NULL,
+  used_at TEXT,
+  failed_attempts INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS email_tokens_account ON email_tokens(account_id, purpose);
+CREATE INDEX IF NOT EXISTS email_tokens_challenge ON email_tokens(challenge_id);
+`)
+	return err
 }
 
 func (c *ControlStore) ensureFamilySlugs() error {
@@ -401,7 +439,16 @@ func (c *ControlStore) uniqueFamilySlug(name string) (string, error) {
 	return "", fmt.Errorf("could not allocate a family slug")
 }
 
-func (c *ControlStore) Signup(email, password, familyName, inviteGot, inviteExpected string) (*User, *Family, error) {
+func inviteMatches(got, expected string) bool {
+	if expected == "" {
+		return false
+	}
+	sumGot := sha256.Sum256([]byte(got))
+	sumWant := sha256.Sum256([]byte(expected))
+	return subtle.ConstantTimeCompare(sumGot[:], sumWant[:]) == 1
+}
+
+func (c *ControlStore) Signup(email, password, familyName, inviteGot, inviteExpected string, allowOpen bool) (*User, *Family, error) {
 	email = strings.ToLower(strings.TrimSpace(email))
 	familyName = strings.TrimSpace(familyName)
 	if email == "" || password == "" || familyName == "" {
@@ -410,13 +457,15 @@ func (c *ControlStore) Signup(email, password, familyName, inviteGot, inviteExpe
 	if len(password) < 10 {
 		return nil, nil, fmt.Errorf("password must be at least 10 characters")
 	}
-	if inviteExpected != "" {
-		if inviteGot == "" {
+	if inviteExpected == "" {
+		if !allowOpen {
 			return nil, nil, errInviteRequired
 		}
-		if inviteGot != inviteExpected {
-			return nil, nil, errBadInvite
+	} else if !inviteMatches(inviteGot, inviteExpected) {
+		if strings.TrimSpace(inviteGot) == "" {
+			return nil, nil, errInviteRequired
 		}
+		return nil, nil, errBadInvite
 	}
 
 	hash, err := hashPassword(password)
@@ -481,21 +530,47 @@ func (c *ControlStore) Signup(email, password, familyName, inviteGot, inviteExpe
 func (c *ControlStore) Authenticate(email, password string) (*User, error) {
 	email = strings.ToLower(strings.TrimSpace(email))
 	var accountID int64
-	var hash, display, created string
+	var hash string
+	var fails, email2FA int
+	var locked, verified sql.NullString
 	err := c.pool.QueryRow(
-		`SELECT id, password_hash, display_name, created_at FROM accounts
-		 WHERE kind = ? AND email = ?`,
+		`SELECT id, COALESCE(password_hash, ''),
+		        failed_attempts, locked_until, email_verified_at, email_2fa
+		 FROM accounts WHERE kind = ? AND email = ?`,
 		accountOwnerEmail, email,
-	).Scan(&accountID, &hash, &display, &created)
+	).Scan(&accountID, &hash, &fails, &locked, &verified, &email2FA)
 	if errors.Is(err, sql.ErrNoRows) {
+		checkPassword(dummyPasswordHash(), password)
 		return nil, errBadCredentials
 	}
 	if err != nil {
 		return nil, err
 	}
-	if !checkPassword(hash, password) {
+	lockedNow := false
+	if locked.Valid && locked.String != "" {
+		if t, parseErr := time.Parse(time.RFC3339, locked.String); parseErr == nil && time.Now().UTC().Before(t) {
+			lockedNow = true
+		}
+	}
+	ok := hash != "" && checkPassword(hash, password)
+	if lockedNow || !ok {
+		if !lockedNow {
+			fails++
+			var lockedUntil any
+			if fails >= maxPINFails {
+				lockedUntil = time.Now().UTC().Add(pinLockMinutes * time.Minute).Format(time.RFC3339)
+			}
+			_, _ = c.pool.Exec(
+				`UPDATE accounts SET failed_attempts = ?, locked_until = ? WHERE id = ?`,
+				fails, lockedUntil, accountID,
+			)
+		}
 		return nil, errBadCredentials
 	}
+	_, _ = c.pool.Exec(
+		`UPDATE accounts SET failed_attempts = 0, locked_until = NULL WHERE id = ?`,
+		accountID,
+	)
 	var familyID string
 	err = c.pool.QueryRow(
 		`SELECT family_id FROM memberships WHERE account_id = ? AND role = ? AND status = ?`,
@@ -504,7 +579,10 @@ func (c *ControlStore) Authenticate(email, password string) (*User, error) {
 	if err != nil {
 		return nil, errBadCredentials
 	}
-	return &User{ID: accountID, FamilyID: familyID, Email: email, PasswordHash: hash}, nil
+	user := &User{ID: accountID, FamilyID: familyID, Email: email, PasswordHash: hash}
+	user.EmailVerified = verified.Valid && verified.String != ""
+	user.Email2FA = email2FA != 0
+	return user, nil
 }
 
 func (c *ControlStore) ownerMembership(accountID int64, familyID string) (int64, error) {

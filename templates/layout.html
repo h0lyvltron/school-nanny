@@ -166,6 +166,14 @@
     </div>
 </header>
 
+{{if .EmailUnverified}}
+<div class="form-error">This account's email is not confirmed yet.
+    <form method="post" action="/verify-email/resend" class="inline-form">
+        <button type="submit" class="link-button">Send the link again</button>
+    </form>
+</div>
+{{end}}
+
 <main class="page">
     {{template "content" .}}
 </main>

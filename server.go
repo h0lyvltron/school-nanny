@@ -49,16 +49,19 @@ type App struct {
 	secret    []byte
 
 	// Hosted multi-tenant fields. Local (desktop) mode leaves these zero.
-	hosted       bool
-	control      *ControlStore
-	host         *App // tenant apps point at the hosted root
-	dataRoot     string
-	baseURL      string
-	inviteCode   string
-	cookieSecure bool
-	tenantsMu    sync.Mutex
-	tenants      map[string]*App
-	filesMu      sync.Mutex
+	hosted          bool
+	control         *ControlStore
+	host            *App // tenant apps point at the hosted root
+	dataRoot        string
+	baseURL         string
+	inviteCode      string
+	cookieSecure    bool
+	tenantsMu       sync.Mutex
+	tenants         map[string]*App
+	filesMu         sync.Mutex
+	localLogins     localLoginGuard
+	allowOpenSignup bool
+	mailer          Mailer
 
 	// Templates are parsed per calendar date, because helpers like isToday and
 	// prettyDate have to be fixed to a day and html/template will not let a
@@ -73,7 +76,7 @@ type App struct {
 var pageNames = []string{
 	"home", "planner", "history", "kid", "subject", "lesson", "lesson_deleted", "tests",
 	"settings_people", "settings_school", "settings_access", "settings_data",
-	"login", "signup",
+	"login", "signup", "reset_password",
 	"attendance", "curriculum", "curriculum_new", "curriculum_new_template", "curriculum_new_toc", "curriculum_new_pdf",
 	"curriculum_plan", "curriculum_apply", "curriculum_schedule",
 	"archive", "series", "assignment",
@@ -131,6 +134,13 @@ func (a *App) Routes() http.Handler {
 	mux.HandleFunc("POST /login", h((*App).handleLogin))
 	mux.HandleFunc("GET /signup", h((*App).handleSignupForm))
 	mux.HandleFunc("POST /signup", h((*App).handleSignup))
+	mux.HandleFunc("GET /verify-email", h((*App).handleVerifyEmail))
+	mux.HandleFunc("POST /verify-email/resend", h((*App).handleResendConfirm))
+	mux.HandleFunc("POST /forgot-password", h((*App).handleForgotPassword))
+	mux.HandleFunc("GET /reset-password", h((*App).handleResetPasswordForm))
+	mux.HandleFunc("POST /reset-password", h((*App).handleResetPassword))
+	mux.HandleFunc("GET /login/code", h((*App).handleLoginCodeForm))
+	mux.HandleFunc("POST /login/code", h((*App).handleLoginCode))
 	mux.HandleFunc("POST /logout", h((*App).handleLogout))
 
 	mux.HandleFunc("GET /{$}", h((*App).handleHome))
@@ -247,6 +257,7 @@ func (a *App) Routes() http.Handler {
 	mux.HandleFunc("POST /settings/years/{id}/delete", h((*App).handleDeleteSchoolYear))
 	mux.HandleFunc("POST /settings/password", h((*App).handleSavePassword))
 	mux.HandleFunc("POST /settings/account-password", h((*App).handleChangeAccountPassword))
+	mux.HandleFunc("POST /settings/email-2fa", h((*App).handleSaveEmail2FA))
 	mux.HandleFunc("POST /settings/timezone", h((*App).handleSaveTimezone))
 	mux.HandleFunc("POST /settings/week-start", h((*App).handleSaveWeekStart))
 	mux.HandleFunc("POST /settings/backups", h((*App).handleMakeBackup))
@@ -265,7 +276,7 @@ func (a *App) Routes() http.Handler {
 	} else {
 		stack = a.bindApp(a.requireLogin(stack))
 	}
-	return a.recoverPanic(a.sameSiteOnly(stack))
+	return securityHeaders(a.recoverPanic(a.sameSiteOnly(stack)))
 }
 
 func (a *App) withHistory(mux *http.ServeMux) http.Handler {
@@ -482,6 +493,14 @@ func (a *App) pageData(r *http.Request, active string) (map[string]any, error) {
 			data["CanManageKidLogins"] = sess.CanManageKidLogins
 			if f, err := a.control.Family(sess.FamilyID); err == nil {
 				data["FamilySlug"] = f.Slug
+			}
+			if sess.IsOwner() {
+				if ok, err := a.control.emailVerified(sess.AccountID); err == nil {
+					data["EmailUnverified"] = !ok
+				}
+				if on, err := a.control.email2FAOn(sess.AccountID); err == nil {
+					data["Email2FA"] = on
+				}
 			}
 			if sess.IsKid() {
 				data["NavAdults"] = []Adult{}
@@ -748,14 +767,15 @@ func (a *App) sign(payload string) string {
 
 // Password hashing -----------------------------------------------------------
 
-const pbkdf2Iterations = 200_000
+const pbkdf2Iterations = 600_000
+const pbkdf2MaxIterations = 1_000_000
 
 func hashPassword(password string) (string, error) {
 	salt := make([]byte, 16)
 	if _, err := rand.Read(salt); err != nil {
 		return "", err
 	}
-	key, err := deriveKey(password, salt)
+	key, err := deriveKey(password, salt, pbkdf2Iterations)
 	if err != nil {
 		return "", err
 	}
@@ -768,6 +788,10 @@ func checkPassword(encoded, password string) bool {
 	if len(parts) != 4 || parts[0] != "pbkdf2" {
 		return false
 	}
+	rounds, err := strconv.Atoi(parts[1])
+	if err != nil || rounds < 1 || rounds > pbkdf2MaxIterations {
+		return false
+	}
 	salt, err := hex.DecodeString(parts[2])
 	if err != nil {
 		return false
@@ -776,7 +800,7 @@ func checkPassword(encoded, password string) bool {
 	if err != nil {
 		return false
 	}
-	got, err := deriveKey(password, salt)
+	got, err := deriveKey(password, salt, rounds)
 	if err != nil {
 		return false
 	}
@@ -785,9 +809,86 @@ func checkPassword(encoded, password string) bool {
 
 var errEmptyPassword = errors.New("password must not be empty")
 
-func deriveKey(password string, salt []byte) ([]byte, error) {
+func deriveKey(password string, salt []byte, rounds int) ([]byte, error) {
 	if password == "" {
 		return nil, errEmptyPassword
 	}
-	return pbkdf2.Key(sha256.New, password, salt, pbkdf2Iterations, 32)
+	if rounds < 1 || rounds > pbkdf2MaxIterations {
+		return nil, errEmptyPassword
+	}
+	return pbkdf2.Key(sha256.New, password, salt, rounds, 32)
+}
+
+func passwordsMatch(password, confirm string) bool {
+	if len(password) != len(confirm) {
+		return false
+	}
+	return subtle.ConstantTimeCompare([]byte(password), []byte(confirm)) == 1
+}
+
+var (
+	dummyHashOnce sync.Once
+	dummyHash     string
+)
+
+func dummyPasswordHash() string {
+	dummyHashOnce.Do(func() {
+		h, err := hashPassword("not-a-real-account-password")
+		if err != nil {
+			dummyHash = "pbkdf2$1$00$00"
+			return
+		}
+		dummyHash = h
+	})
+	return dummyHash
+}
+
+// localLoginGuard is the house-password lockout. There is one password and no
+// accounts row, so the counter lives in the process.
+type localLoginGuard struct {
+	mu          sync.Mutex
+	fails       int
+	lockedUntil time.Time
+}
+
+func (g *localLoginGuard) locked() bool {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if g.lockedUntil.IsZero() {
+		return false
+	}
+	if time.Now().Before(g.lockedUntil) {
+		return true
+	}
+	g.lockedUntil = time.Time{}
+	return false
+}
+
+func (g *localLoginGuard) fail() {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if !g.lockedUntil.IsZero() && time.Now().Before(g.lockedUntil) {
+		return
+	}
+	g.fails++
+	if g.fails >= maxPINFails {
+		g.lockedUntil = time.Now().Add(pinLockMinutes * time.Minute)
+	}
+}
+
+func (g *localLoginGuard) success() {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.fails = 0
+	g.lockedUntil = time.Time{}
+}
+
+func securityHeaders(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		h := w.Header()
+		h.Set("X-Content-Type-Options", "nosniff")
+		h.Set("Referrer-Policy", "same-origin")
+		h.Set("Content-Security-Policy", "frame-ancestors 'none'; object-src 'none'; base-uri 'self'")
+		next.ServeHTTP(w, r)
+	})
 }

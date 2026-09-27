@@ -21,6 +21,11 @@ import (
 const (
 	dataFolderName    = "school-nanny"
 	uploadsFolderName = "uploads"
+
+	// Family records are private. Unix hosts honor these; Windows does not
+	// treat them as ACLs, and callers ignore chmod errors there.
+	dirPerm  = 0o700
+	filePerm = 0o600
 )
 
 // defaultDataDir is where records go when -data was not given.
@@ -117,6 +122,23 @@ func samePath(a, b string) bool {
 	return absA == absB
 }
 
+// tightenDataPerms makes an existing data tree private. Failures are ignored
+// so a Windows ACL or a busy file does not stop the app from starting.
+func tightenDataPerms(root string) {
+	_ = os.Chmod(root, dirPerm)
+	_ = filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+		if err != nil || info == nil {
+			return nil
+		}
+		mode := os.FileMode(filePerm)
+		if info.IsDir() {
+			mode = dirPerm
+		}
+		_ = os.Chmod(path, mode)
+		return nil
+	})
+}
+
 func fileExists(path string) bool {
 	info, err := os.Stat(path)
 	return err == nil && !info.IsDir()
@@ -136,7 +158,7 @@ func copyTree(src, dst string) error {
 		}
 		target := filepath.Join(dst, rel)
 		if entry.IsDir() {
-			return os.MkdirAll(target, 0o755)
+			return os.MkdirAll(target, dirPerm)
 		}
 		if !entry.Type().IsRegular() {
 			return nil
@@ -146,7 +168,7 @@ func copyTree(src, dst string) error {
 }
 
 func copyFile(src, dst string) error {
-	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(dst), dirPerm); err != nil {
 		return err
 	}
 	in, err := os.Open(src)
@@ -155,7 +177,7 @@ func copyFile(src, dst string) error {
 	}
 	defer in.Close()
 
-	out, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644)
+	out, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, filePerm)
 	if err != nil {
 		return err
 	}

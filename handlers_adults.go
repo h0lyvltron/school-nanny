@@ -842,7 +842,11 @@ func (a *App) handleAdultAvatarDelete(w http.ResponseWriter, r *http.Request) {
 
 func (a *App) handleAdultAvatarImage(w http.ResponseWriter, r *http.Request) {
 	// Avatar bytes appear on shared surfaces (today/planner chips); do not
-	// apply the adult-page planning gate here.
+	// apply the adult-page planning gate here. A kid session still only sees
+	// their own photo.
+	if !a.allowKidAvatar(w, r, 0) {
+		return
+	}
 	adult, err := a.store.Adult(pathID(r, "id"))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {

@@ -20,10 +20,12 @@ const (
 
 // HostedConfig is the env-driven hosted mode settings.
 type HostedConfig struct {
-	DataRoot     string
-	BaseURL      string
-	InviteCode   string
-	CookieSecure bool
+	DataRoot        string
+	BaseURL         string
+	InviteCode      string
+	CookieSecure    bool
+	AllowOpenSignup bool
+	Mailer          Mailer
 }
 
 func hostedModeEnabled() bool {
@@ -41,11 +43,15 @@ func loadHostedConfig(dataRoot string) HostedConfig {
 	if v := strings.ToLower(strings.TrimSpace(os.Getenv("COOKIE_SECURE"))); v == "0" || v == "false" {
 		secure = false
 	}
+	open := strings.TrimSpace(os.Getenv("ALLOW_OPEN_SIGNUP"))
+	allowOpen := open == "1" || strings.EqualFold(open, "true")
 	return HostedConfig{
-		DataRoot:     dataRoot,
-		BaseURL:      base,
-		InviteCode:   strings.TrimSpace(os.Getenv("INVITE_CODE")),
-		CookieSecure: secure,
+		DataRoot:        dataRoot,
+		BaseURL:         base,
+		InviteCode:      strings.TrimSpace(os.Getenv("INVITE_CODE")),
+		CookieSecure:    secure,
+		AllowOpenSignup: allowOpen,
+		Mailer:          mailerFromEnv(),
 	}
 }
 
@@ -72,10 +78,10 @@ func sessionFrom(r *http.Request) *Session {
 // NewHostedApp opens the control plane and prepares tenant caching. Family DBs
 // open lazily on first authenticated request.
 func NewHostedApp(cfg HostedConfig) (*App, error) {
-	if err := os.MkdirAll(cfg.DataRoot, 0o755); err != nil {
+	if err := os.MkdirAll(cfg.DataRoot, dirPerm); err != nil {
 		return nil, err
 	}
-	if err := os.MkdirAll(filepath.Join(cfg.DataRoot, familiesDirName), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(cfg.DataRoot, familiesDirName), dirPerm); err != nil {
 		return nil, err
 	}
 	control, err := OpenControlStore(filepath.Join(cfg.DataRoot, controlDBName))
@@ -83,21 +89,24 @@ func NewHostedApp(cfg HostedConfig) (*App, error) {
 		return nil, err
 	}
 	app := &App{
-		dataDir:      cfg.DataRoot,
-		uploadDir:    "",
-		tmplSet:      map[string]*templateSet{},
-		hosted:       true,
-		control:      control,
-		dataRoot:     cfg.DataRoot,
-		baseURL:      cfg.BaseURL,
-		inviteCode:   cfg.InviteCode,
-		cookieSecure: cfg.CookieSecure,
-		tenants:      map[string]*App{},
+		dataDir:         cfg.DataRoot,
+		uploadDir:       "",
+		tmplSet:         map[string]*templateSet{},
+		hosted:          true,
+		control:         control,
+		dataRoot:        cfg.DataRoot,
+		baseURL:         cfg.BaseURL,
+		inviteCode:      cfg.InviteCode,
+		cookieSecure:    cfg.CookieSecure,
+		allowOpenSignup: cfg.AllowOpenSignup,
+		mailer:          cfg.Mailer,
+		tenants:         map[string]*App{},
 	}
 	if _, err := app.templatesFor(today()); err != nil {
 		control.Close()
 		return nil, err
 	}
+	tightenDataPerms(cfg.DataRoot)
 	return app, nil
 }
 
@@ -127,7 +136,7 @@ func (a *App) tenantApp(familyID string) (*App, error) {
 	}
 
 	dir := familyDataDir(a.dataRoot, familyID)
-	if err := os.MkdirAll(filepath.Join(dir, uploadsFolderName), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(dir, uploadsFolderName), dirPerm); err != nil {
 		return nil, err
 	}
 	store, err := OpenStore(filepath.Join(dir, dbFileName))
@@ -139,17 +148,19 @@ func (a *App) tenantApp(familyID string) (*App, error) {
 		return nil, err
 	}
 	tenant := &App{
-		store:        store,
-		dataDir:      dir,
-		uploadDir:    filepath.Join(dir, uploadsFolderName),
-		tmplSet:      a.tmplSet,
-		hosted:       true,
-		control:      a.control,
-		host:         a,
-		dataRoot:     a.dataRoot,
-		baseURL:      a.baseURL,
-		inviteCode:   a.inviteCode,
-		cookieSecure: a.cookieSecure,
+		store:           store,
+		dataDir:         dir,
+		uploadDir:       filepath.Join(dir, uploadsFolderName),
+		tmplSet:         a.tmplSet,
+		hosted:          true,
+		control:         a.control,
+		host:            a,
+		dataRoot:        a.dataRoot,
+		baseURL:         a.baseURL,
+		inviteCode:      a.inviteCode,
+		cookieSecure:    a.cookieSecure,
+		allowOpenSignup: a.allowOpenSignup,
+		mailer:          a.mailer,
 	}
 	a.tenants[familyID] = tenant
 	return tenant, nil
@@ -163,7 +174,7 @@ func (a *App) adoptLegacyData(familyID string) error {
 		return nil
 	}
 	dest := familyDataDir(a.dataRoot, familyID)
-	if err := os.MkdirAll(dest, 0o755); err != nil {
+	if err := os.MkdirAll(dest, dirPerm); err != nil {
 		return err
 	}
 	destDB := filepath.Join(dest, dbFileName)
@@ -236,7 +247,8 @@ func isHostedPublicPath(path string) bool {
 		return true
 	}
 	switch path {
-	case "/login", "/signup", "/healthz":
+	case "/login", "/signup", "/healthz",
+		"/forgot-password", "/reset-password", "/verify-email", "/login/code":
 		return true
 	}
 	return false

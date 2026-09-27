@@ -26,4 +26,4 @@
     state: directory
     owner: "{{ school_nanny_uid }}"
     group: "{{ school_nanny_gid }}"
-    mode: "0755"
+    mode: "0700"

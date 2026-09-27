@@ -910,6 +910,8 @@
             Archive merged: curriculum plans and missing files were added. School records were not replaced.
         {{else if eq .Saved "account-password"}}
             Account password updated.
+        {{else if eq .Saved "email-2fa"}}
+            Sign-in code setting saved.
         {{else if eq .Saved "pin-created"}}
             Login created{{if .NewPINWho}} for {{.NewPINWho}}{{end}}.
             {{if .NewPIN}}PIN shown once: <strong>{{.NewPIN}}</strong>. Write it down now.{{end}}
