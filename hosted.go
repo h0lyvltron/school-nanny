@@ -247,12 +247,8 @@ func isHostedPublicPath(path string) bool {
 		return true
 	}
 	switch path {
-<<<<<<< HEAD
-	case "/login", "/signup", "/healthz",
+	case "/login", "/signup", "/healthz", "/.well-known/caldav",
 		"/forgot-password", "/reset-password", "/verify-email", "/login/code":
-=======
-	case "/login", "/signup", "/healthz", "/.well-known/caldav":
->>>>>>> 130d384b80a3ea6b147fbba5f7ab56c126d7c3e2
 		return true
 	}
 	return false

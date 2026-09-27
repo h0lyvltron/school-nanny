@@ -336,10 +336,17 @@ func (a *App) handleSavePassword(w http.ResponseWriter, r *http.Request) {
 	a.redirect(w, r, "/settings/access?saved=password")
 }
 
-<<<<<<< HEAD
 func (a *App) rejectSettingsPassword(w http.ResponseWriter, r *http.Request, msg string) {
 	data, err := a.settingsPageData(w, r, settingsAccess)
-=======
+	if err != nil {
+		a.serverError(w, err)
+		return
+	}
+	data["Error"] = msg
+	w.WriteHeader(http.StatusBadRequest)
+	a.render(w, "settings_access", data)
+}
+
 func (a *App) handleSaveCalendarPassword(w http.ResponseWriter, r *http.Request) {
 	if !a.requirePlanningAccess(w, r) {
 		return
@@ -358,16 +365,10 @@ func (a *App) handleSaveCalendarPassword(w http.ResponseWriter, r *http.Request)
 		user = "calendar"
 	}
 	hash, err := hashPassword(password)
->>>>>>> 130d384b80a3ea6b147fbba5f7ab56c126d7c3e2
 	if err != nil {
 		a.serverError(w, err)
 		return
 	}
-<<<<<<< HEAD
-	data["Error"] = msg
-	w.WriteHeader(http.StatusBadRequest)
-	a.render(w, "settings_access", data)
-=======
 	if err := a.store.SetSetting(settingCalendarUser, user); err != nil {
 		a.serverError(w, err)
 		return
@@ -389,7 +390,6 @@ func (a *App) handleRevokeCalendarPassword(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	a.redirect(w, r, "/settings/access?saved=calendar-revoked")
->>>>>>> 130d384b80a3ea6b147fbba5f7ab56c126d7c3e2
 }
 
 func (a *App) handleSaveTimezone(w http.ResponseWriter, r *http.Request) {
