@@ -264,6 +264,28 @@ CREATE TABLE IF NOT EXISTS email_tokens (
 CREATE INDEX IF NOT EXISTS email_tokens_account ON email_tokens(account_id, purpose);
 CREATE INDEX IF NOT EXISTS email_tokens_challenge ON email_tokens(challenge_id);
 `)
+	if err != nil {
+		return err
+	}
+	return c.grandfatherUnverifiedOwners()
+}
+
+// grandfatherUnverifiedOwners confirms owner emails that were saved before
+// verification mail existed. A confirm token means signup already asked for
+// verification, and those accounts stay unverified until the link is used.
+func (c *ControlStore) grandfatherUnverifiedOwners() error {
+	_, err := c.pool.Exec(`
+UPDATE accounts
+SET email_verified_at = COALESCE(NULLIF(created_at, ''), ?)
+WHERE kind = ?
+  AND email IS NOT NULL
+  AND trim(email) != ''
+  AND (email_verified_at IS NULL OR email_verified_at = '')
+  AND id NOT IN (
+    SELECT account_id FROM email_tokens WHERE purpose = ?
+  )`,
+		time.Now().UTC().Format(time.RFC3339), accountOwnerEmail, tokenConfirm,
+	)
 	return err
 }
 

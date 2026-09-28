@@ -432,6 +432,70 @@ func TestEmailSigninCode(t *testing.T) {
 	}
 }
 
+func TestOwnersFromBeforeVerificationAreConfirmed(t *testing.T) {
+	ta := newHostedTestApp(t, "secret-invite")
+	code, _, path := ta.postForm("/signup", url.Values{
+		"email":            {"wife@example.com"},
+		"password":         {"correct-horse"},
+		"password_confirm": {"correct-horse"},
+		"family_name":      {"Already Here"},
+		"invite_code":      {"secret-invite"},
+	})
+	if code != 200 || path != "/" {
+		t.Fatalf("signup: %d %s", code, path)
+	}
+	if _, err := ta.control.pool.Exec(
+		`UPDATE accounts SET email_verified_at = NULL WHERE email = ?`, "wife@example.com",
+	); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ta.control.pool.Exec(`DELETE FROM email_tokens`); err != nil {
+		t.Fatal(err)
+	}
+	if err := ta.control.grandfatherUnverifiedOwners(); err != nil {
+		t.Fatal(err)
+	}
+	var verified string
+	if err := ta.control.pool.QueryRow(
+		`SELECT COALESCE(email_verified_at, '') FROM accounts WHERE email = ?`, "wife@example.com",
+	).Scan(&verified); err != nil {
+		t.Fatal(err)
+	}
+	if verified == "" {
+		t.Fatal("owner from before verification mail was left unconfirmed")
+	}
+
+	raw, err := randomToken()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var id int64
+	if err := ta.control.pool.QueryRow(
+		`SELECT id FROM accounts WHERE email = ?`, "wife@example.com",
+	).Scan(&id); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ta.control.pool.Exec(
+		`UPDATE accounts SET email_verified_at = NULL WHERE id = ?`, id,
+	); err != nil {
+		t.Fatal(err)
+	}
+	if err := ta.control.issueEmailToken(id, tokenConfirm, raw, "", confirmTokenTTL); err != nil {
+		t.Fatal(err)
+	}
+	if err := ta.control.grandfatherUnverifiedOwners(); err != nil {
+		t.Fatal(err)
+	}
+	if err := ta.control.pool.QueryRow(
+		`SELECT COALESCE(email_verified_at, '') FROM accounts WHERE id = ?`, id,
+	).Scan(&verified); err != nil {
+		t.Fatal(err)
+	}
+	if verified != "" {
+		t.Fatal("an account with a confirm token should stay unverified")
+	}
+}
+
 func TestKidAvatarScope(t *testing.T) {
 	ta := newHostedTestApp(t, "secret-invite")
 	code, _, path := ta.postForm("/signup", url.Values{

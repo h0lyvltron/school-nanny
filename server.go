@@ -505,8 +505,9 @@ func (a *App) pageData(r *http.Request, active string) (map[string]any, error) {
 				data["FamilySlug"] = f.Slug
 			}
 			if sess.IsOwner() {
+				data["CanSendEmail"] = a.mailer != nil
 				if ok, err := a.control.emailVerified(sess.AccountID); err == nil {
-					data["EmailUnverified"] = !ok
+					data["EmailUnverified"] = !ok && a.mailer != nil
 				}
 				if on, err := a.control.email2FAOn(sess.AccountID); err == nil {
 					data["Email2FA"] = on

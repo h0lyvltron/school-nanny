@@ -224,7 +224,7 @@ func (a *App) handleResendConfirm(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if a.mailer == nil {
-		http.Error(w, "Email is not configured.", http.StatusServiceUnavailable)
+		http.Error(w, "This server is not set up to send email.", http.StatusServiceUnavailable)
 		return
 	}
 	if created, ok := a.control.recentConfirmToken(sess.AccountID); ok && time.Since(created) < resendMinGap {
