@@ -61,6 +61,7 @@ type App struct {
 	tenantsMu       sync.Mutex
 	tenants         map[string]*App
 	filesMu         sync.Mutex
+	pdfSplitMu      sync.Mutex
 	localLogins     localLoginGuard
 	allowOpenSignup bool
 	mailer          Mailer
@@ -117,6 +118,7 @@ func NewApp(store *Store, dataDir string) (*App, error) {
 		}
 	}
 	app.secret = []byte(secret)
+	app.startPDFPageSplit()
 
 	return app, nil
 }
@@ -245,6 +247,7 @@ func (a *App) Routes() http.Handler {
 	mux.HandleFunc("GET /avatars/adults/{id}", h((*App).handleAdultAvatarImage))
 
 	mux.HandleFunc("POST /files", h((*App).handleUpload))
+	mux.HandleFunc("GET /files/pages/{hash}", h((*App).handlePDFPage))
 	mux.HandleFunc("GET /files/{id}", h((*App).handleDownload))
 	mux.HandleFunc("POST /files/{id}/delete", h((*App).handleDeleteFile))
 

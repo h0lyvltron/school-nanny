@@ -163,6 +163,7 @@ func (a *App) tenantApp(familyID string) (*App, error) {
 		mailer:          a.mailer,
 	}
 	a.tenants[familyID] = tenant
+	tenant.startPDFPageSplit()
 	return tenant, nil
 }
 

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -767,6 +768,11 @@ func (a *App) handleCurriculumFromPDF(w http.ResponseWriter, r *http.Request) {
 		os.Remove(filepath.Join(a.uploadDir, stored))
 		a.serverError(w, err)
 		return
+	}
+	if att, err := a.store.CurriculumPDFForPlan(planID); err == nil {
+		if err := a.splitCurriculumPDF(att); err != nil {
+			log.Printf("pdf pages: %v", err)
+		}
 	}
 
 	a.redirect(w, r, "/curriculum/"+strconv.FormatInt(planID, 10)+"?from_pdf=1")

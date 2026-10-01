@@ -2,6 +2,7 @@ package main
 
 import (
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -613,6 +614,25 @@ func (a *App) handleLesson(w http.ResponseWriter, r *http.Request) {
 	}
 	data["PDFFile"] = pdfFile
 	data["HasPDF"] = hasPDF
+	if hasPDF && lesson.PageStart > 0 {
+		end := lesson.PageEnd
+		if end < lesson.PageStart {
+			end = lesson.PageStart
+		}
+		hashes, err := a.store.PDFPageHashes(pdfFile.ID, lesson.PageStart, end)
+		if err != nil {
+			a.serverError(w, err)
+			return
+		}
+		if len(hashes) > 0 {
+			raw, err := json.Marshal(hashes)
+			if err != nil {
+				a.serverError(w, err)
+				return
+			}
+			data["PDFPageHashesJSON"] = string(raw)
+		}
+	}
 
 	a.render(w, "lesson", data)
 }

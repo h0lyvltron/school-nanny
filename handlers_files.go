@@ -179,6 +179,71 @@ func detectUploadContentType(filename, headerType string, r io.Reader) (string, 
 	return "application/octet-stream", rest, nil
 }
 
+func validPageHash(hash string) bool {
+	if len(hash) != 64 {
+		return false
+	}
+	for _, r := range hash {
+		switch {
+		case r >= '0' && r <= '9', r >= 'a' && r <= 'f':
+		default:
+			return false
+		}
+	}
+	return true
+}
+
+func (a *App) handlePDFPage(w http.ResponseWriter, r *http.Request) {
+	hash := r.PathValue("hash")
+	if !validPageHash(hash) {
+		a.notFound(w)
+		return
+	}
+	page, err := a.store.PDFPageByHash(hash)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			a.notFound(w)
+			return
+		}
+		a.serverError(w, err)
+		return
+	}
+	record, err := a.store.Attachment(page.AttachmentID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			a.notFound(w)
+			return
+		}
+		a.serverError(w, err)
+		return
+	}
+	if !a.enforceAttachmentAccess(w, r, record) {
+		return
+	}
+	path, ok := containedPath(a.uploadDir, page.StoredPath)
+	if !ok {
+		a.notFound(w)
+		return
+	}
+	file, err := os.Open(path)
+	if err != nil {
+		a.notFound(w)
+		return
+	}
+	defer file.Close()
+	info, err := file.Stat()
+	if err != nil {
+		a.serverError(w, err)
+		return
+	}
+	w.Header().Set("Content-Type", pdfPageContentType)
+	w.Header().Set("Cache-Control", "private, max-age=31536000, immutable")
+	w.Header().Set("Vary", "Cookie")
+	w.Header().Set("ETag", fmt.Sprintf(`"pdf-page-%s"`, hash))
+	w.Header().Set("Content-Disposition", "inline")
+	http.ServeContent(w, r, hash+".pdf", info.ModTime(), file)
+}
+
 func (a *App) handleDownload(w http.ResponseWriter, r *http.Request) {
 	record, err := a.store.Attachment(pathID(r, "id"))
 	if err != nil {

@@ -37,6 +37,9 @@ async function mountViewer(root) {
   var customScale = 1;
   var pageStart = Math.max(1, parseIntAttr(root, "data-page-start", 1));
   var pageEndAttr = parseIntAttr(root, "data-page-end", 0);
+  var pageHashes = pageHashList(root);
+  var usePages = pageHashes.length > 0;
+  var pageDocs = new Map();
   var currentPage = pageStart;
   var rendering = false;
   var pendingPage = null;
@@ -91,7 +94,7 @@ async function mountViewer(root) {
   }
 
   async function renderPage(num) {
-    if (!pdfDoc) {
+    if (!pdfDoc && !usePages) {
       return;
     }
     if (rendering) {
@@ -107,7 +110,9 @@ async function mountViewer(root) {
       }
       currentPage = targetPage;
       updateChrome();
-      var page = await pdfDoc.getPage(currentPage);
+      var page = usePages
+        ? await openSplitPage(currentPage)
+        : await pdfDoc.getPage(currentPage);
       var scale = computeFitScale(page);
       currentScale = scale;
       var viewport = page.getViewport({ scale: scale });
@@ -124,6 +129,9 @@ async function mountViewer(root) {
       }).promise;
       updateFullscreenArrowPositions();
       setStatus("");
+      if (usePages && currentPage < pageEnd) {
+        prefetchSplitPage(currentPage + 1);
+      }
     } catch (err) {
       setStatus("Could not render that page.");
       console.error(err);
@@ -361,27 +369,73 @@ async function mountViewer(root) {
     }
   });
 
-  setStatus("Loading PDF…");
-  try {
-    pdfDoc = await pdfjsLib.getDocument({
-      url: url,
+  function hashFor(bookPage) {
+    var i = bookPage - pageStart;
+    if (i < 0 || i >= pageHashes.length) {
+      return "";
+    }
+    return pageHashes[i] || "";
+  }
+
+  function loadSplitDoc(bookPage) {
+    if (pageDocs.has(bookPage)) {
+      return pageDocs.get(bookPage);
+    }
+    var hash = hashFor(bookPage);
+    if (!hash) {
+      return Promise.reject(new Error("missing page"));
+    }
+    var pending = pdfjsLib.getDocument({
+      url: "/files/pages/" + hash,
       withCredentials: true,
-      // Hosted connections pay much more per request than LAN connections.
-      // Larger ranges avoid hundreds of 64 KiB round trips for image-heavy
-      // textbooks, while these flags prevent downloading the whole book in
-      // the background when the lesson only needs a few pages.
-      rangeChunkSize: 1024 * 1024,
       disableAutoFetch: true,
       disableStream: true
     }).promise;
-    if (pageEndAttr > 0) {
-      pageEnd = Math.min(pageEndAttr, pdfDoc.numPages);
+    pageDocs.set(bookPage, pending);
+    return pending;
+  }
+
+  function prefetchSplitPage(bookPage) {
+    loadSplitDoc(bookPage).catch(function () {
+      pageDocs.delete(bookPage);
+    });
+  }
+
+  async function openSplitPage(bookPage) {
+    var doc = await loadSplitDoc(bookPage);
+    return doc.getPage(1);
+  }
+
+  setStatus("Loading PDF…");
+  try {
+    if (usePages) {
+      pageEnd = pageStart + pageHashes.length - 1;
+      if (pageEndAttr > 0) {
+        pageEnd = Math.min(pageEndAttr, pageEnd);
+      }
+      pageEnd = Math.max(pageEnd, pageStart);
+      currentPage = pageStart;
     } else {
-      pageEnd = pdfDoc.numPages;
+      pdfDoc = await pdfjsLib.getDocument({
+        url: url,
+        withCredentials: true,
+        // Hosted connections pay much more per request than LAN connections.
+        // Larger ranges avoid hundreds of 64 KiB round trips for image-heavy
+        // textbooks, while these flags prevent downloading the whole book in
+        // the background when the lesson only needs a few pages.
+        rangeChunkSize: 1024 * 1024,
+        disableAutoFetch: true,
+        disableStream: true
+      }).promise;
+      if (pageEndAttr > 0) {
+        pageEnd = Math.min(pageEndAttr, pdfDoc.numPages);
+      } else {
+        pageEnd = pdfDoc.numPages;
+      }
+      pageStart = clamp(pageStart, 1, pdfDoc.numPages);
+      pageEnd = clamp(pageEnd, pageStart, pdfDoc.numPages);
+      currentPage = pageStart;
     }
-    pageStart = clamp(pageStart, 1, pdfDoc.numPages);
-    pageEnd = clamp(pageEnd, pageStart, pdfDoc.numPages);
-    currentPage = pageStart;
     if (jump) {
       jump.min = String(pageStart);
       jump.max = String(pageEnd);
@@ -391,6 +445,19 @@ async function mountViewer(root) {
   } catch (err) {
     setStatus("Could not open that PDF.");
     console.error(err);
+  }
+}
+
+function pageHashList(root) {
+  var raw = root.getAttribute("data-page-hashes");
+  if (!raw) {
+    return [];
+  }
+  try {
+    var parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (e) {
+    return [];
   }
 }
 
