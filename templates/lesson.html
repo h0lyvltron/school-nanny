@@ -178,13 +178,11 @@
                  data-page-start="{{if .Lesson.PageStart}}{{.Lesson.PageStart}}{{else}}1{{end}}"
                  data-page-end="{{if .Lesson.PageEnd}}{{.Lesson.PageEnd}}{{end}}">
                 <div class="pdf-viewer-toolbar" role="toolbar" aria-label="PDF controls">
-                    <label class="muted small">Jump
-                        <input type="number" data-pdf-jump min="1" aria-label="Jump to page">
-                    </label>
                     <button type="button" class="secondary" data-pdf-zoom-out>Zoom out</button>
                     <button type="button" class="secondary" data-pdf-zoom-in>Zoom in</button>
                     <button type="button" class="secondary" data-pdf-fit-width>Fit width</button>
                     <button type="button" class="secondary" data-pdf-fit-page>Fit page</button>
+                    <button type="button" class="secondary" data-pdf-rotate title="Rotate 90° between portrait and landscape">Rotate</button>
                     <button type="button" class="secondary" data-pdf-reset>Reset</button>
                     <span class="muted small" data-pdf-page-label></span>
                 </div>

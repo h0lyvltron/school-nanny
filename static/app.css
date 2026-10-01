@@ -2490,11 +2490,6 @@ a.plan-row:hover .muted { color: var(--ink-soft); }
     padding: 0.35rem 0.65rem;
 }
 
-.pdf-viewer-toolbar input[type="number"] {
-    width: 4.5rem;
-    margin: 0;
-}
-
 .pdf-viewer-stage-wrap {
     position: relative;
 }

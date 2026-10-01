@@ -35,6 +35,7 @@ async function mountViewer(root) {
 
   var fitMode = "width"; // width | page | custom
   var customScale = 1;
+  var rotation = 0;
   var pageStart = Math.max(1, parseIntAttr(root, "data-page-start", 1));
   var pageEndAttr = parseIntAttr(root, "data-page-end", 0);
   var pageHashes = pageHashList(root);
@@ -76,14 +77,14 @@ async function mountViewer(root) {
     if (nextButton) {
       nextButton.disabled = currentPage >= pageEnd;
     }
-    var jumpInput = root.querySelector("[data-pdf-jump]");
-    if (jumpInput) {
-      jumpInput.value = String(currentPage);
-    }
+  }
+
+  function viewRotation(page) {
+    return ((page.rotate || 0) + rotation) % 360;
   }
 
   function computeFitScale(page) {
-    var base = page.getViewport({ scale: 1 });
+    var base = page.getViewport({ scale: 1, rotation: viewRotation(page) });
     var availW = Math.max(120, stage.clientWidth - 8);
     var availH = Math.max(120, stage.clientHeight - 8);
     if (fitMode === "page") {
@@ -102,7 +103,7 @@ async function mountViewer(root) {
   async function paint(page) {
     var scale = computeFitScale(page);
     currentScale = scale;
-    var viewport = page.getViewport({ scale: scale });
+    var viewport = page.getViewport({ scale: scale, rotation: viewRotation(page) });
     var outputScale = window.devicePixelRatio || 1;
     canvas.width = Math.floor(viewport.width * outputScale);
     canvas.height = Math.floor(viewport.height * outputScale);
@@ -384,21 +385,16 @@ async function mountViewer(root) {
     fitMode = "page";
     renderPage(currentPage);
   });
+  root.querySelector("[data-pdf-rotate]")?.addEventListener("click", function () {
+    rotation = (rotation + 90) % 360;
+    renderPage(currentPage);
+  });
   root.querySelector("[data-pdf-reset]")?.addEventListener("click", function () {
     fitMode = "width";
     customScale = 1;
+    rotation = 0;
     renderPage(pageStart);
   });
-
-  var jump = root.querySelector("[data-pdf-jump]");
-  if (jump) {
-    jump.addEventListener("change", function () {
-      var n = parseInt(jump.value, 10);
-      if (Number.isFinite(n)) {
-        renderPage(n);
-      }
-    });
-  }
 
   window.addEventListener("resize", function () {
     if (fitMode === "width" || fitMode === "page") {
@@ -491,11 +487,6 @@ async function mountViewer(root) {
       pageEnd = clamp(pageEnd, pageStart, pdfDoc.numPages);
       currentPage = pageStart;
       viewerReady = true;
-    }
-    if (jump) {
-      jump.min = String(pageStart);
-      jump.max = String(pageEnd);
-      jump.value = String(pageStart);
     }
     await renderPage(currentPage);
   } catch (err) {
