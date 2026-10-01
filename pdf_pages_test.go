@@ -113,6 +113,102 @@ func TestSplitCurriculumPDFKeepsLessons(t *testing.T) {
 	}
 }
 
+func TestHistoryGCKeepsSplitPDFPages(t *testing.T) {
+	ta := newTestApp(t)
+	id := curriculumPDFAttachment(t, ta)
+	att, err := ta.store.Attachment(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := ta.splitCurriculumPDF(att); err != nil {
+		t.Fatal(err)
+	}
+	orphan := filepath.Join(ta.uploadDir, "orphan.txt")
+	if err := os.WriteFile(orphan, []byte("nope"), filePerm); err != nil {
+		t.Fatal(err)
+	}
+	if err := ta.gcHistoryFiles(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(orphan); !os.IsNotExist(err) {
+		t.Fatal("orphan file survived cleanup")
+	}
+	hashes, err := ta.store.PDFPageHashes(id, 1, 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, hash := range hashes {
+		if _, err := os.Stat(filepath.Join(ta.uploadDir, "pdf-pages", hash+".pdf")); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func TestSplitRestoresMissingPageFile(t *testing.T) {
+	ta := newTestApp(t)
+	id := curriculumPDFAttachment(t, ta)
+	att, err := ta.store.Attachment(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := ta.splitCurriculumPDF(att); err != nil {
+		t.Fatal(err)
+	}
+	hashes, err := ta.store.PDFPageHashes(id, 1, 1)
+	if err != nil || len(hashes) != 1 {
+		t.Fatalf("hash: %v %v", hashes, err)
+	}
+	pagePath := filepath.Join(ta.uploadDir, "pdf-pages", hashes[0]+".pdf")
+	if err := os.Remove(pagePath); err != nil {
+		t.Fatal(err)
+	}
+	if err := ta.splitCurriculumPDF(att); err != nil {
+		t.Fatal(err)
+	}
+	restored, err := ta.store.PDFPageHashes(id, 1, 1)
+	if err != nil || len(restored) != 1 || restored[0] == "" {
+		t.Fatalf("restored hash: %v %v", restored, err)
+	}
+	if _, err := os.Stat(filepath.Join(ta.uploadDir, "pdf-pages", restored[0]+".pdf")); err != nil {
+		t.Fatal(err)
+	}
+	code, body := ta.get("/files/pages/" + restored[0])
+	if code != 200 || !strings.HasPrefix(body, "%PDF") {
+		t.Fatalf("restored page: %d", code)
+	}
+}
+
+func curriculumPDFAttachment(t *testing.T, ta *testApp) int64 {
+	t.Helper()
+	src := filepath.Join(t.TempDir(), "book.pdf")
+	if err := writeTwoPagePDF(src); err != nil {
+		t.Fatal(err)
+	}
+	body, err := os.ReadFile(src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rel := "book.pdf"
+	dest := filepath.Join(ta.uploadDir, rel)
+	if err := os.MkdirAll(ta.uploadDir, dirPerm); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(dest, body, filePerm); err != nil {
+		t.Fatal(err)
+	}
+	id, err := ta.store.CreateAttachment(Attachment{
+		OwnerType:    OwnerCurriculum,
+		OriginalName: "book.pdf",
+		StoredPath:   rel,
+		SizeBytes:    int64(len(body)),
+		ContentType:  "application/pdf",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return id
+}
+
 func writeTwoPagePDF(path string) error {
 	conf := model.NewDefaultConfiguration()
 	xRef, err := pdfcpu.CreateResourceDictInheritanceDemoXRef()

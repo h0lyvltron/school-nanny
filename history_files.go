@@ -23,7 +23,8 @@ func (a *App) gcHistoryFiles() error {
 
 	rows, err := a.store.db().Query(`SELECT stored_path FROM attachments
 		UNION SELECT avatar_path FROM kids WHERE avatar_path <> ''
-		UNION SELECT avatar_path FROM adults WHERE avatar_path <> ''`)
+		UNION SELECT avatar_path FROM adults WHERE avatar_path <> ''
+		UNION SELECT stored_path FROM pdf_pages`)
 	if err != nil {
 		return err
 	}

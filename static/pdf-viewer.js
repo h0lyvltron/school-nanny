@@ -44,6 +44,8 @@ async function mountViewer(root) {
   var rendering = false;
   var pendingPage = null;
   var pdfDoc = null;
+  var fullDocLoading = null;
+  var viewerReady = false;
   var pageEnd = pageStart;
   var currentScale = 1;
   var overlayOpen = false;
@@ -93,6 +95,33 @@ async function mountViewer(root) {
     return customScale;
   }
 
+  function renderCancelled(err) {
+    return err && (err.name === "RenderingCancelledException" || err.name === "AbortException");
+  }
+
+  async function paint(page) {
+    var scale = computeFitScale(page);
+    currentScale = scale;
+    var viewport = page.getViewport({ scale: scale });
+    var outputScale = window.devicePixelRatio || 1;
+    canvas.width = Math.floor(viewport.width * outputScale);
+    canvas.height = Math.floor(viewport.height * outputScale);
+    canvas.style.width = Math.floor(viewport.width) + "px";
+    canvas.style.height = Math.floor(viewport.height) + "px";
+    var transform = outputScale !== 1 ? [outputScale, 0, 0, outputScale, 0, 0] : null;
+    await page.render({
+      canvasContext: ctx,
+      viewport: viewport,
+      transform: transform
+    }).promise;
+    updateFullscreenArrowPositions();
+  }
+
+  async function bookPage(bookNumber) {
+    var doc = await loadFullDoc();
+    return doc.getPage(clamp(bookNumber, 1, doc.numPages));
+  }
+
   async function renderPage(num) {
     if (!pdfDoc && !usePages) {
       return;
@@ -102,6 +131,7 @@ async function mountViewer(root) {
       return;
     }
     rendering = true;
+    var fromSplit = false;
     try {
       var targetPage = clamp(num, pageStart, pageEnd);
       if (targetPage !== currentPage) {
@@ -110,30 +140,37 @@ async function mountViewer(root) {
       }
       currentPage = targetPage;
       updateChrome();
-      var page = usePages
-        ? await openSplitPage(currentPage)
-        : await pdfDoc.getPage(currentPage);
-      var scale = computeFitScale(page);
-      currentScale = scale;
-      var viewport = page.getViewport({ scale: scale });
-      var outputScale = window.devicePixelRatio || 1;
-      canvas.width = Math.floor(viewport.width * outputScale);
-      canvas.height = Math.floor(viewport.height * outputScale);
-      canvas.style.width = Math.floor(viewport.width) + "px";
-      canvas.style.height = Math.floor(viewport.height) + "px";
-      var transform = outputScale !== 1 ? [outputScale, 0, 0, outputScale, 0, 0] : null;
-      await page.render({
-        canvasContext: ctx,
-        viewport: viewport,
-        transform: transform
-      }).promise;
-      updateFullscreenArrowPositions();
+      var page = null;
+      if (usePages && hashFor(currentPage)) {
+        try {
+          page = await openSplitPage(currentPage);
+          fromSplit = true;
+        } catch (splitErr) {
+          pageDocs.delete(currentPage);
+          console.error(splitErr);
+        }
+      }
+      if (!page) {
+        page = await bookPage(currentPage);
+      }
+      try {
+        await paint(page);
+      } catch (paintErr) {
+        if (!fromSplit || renderCancelled(paintErr)) {
+          throw paintErr;
+        }
+        pageDocs.delete(currentPage);
+        console.error(paintErr);
+        await paint(await bookPage(currentPage));
+      }
       setStatus("");
       if (usePages && currentPage < pageEnd) {
         prefetchSplitPage(currentPage + 1);
       }
     } catch (err) {
-      setStatus("Could not render that page.");
+      if (!renderCancelled(err)) {
+        setStatus("Could not render that page.");
+      }
       console.error(err);
     } finally {
       rendering = false;
@@ -168,7 +205,7 @@ async function mountViewer(root) {
   }
 
   function openOverlay() {
-    if (overlayOpen || !pdfDoc) {
+    if (overlayOpen || !viewerReady) {
       return;
     }
     overlayOpen = true;
@@ -388,8 +425,9 @@ async function mountViewer(root) {
     var pending = pdfjsLib.getDocument({
       url: "/files/pages/" + hash,
       withCredentials: true,
-      disableAutoFetch: true,
-      disableStream: true
+      // One lesson page is already a small file. A single download avoids a
+      // partial range response being treated as the whole page.
+      disableRange: true
     }).promise;
     pageDocs.set(bookPage, pending);
     return pending;
@@ -406,17 +444,12 @@ async function mountViewer(root) {
     return doc.getPage(1);
   }
 
-  setStatus("Loading PDF…");
-  try {
-    if (usePages) {
-      pageEnd = pageStart + pageHashes.length - 1;
-      if (pageEndAttr > 0) {
-        pageEnd = Math.min(pageEndAttr, pageEnd);
-      }
-      pageEnd = Math.max(pageEnd, pageStart);
-      currentPage = pageStart;
-    } else {
-      pdfDoc = await pdfjsLib.getDocument({
+  function loadFullDoc() {
+    if (pdfDoc) {
+      return Promise.resolve(pdfDoc);
+    }
+    if (!fullDocLoading) {
+      fullDocLoading = pdfjsLib.getDocument({
         url: url,
         withCredentials: true,
         // Hosted connections pay much more per request than LAN connections.
@@ -426,7 +459,29 @@ async function mountViewer(root) {
         rangeChunkSize: 1024 * 1024,
         disableAutoFetch: true,
         disableStream: true
-      }).promise;
+      }).promise.then(function (doc) {
+        pdfDoc = doc;
+        return doc;
+      }, function (err) {
+        fullDocLoading = null;
+        throw err;
+      });
+    }
+    return fullDocLoading;
+  }
+
+  setStatus("Loading PDF…");
+  try {
+    if (usePages) {
+      pageEnd = pageStart + pageHashes.length - 1;
+      if (pageEndAttr > 0) {
+        pageEnd = Math.min(pageEndAttr, pageEnd);
+      }
+      pageEnd = Math.max(pageEnd, pageStart);
+      currentPage = pageStart;
+      viewerReady = true;
+    } else {
+      pdfDoc = await loadFullDoc();
       if (pageEndAttr > 0) {
         pageEnd = Math.min(pageEndAttr, pdfDoc.numPages);
       } else {
@@ -435,6 +490,7 @@ async function mountViewer(root) {
       pageStart = clamp(pageStart, 1, pdfDoc.numPages);
       pageEnd = clamp(pageEnd, pageStart, pdfDoc.numPages);
       currentPage = pageStart;
+      viewerReady = true;
     }
     if (jump) {
       jump.min = String(pageStart);

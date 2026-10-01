@@ -71,13 +71,14 @@ func (a *App) splitCurriculumPDF(att Attachment) error {
 	if count < 1 {
 		return nil
 	}
-	have, err := a.store.PDFPageNumbers(att.ID)
+	have, err := a.store.PDFPagePaths(att.ID)
 	if err != nil {
 		return err
 	}
 	var missing []string
 	for n := 1; n <= count; n++ {
-		if !have[n] {
+		rel, ok := have[n]
+		if !ok || !a.pdfPageOnDisk(rel) {
 			missing = append(missing, strconv.Itoa(n))
 		}
 	}
@@ -173,6 +174,15 @@ func (s *Store) CurriculumPDFForPlan(planID int64) (Attachment, error) {
 	return list[0], nil
 }
 
+func (a *App) pdfPageOnDisk(rel string) bool {
+	path, ok := containedPath(a.uploadDir, rel)
+	if !ok {
+		return false
+	}
+	info, err := os.Stat(path)
+	return err == nil && !info.IsDir() && info.Size() > 0
+}
+
 func (s *Store) PDFPageNumbers(attachmentID int64) (map[int]bool, error) {
 	rows, err := s.db().Query(
 		`SELECT page_number FROM pdf_pages WHERE attachment_id = ?`, attachmentID)
@@ -187,6 +197,25 @@ func (s *Store) PDFPageNumbers(attachmentID int64) (map[int]bool, error) {
 			return nil, err
 		}
 		out[n] = true
+	}
+	return out, rows.Err()
+}
+
+func (s *Store) PDFPagePaths(attachmentID int64) (map[int]string, error) {
+	rows, err := s.db().Query(
+		`SELECT page_number, stored_path FROM pdf_pages WHERE attachment_id = ?`, attachmentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[int]string{}
+	for rows.Next() {
+		var n int
+		var path string
+		if err := rows.Scan(&n, &path); err != nil {
+			return nil, err
+		}
+		out[n] = path
 	}
 	return out, rows.Err()
 }
